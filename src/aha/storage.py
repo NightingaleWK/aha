@@ -7,8 +7,9 @@ import json
 import os
 import sqlite3
 import threading
+import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ from uuid import uuid4
 
 from .domain import AppError, canonical_bytes
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
@@ -65,24 +66,10 @@ class Store:
             )
             self._db.row_factory = sqlite3.Row
             self._db.execute("PRAGMA foreign_keys=ON")
-            version = self._db.execute("PRAGMA user_version").fetchone()[0]
-            if version == 0:
-                tables = self._db.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
-                if tables:
-                    raise AppError(
-                        "unsupported_store", "本地资料库版本无法识别，请使用对应版本程序。", 409
-                    )
-                self._db.executescript(
-                    "BEGIN IMMEDIATE;\n"
-                    + _SCHEMA
-                    + f"\nPRAGMA user_version={SCHEMA_VERSION};\nCOMMIT;"
-                )
-            elif version != SCHEMA_VERSION:
-                raise AppError(
-                    "unsupported_store", "本地资料库版本不兼容，请使用对应版本程序。", 409
-                )
+            from .migrations import initialize
+
+            with self._transaction():
+                initialize(self, _SCHEMA)
             self._db.execute("SELECT value FROM settings WHERE key='revision'").fetchone()[0]
         except (OSError, sqlite3.Error, TypeError) as exc:
             if hasattr(self, "_db"):
@@ -126,6 +113,10 @@ class Store:
                 if self._db.in_transaction:
                     self._db.execute("ROLLBACK")
                 if isinstance(exc, sqlite3.Error):
+                    if isinstance(exc, sqlite3.OperationalError) and (
+                        "locked" in str(exc).lower() or "busy" in str(exc).lower()
+                    ):
+                        raise AppError("store_busy", "资料正在更新，请稍后重试。", 409) from exc
                     raise AppError(
                         "storage_write_failed", "本地资料保存失败，请检查可用空间和目录权限。", 500
                     ) from exc
@@ -237,10 +228,23 @@ class Store:
         claim: dict[str, Any],
         idempotency_key: str,
         batch_id: str | None = None,
+        *,
+        expected_generation: int | None = None,
+        expected_active_version: int | None = None,
+        request_signature: str | None = None,
     ) -> dict[str, Any]:
         from .batches import create_batch
 
-        return create_batch(self, analysis, claim, idempotency_key, batch_id)
+        return create_batch(
+            self,
+            analysis,
+            claim,
+            idempotency_key,
+            batch_id,
+            expected_generation=expected_generation,
+            expected_active_version=expected_active_version,
+            request_signature=request_signature,
+        )
 
     def list_batches(self) -> list[dict[str, Any]]:
         from .batches import list_batches
@@ -252,12 +256,119 @@ class Store:
 
         return batch_detail(self, batch_id)
 
-    def set_status(self, batch_id: str, version: int, status: str) -> dict[str, Any]:
+    def set_status(
+        self,
+        batch_id: str,
+        version: int,
+        status: str,
+        expected_generation: int | None = None,
+    ) -> dict[str, Any]:
         from .batches import set_status
 
-        return set_status(self, batch_id, version, status)
+        return set_status(self, batch_id, version, status, expected_generation)
 
     def download(self, batch_id: str, version: int) -> tuple[bytes, str]:
         from .batches import download
 
         return download(self, batch_id, version)
+
+    def claim_revision(self) -> int:
+        with self._lock:
+            self._ensure_open()
+            row = self._db.execute(
+                "SELECT value FROM settings WHERE key='claim_revision'"
+            ).fetchone()
+            return int(row[0])
+
+    def claim_snapshot(self, exclude_batch_id: str | None = None) -> dict[str, Any]:
+        from .batches import claim_snapshot
+
+        return claim_snapshot(self, exclude_batch_id)
+
+    def replay_create(self, idempotency_key: str, request_signature: str) -> dict[str, Any] | None:
+        from .batches import replay_create
+
+        return replay_create(self, idempotency_key, request_signature)
+
+    def withdraw_batch(
+        self,
+        batch_id: str,
+        expected_generation: int,
+        reason: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        from .batches import lifecycle_action
+
+        return lifecycle_action(
+            self, "withdraw", batch_id, expected_generation, reason, idempotency_key
+        )
+
+    def void_batch(
+        self,
+        batch_id: str,
+        expected_generation: int,
+        reason: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        from .batches import lifecycle_action
+
+        return lifecycle_action(
+            self, "void", batch_id, expected_generation, reason, idempotency_key
+        )
+
+    def resolve_legacy(
+        self,
+        batch_id: str,
+        selected_version: int,
+        expected_generation: int,
+        reason: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        from .batches import lifecycle_action
+
+        return lifecycle_action(
+            self,
+            "resolve",
+            batch_id,
+            expected_generation,
+            reason,
+            idempotency_key,
+            selected_version,
+        )
+
+    def _backup_v1(self) -> Path:
+        """Make a standalone pre-upgrade snapshot using a different read connection."""
+        directory = self.data_dir / "backups"
+        temporary: Path | None = None
+        try:
+            directory.mkdir(exist_ok=True)
+            name = "aha-v1-" + datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex
+            final = directory / (name + ".sqlite3")
+            temporary = directory / (name + ".tmp")
+            with temporary.open("xb"):
+                pass
+            deadline = time.monotonic() + 20
+
+            def progress(status: int, remaining: int, total: int) -> None:
+                if time.monotonic() > deadline:
+                    raise AppError("backup_failed", "升级备份超时，请退出其他程序后重试。", 409)
+
+            uri = (self.data_dir / "aha.sqlite3").resolve().as_uri() + "?mode=ro"
+            with closing(sqlite3.connect(uri, uri=True, timeout=0.25)) as source:
+                with closing(sqlite3.connect(temporary)) as destination:
+                    source.backup(destination, pages=256, progress=progress, sleep=0.02)
+                    if destination.execute("PRAGMA user_version").fetchone()[0] != 1:
+                        raise AppError("backup_failed", "升级备份校验失败，请保留原资料。", 409)
+                    if destination.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                        raise AppError("backup_failed", "升级备份校验失败，请保留原资料。", 409)
+            with temporary.open("r+b") as output:
+                os.fsync(output.fileno())
+            os.replace(temporary, final)
+            return final
+        except (OSError, sqlite3.Error) as exc:
+            raise AppError(
+                "backup_failed", "无法创建升级备份，请检查资料目录和可用空间。", 409
+            ) from exc
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)

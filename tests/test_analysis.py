@@ -321,5 +321,118 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(result["summary"]["record_count"], 1005)
 
 
+class AvailabilityAnalysisTests(unittest.TestCase):
+    def owner(self, **changes: Any) -> dict[str, Any]:
+        return {
+            "batch_id": "batch-a", "number": "AHA-000001", "version": 1,
+            "status": "draft", "lifecycle": "active", **changes,
+        }
+
+    def test_available_selection_recalculates_all_views_and_exclusion_totals(self) -> None:
+        moment = timestamp("2026-10-01T12:00:00+08:00")
+        data = source([
+            detail(request_id="used", created_at=moment, total_cost_usd="0.1000001"),
+            detail(request_id="free-a", created_at=moment + 1, total_cost_usd="0.2000002"),
+            detail(request_id="free-b", created_at=moment + 2, total_cost_usd="0.3000003"),
+        ])
+        raw = analyze(data, EMPTY_METADATA, EMPTY_CONFIG, "2026-10-01", "2026-10-01")
+        snapshot = {
+            "claim_revision": 7,
+            "claims": [{"member": raw["members"][0], "owner": self.owner()}],
+            "legacy_holds": [],
+        }
+        # Locate the source identity explicitly; member order is canonical rather than time order.
+        used_key = record_key(next(row for row in data["details"] if row["request_id"] == "used"))
+        used = next(member for member in raw["members"] if member["key"] == used_key)
+        snapshot["claims"][0]["member"] = used
+        available = analyze(
+            data, EMPTY_METADATA, EMPTY_CONFIG, "2026-10-01", "2026-10-01",
+            claim_snapshot=snapshot, availability_mode="available",
+        )
+        self.assertEqual([row["request_id"] for row in available["details"]], ["free-a", "free-b"])
+        for summary in (available["summary"], available["daily"][0], available["models"][0]):
+            self.assertEqual(summary["record_count"], 2)
+            self.assertEqual(summary["total_cost_usd"], "0.5000005")
+        availability = available["availability"]
+        self.assertEqual(availability["matched_summary"]["total_cost_usd"], "0.6000006")
+        self.assertEqual(availability["excluded_summary"]["total_cost_usd"], "0.1000001")
+        self.assertEqual(availability["excluded_groups"][0]["owners"][0]["number"], "AHA-000001")
+        self.assertEqual(len(available["members"]), 2)
+        self.assertNotIn(used["key"], {member["key"] for member in available["members"]})
+        self.assertEqual(available["claim_revision"], 7)
+        all_rows = analyze(
+            data, EMPTY_METADATA, EMPTY_CONFIG, "2026-10-01", "2026-10-01",
+            claim_snapshot=snapshot, availability_mode="all",
+        )
+        self.assertEqual(all_rows["summary"]["record_count"], 3)
+        self.assertEqual(all_rows["details"][0]["usage_state"], "claimed")
+        self.assertTrue(all(row["usage_state"] == "available" for row in all_rows["details"][1:]))
+        self.assertEqual(all_rows["availability"]["available_summary"], available["summary"])
+
+    def test_internal_coverage_group_is_excluded_without_hiding_independent_days(self) -> None:
+        data = source([
+            current(request_id="same-scope", total_cost_usd="0.3"),
+            detail(request_id="independent", created_at=timestamp("2026-10-02T12:00:00+08:00"),
+                   total_cost_usd="0.2"),
+        ], [rollup(date="2026-10-01", request_count=12, total_cost_usd="1.1")])
+        result = analyze(
+            data, EMPTY_METADATA, EMPTY_CONFIG, "2026-10-01", "2026-10-02",
+            claim_snapshot={"claim_revision": 0, "claims": [], "legacy_holds": []},
+            availability_mode="available",
+        )
+        self.assertEqual([row["request_id"] for row in result["details"]], ["independent"])
+        self.assertEqual(result["rollups"], [])
+        self.assertEqual(result["summary"]["total_cost_usd"], "0.2")
+        group = result["availability"]["excluded_groups"][0]
+        self.assertEqual(group["reason"], "internal_overlap")
+        self.assertEqual((group["row_count"], group["detail_count"], group["rollup_record_count"]),
+                         (2, 1, 12))
+        self.assertEqual(group["total_cost_usd"], "1.4")
+        self.assertEqual(result["availability"]["matched_summary"]["record_count"], 14)
+
+    def test_own_batch_is_available_only_in_explicit_revision_context(self) -> None:
+        data = source([current()])
+        raw = analyze(data, EMPTY_METADATA, EMPTY_CONFIG, "2026-10-01", "2026-10-01")
+        snapshot = {"claim_revision": 3, "claims": [
+            {"member": raw["members"][0], "owner": self.owner()}
+        ], "legacy_holds": []}
+        new = analyze(data, EMPTY_METADATA, EMPTY_CONFIG, "2026-10-01", "2026-10-01",
+                      claim_snapshot=snapshot, availability_mode="available")
+        self.assertEqual(new["summary"]["record_count"], 0)
+        revised = analyze(data, EMPTY_METADATA, EMPTY_CONFIG, "2026-10-01", "2026-10-01",
+                          claim_snapshot=snapshot, availability_mode="available",
+                          target_batch_id="batch-a", expected_generation=2,
+                          expected_active_version=1)
+        self.assertEqual(revised["summary"]["record_count"], 1)
+        self.assertEqual(revised["target_batch_id"], "batch-a")
+        self.assertEqual(revised["expected_generation"], 2)
+
+    def test_legacy_hold_and_rebuilt_identity_remain_explainable(self) -> None:
+        original = source([current(request_id="old")])
+        raw = analyze(original, EMPTY_METADATA, EMPTY_CONFIG, "2026-10-01", "2026-10-01")
+        snapshot = {"claim_revision": 4, "claims": [], "legacy_holds": [
+            {"member": raw["members"][0], "owner": self.owner(lifecycle="legacy_review")}
+        ]}
+        result = analyze(original, EMPTY_METADATA, EMPTY_CONFIG, "2026-10-01", "2026-10-01",
+                         claim_snapshot=snapshot, availability_mode="available")
+        self.assertEqual(result["summary"]["record_count"], 0)
+        self.assertEqual(result["availability"]["excluded_groups"][0]["reason"], "legacy_hold")
+        snapshot["claims"] = snapshot.pop("legacy_holds")
+        snapshot["legacy_holds"] = []
+        snapshot["claims"][0]["owner"]["lifecycle"] = "active"
+        changed = source([current(request_id="rebuilt", total_cost_usd="99")])
+        result = analyze(changed, EMPTY_METADATA, EMPTY_CONFIG, "2026-10-01", "2026-10-01",
+                         claim_snapshot=snapshot, availability_mode="all")
+        self.assertEqual(result["details"][0]["usage_state"], "ambiguous")
+        self.assertEqual(result["details"][0]["usage_reason"], "suspected_rebuild")
+        self.assertEqual(result["availability"]["available_summary"]["record_count"], 0)
+
+    def test_invalid_availability_mode_is_rejected(self) -> None:
+        with self.assertRaises(AppError) as error:
+            analyze(source([current()]), EMPTY_METADATA, EMPTY_CONFIG,
+                    "2026-10-01", "2026-10-01", availability_mode="anything")
+        self.assertEqual(error.exception.code, "invalid_availability_mode")
+
+
 if __name__ == "__main__":
     unittest.main()

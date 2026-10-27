@@ -6,6 +6,7 @@ from datetime import datetime, time, timedelta
 from decimal import Decimal, localcontext
 from typing import Any
 
+from . import claims
 from .domain import (
     BEIJING,
     SCHEMA_VERSION,
@@ -117,37 +118,80 @@ def _enrich(
 
 
 def _member(row: dict[str, Any], grain: str) -> dict[str, Any]:
-    member = {
-        "kind": grain,
-        "key": row["record_key"],
-        "content_hash": row["content_fingerprint"],
-        "date": row["date"],
-        "model": row["model"],
-        "app_type": row["app_type"],
-        "data_source": row["data_source"] if grain == "detail" else "codex_session",
-        "provider_id": row["provider_id"],
-        **{key: row[key] for key in _TOKEN_METRICS},
-    }
-    if grain == "detail":
-        member.update({"session_id": row.get("session_id"), "created_at": row["created_at"]})
-        member["semantic_key"] = content_hash(
-            [
-                member[key]
-                for key in (
-                    "app_type",
-                    "data_source",
-                    "session_id",
-                    "created_at",
-                    "model",
-                    *_TOKEN_METRICS,
-                )
-            ]
-        )
-    else:
-        member["request_count"] = row["request_count"]
-        member["request_model"] = row["request_model"]
-        member["pricing_model"] = row["pricing_model"]
-    return member
+    return claims.member_from_row(row, grain)
+
+
+_EXCLUSION_MESSAGES = {
+    "identity": "已被其他报销记录占用。",
+    "suspected_rebuild": "这部分用量可能与已有记录重复，请先核对。",
+    "cross_grain": "这部分用量与已有日汇总或明细可能重复，请先核对。",
+    "rollup_scope": "这条日汇总与已有记录可能重复，请先核对。",
+    "internal_overlap": "来源中的明细和汇总可能重复，请先核对。",
+    "legacy_hold": "旧报销记录尚待核对，这部分用量暂不可用。",
+}
+
+
+def _usage_state(exclusion: dict[str, Any] | None) -> str:
+    if exclusion is None:
+        return "available"
+    return "claimed" if exclusion["reason"] == "identity" else "ambiguous"
+
+
+def empty_summary() -> dict[str, Any]:
+    return _finish_totals(_empty_totals())
+
+
+def _group_exclusions(
+    candidates: list[tuple[str, dict[str, Any], dict[str, Any]]],
+    exclusions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    excluded_by_key = {item["key"]: item for item in exclusions}
+    groups: dict[str, dict[str, Any]] = {}
+    with localcontext() as context:
+        context.prec = 256
+        for grain, row, member in candidates:
+            exclusion = excluded_by_key.get(member["key"])
+            if exclusion is None:
+                continue
+            reason = exclusion["reason"]
+            owners = sorted(
+                exclusion["owners"], key=lambda owner: (owner["batch_id"], owner["version"])
+            )
+            group_key = content_hash({"reason": reason, "owners": owners})
+            if group_key not in groups:
+                groups[group_key] = {
+                    "reason": reason,
+                    "message": _EXCLUSION_MESSAGES.get(
+                        reason, "这部分用量暂不可用，请先核对。"
+                    ),
+                    "owners": owners,
+                    "row_count": 0,
+                    "_totals": _empty_totals(),
+                }
+            group = groups[group_key]
+            group["row_count"] += 1
+            _accumulate(group["_totals"], row, grain)
+        result = []
+        for group in groups.values():
+            totals = _finish_totals(group.pop("_totals"))
+            group.update({name: totals[name] for name in (
+                "record_count", "detail_count", "rollup_record_count", "total_cost_usd"
+            )})
+            result.append(group)
+    return result
+
+
+def selection_conflicts(
+    result: dict[str, Any], snapshot: dict[str, Any], target_batch_id: str | None = None
+) -> list[dict[str, Any]]:
+    """Check the actual frozen selection without silently changing its totals."""
+    evaluated = claims.evaluate(result["members"], snapshot, target_batch_id)
+    candidates = [
+        (grain, row, _member(row, grain))
+        for grain, key in (("detail", "details"), ("rollup", "rollups"))
+        for row in result[key]
+    ]
+    return _group_exclusions(candidates, evaluated["excluded"])
 
 
 def analyze(
@@ -157,7 +201,15 @@ def analyze(
     start_date: str,
     end_date: str,
     project_id: str = "all",
+    *,
+    claim_snapshot: dict[str, Any] | None = None,
+    availability_mode: str = "all",
+    target_batch_id: str | None = None,
+    expected_generation: int | None = None,
+    expected_active_version: int | None = None,
 ) -> dict[str, Any]:
+    if availability_mode not in {"available", "all"}:
+        raise AppError("invalid_availability_mode", "请选择可用用量或全部用量。")
     start, end = parse_date(start_date), parse_date(end_date)
     if start > end:
         raise AppError("invalid_date_range", "开始日期不能晚于结束日期。")
@@ -179,12 +231,16 @@ def analyze(
         else names[project_id]
     )
     pricing = {row["model_id"]: row for row in data.get("pricing", [])}
+    candidates: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
     details: list[dict[str, Any]] = []
     rollups: list[dict[str, Any]] = []
     members: list[dict[str, Any]] = []
     daily: dict[tuple[str, str, str], dict[str, Any]] = {}
     models: dict[str, dict[str, Any]] = {}
     summary = _empty_totals()
+    matched_totals = _empty_totals()
+    available_totals = _empty_totals()
+    excluded_totals = _empty_totals()
     unassigned = 0
     matched_details = 0
     missing_basis = 0
@@ -193,9 +249,9 @@ def analyze(
     with localcontext() as context:
         # Source magnitude/scale are bounded to 100; a million-row sum fits 256 digits.
         context.prec = 256
-        for grain, originals, selected in (
-            ("detail", data.get("details", []), details),
-            ("rollup", data.get("rollups", []), rollups),
+        for grain, originals in (
+            ("detail", data.get("details", [])),
+            ("rollup", data.get("rollups", [])),
         ):
             for original in originals:
                 if original.get("app_type") != "codex":
@@ -216,37 +272,64 @@ def analyze(
                     continue
                 if project_id not in {"all", "unassigned"} and assigned_id != project_id:
                     continue
-                selected.append(row)
-                members.append(_member(row, grain))
-                _accumulate(summary, row, grain)
-                daily_key = (row["date"], assigned_id or "", row["model"])
-                if daily_key not in daily:
-                    daily[daily_key] = {
-                        **_empty_totals(),
-                        "date": row["date"],
-                        "model": row["model"],
-                        "project_id": assigned_id,
-                        "project_name": row["project_name"],
-                    }
-                _accumulate(daily[daily_key], row, grain)
-                if row["model"] not in models:
-                    models[row["model"]] = {**_empty_totals(), "model": row["model"]}
-                _accumulate(models[row["model"]], row, grain)
-                count = 1 if grain == "detail" else row["request_count"]
-                if assigned_id is None:
-                    unassigned += count
-                if grain == "detail" and row.get("cwd"):
-                    matched_details += 1
-                missing_basis += count if row["pricing_status"] == "missing_basis" else 0
-                anomalies += int(row["token_anomaly"])
-                grain_days[grain].add((row["date"], row["model"]))
+                candidates.append((grain, row, _member(row, grain)))
+        snapshot = claim_snapshot or {"claim_revision": 0, "claims": [], "legacy_holds": []}
+        evaluated = claims.evaluate(
+            [member for _, _, member in candidates], snapshot, target_batch_id
+        )
+        available_keys = set(evaluated["available_keys"])
+        excluded_by_key = {item["key"]: item for item in evaluated["excluded"]}
+        for grain, row, member in candidates:
+            key = member["key"]
+            exclusion = excluded_by_key.get(key)
+            _accumulate(matched_totals, row, grain)
+            if key in available_keys:
+                _accumulate(available_totals, row, grain)
+            else:
+                _accumulate(excluded_totals, row, grain)
+                if exclusion is None:
+                    raise AppError("invalid_availability", "用量状态不完整，请重新预览。", 409)
+            row["usage_state"] = _usage_state(exclusion)
+            row["usage_reason"] = exclusion["reason"] if exclusion else None
+            row["usage_owners"] = exclusion["owners"] if exclusion else []
+            if availability_mode == "available" and key not in available_keys:
+                continue
+            (details if grain == "detail" else rollups).append(row)
+            members.append(member)
+            _accumulate(summary, row, grain)
+            assigned_id = row["project_id"]
+            daily_key = (row["date"], assigned_id or "", row["model"])
+            if daily_key not in daily:
+                daily[daily_key] = {
+                    **_empty_totals(),
+                    "date": row["date"],
+                    "model": row["model"],
+                    "project_id": assigned_id,
+                    "project_name": row["project_name"],
+                }
+            _accumulate(daily[daily_key], row, grain)
+            if row["model"] not in models:
+                models[row["model"]] = {**_empty_totals(), "model": row["model"]}
+            _accumulate(models[row["model"]], row, grain)
+            count = 1 if grain == "detail" else row["request_count"]
+            if assigned_id is None:
+                unassigned += count
+            if grain == "detail" and row.get("cwd"):
+                matched_details += 1
+            missing_basis += count if row["pricing_status"] == "missing_basis" else 0
+            anomalies += int(row["token_anomaly"])
+            grain_days[grain].add((row["date"], row["model"]))
+        matched_summary = _finish_totals(matched_totals)
+        available_summary = _finish_totals(available_totals)
+        excluded_summary = _finish_totals(excluded_totals)
+        excluded_groups = _group_exclusions(candidates, evaluated["excluded"])
         summary = _finish_totals(summary)
         daily_rows = [_finish_totals(daily[key]) for key in sorted(daily)]
         model_rows = [_finish_totals(models[key]) for key in sorted(models)]
     details.sort(key=lambda row: (row["created_at"], row["request_id"]))
     rollups.sort(key=lambda row: (row["date"], row["model"], row["record_key"]))
     members.sort(key=lambda row: (row["kind"], row["key"]))
-    warnings = ["参考成本沿用 CC Switch 保存值，是估算使用价值，不能单独证明实际扣款。"]
+    warnings = ["参考成本按 CC Switch 历史记录汇总，申请报销金额由你填写。"]
     if rollups:
         warnings.append("历史日汇总没有逐次记录和原始时区；本次按北京时间整日纳入。")
     if grain_days["detail"] & grain_days["rollup"]:
@@ -262,6 +345,19 @@ def analyze(
     if not summary["record_count"]:
         warnings.append("所选条件没有匹配记录；无记录日期不能据此认定为零消耗。")
     return {
+        "claim_revision": evaluated["claim_revision"],
+        "availability_mode": availability_mode,
+        "target_batch_id": target_batch_id,
+        "expected_generation": expected_generation,
+        "expected_active_version": expected_active_version,
+        "availability": {
+            "mode": availability_mode,
+            "claim_revision": evaluated["claim_revision"],
+            "matched_summary": matched_summary,
+            "available_summary": available_summary,
+            "excluded_summary": excluded_summary,
+            "excluded_groups": excluded_groups,
+        },
         "start_date": start_date,
         "end_date": end_date,
         "project_id": project_id,

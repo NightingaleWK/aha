@@ -19,7 +19,7 @@ from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from . import __version__, analysis, session_meta, sources, sql_dump
-from .domain import AppError, record_key
+from .domain import AppError, content_hash, record_key
 from .storage import Store
 
 SQL_LIMIT = 128 * 1024 * 1024
@@ -43,16 +43,16 @@ def _equal(value: str, expected: str) -> bool:
 def _string(body: dict[str, Any], key: str, default: str = "", limit: int = 4096) -> str:
     value = body.get(key, default)
     if not isinstance(value, str) or len(value) > limit or "\x00" in value:
-        raise AppError("invalid_field", f"字段 {key} 格式不正确。")
+        raise AppError("invalid_field", "表单内容不完整或格式不正确，请检查后重试。")
     return value.strip()
 
 
 def _strings(body: dict[str, Any], key: str, maximum: int = 1000) -> list[str]:
     value = body.get(key, [])
     if not isinstance(value, list) or len(value) > maximum:
-        raise AppError("invalid_field", f"字段 {key} 必须是有效列表。")
+        raise AppError("invalid_field", "所选内容格式不正确，请重新选择。")
     if any(not isinstance(item, str) or len(item) > 4096 or "\x00" in item for item in value):
-        raise AppError("invalid_field", f"字段 {key} 含有无效内容。")
+        raise AppError("invalid_field", "所选内容包含无效项，请重新选择。")
     return [item.strip() for item in value if item.strip()]
 
 
@@ -69,6 +69,20 @@ def _version(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise AppError("invalid_version", "版本号不正确。")
     return value
+
+
+def _generation(body: dict[str, Any]) -> int:
+    value = body.get("expected_generation")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise AppError("invalid_generation", "记录信息不完整，请刷新后重试。")
+    return value
+
+
+def _retry_key(body: dict[str, Any]) -> str:
+    key = _string(body, "idempotency_key", limit=128)
+    if len(key) < 16:
+        raise AppError("idempotency_required", "操作信息不完整，请刷新后重试。")
+    return key
 
 
 def default_sqlite_path() -> Path:
@@ -158,27 +172,129 @@ class Application:
         self.current_capture_id = capture["id"]
         return self.capture_info(capture["id"])
 
-    def _analysis(self, analysis_id: str) -> dict[str, Any]:
+    def _analysis(
+        self, analysis_id: str, *, check_availability: bool = True
+    ) -> dict[str, Any]:
         entry = self.analyses.get(analysis_id)
         if entry is None or entry[0] != self.generation:
-            raise AppError("analysis_expired", "预览已失效，请按当前条件重新生成预览。", 409)
+            raise AppError("analysis_expired", "预览已过期，请更新预览后保存。", 409)
         result = entry[1]
         if result["classification_revision"] != self.store.config()["revision"]:
             self.invalidate()
-            raise AppError("analysis_expired", "项目归属已更新，请重新生成预览。", 409)
+            raise AppError("analysis_expired", "项目归属已变化，请更新预览后保存。", 409)
+        if check_availability:
+            if result["claim_revision"] != self.store.claim_revision():
+                raise AppError(
+                    "availability_changed", "可用用量已变化，请更新预览后重试。", 409
+                )
+            if target := result.get("target_batch_id"):
+                batch = self.store.batch_detail(target)
+                if (
+                    not batch["can_edit"]
+                    or batch["generation"] != result["expected_generation"]
+                    or batch["active_version"] != result["expected_active_version"]
+                ):
+                    raise AppError("stale_batch", "报销记录已变化，请刷新后重试。", 409)
         return result
 
-    def _batch_analysis(self, body: dict[str, Any], batch_id: str | None) -> dict[str, Any]:
-        if body.get("analysis_id"):
-            return self._analysis(_string(body, "analysis_id", limit=128))
-        if batch_id is None:
-            raise AppError("analysis_required", "请先生成期间预览。")
+    def _editable_batch(self, body: dict[str, Any], batch_id: str) -> dict[str, Any]:
+        generation = _generation(body)
+        version = _version(body.get("base_version"))
         batch = self.store.batch_detail(batch_id)
-        version = _version(body.get("base_version", batch["latest_version"]))
-        for revision in batch["revisions"]:
-            if revision["version"] == version:
-                return copy.deepcopy(revision["analysis"])
-        raise AppError("revision_missing", "未找到所选批次版本。", 404)
+        if batch["lifecycle"] == "voided":
+            raise AppError("batch_voided", "这条报销记录已作废，请新建记录。", 409)
+        if not batch["can_edit"]:
+            raise AppError("inactive_revision", "当前记录不能修改，请先核对报销状态。", 409)
+        if batch["generation"] != generation or batch["active_version"] != version:
+            raise AppError("stale_batch", "报销记录已变化，请刷新后重试。", 409)
+        return batch
+
+    def _batch_analysis(
+        self, body: dict[str, Any], batch_id: str | None, *, for_save: bool = False
+    ) -> dict[str, Any]:
+        if body.get("analysis_id"):
+            result = self._analysis(
+                _string(body, "analysis_id", limit=128), check_availability=not for_save
+            )
+            if result["target_batch_id"] != batch_id:
+                raise AppError("analysis_target_mismatch", "请为这条报销记录重新预览用量。", 409)
+            if batch_id is not None:
+                if (
+                    result["expected_generation"] != _generation(body)
+                    or result["expected_active_version"] != _version(body.get("base_version"))
+                ):
+                    raise AppError("stale_batch", "报销记录已变化，请刷新后重试。", 409)
+            return result
+        if batch_id is None:
+            raise AppError("analysis_required", "请先更新用量预览。")
+        batch = self._editable_batch(body, batch_id)
+        current = next(
+            item for item in batch["revisions"] if item["version"] == batch["active_version"]
+        )
+        result = copy.deepcopy(current["analysis"])
+        result.update({
+            "claim_revision": self.store.claim_revision(),
+            "availability_mode": "available",
+            "target_batch_id": batch_id,
+            "expected_generation": batch["generation"],
+            "expected_active_version": batch["active_version"],
+        })
+        result["availability"] = {
+            "mode": "available",
+            "claim_revision": result["claim_revision"],
+            "matched_summary": copy.deepcopy(result["summary"]),
+            "available_summary": copy.deepcopy(result["summary"]),
+            "excluded_summary": analysis.empty_summary(),
+            "excluded_groups": [],
+        }
+        return result
+
+    def _new_analysis(self, body: dict[str, Any], batch_id: str | None = None) -> Any:
+        if batch_id is None and any(
+            key in body for key in ("target_batch_id", "exclude_batch_id", "batch_id")
+        ):
+            raise AppError("invalid_analysis_target", "请通过报销记录选择要修改的用量。")
+        batch = self._editable_batch(body, batch_id) if batch_id is not None else None
+        mode = _string(body, "availability_mode", "available", 16)
+        if batch_id is not None and mode != "available":
+            raise AppError("read_only_analysis", "修改报销记录时请选择可用用量。")
+        capture_id = _string(body, "capture_id", limit=128)
+        capture = self.store.get_capture(capture_id)
+        config = self.store.config()
+        revision = body.get("classification_revision", config["revision"])
+        if isinstance(revision, bool) or not isinstance(revision, int):
+            raise AppError("classification_changed", "项目归属已变化，请更新预览。", 409)
+        if revision != config["revision"]:
+            raise AppError("classification_changed", "项目归属已变化，请更新预览。", 409)
+        result = analysis.analyze(
+            capture["data"], capture["metadata"], config,
+            _string(body, "start_date", limit=10),
+            _string(body, "end_date", limit=10),
+            _string(body, "project_id", "all", 128),
+            claim_snapshot=self.store.claim_snapshot(batch_id),
+            availability_mode=mode,
+            target_batch_id=batch_id,
+            expected_generation=batch["generation"] if batch else None,
+            expected_active_version=batch["active_version"] if batch else None,
+        )
+        result["capture_id"] = capture_id
+        result["source"] = capture["source"]
+        for key in (
+            "usage_snapshot_id", "metadata_snapshot_id", "created_at", "counts", "coverage"
+        ):
+            if key in capture:
+                result[key] = capture[key]
+        analysis_id = secrets.token_urlsafe(24)
+        result["analysis_id"] = analysis_id
+        result["metadata_coverage"] = self.capture_info(capture_id)["metadata_coverage"]
+        result["unassigned_count"] = result["unassigned_record_count"]
+        self.analyses[analysis_id] = (self.generation, result)
+        while len(self.analyses) > 24:
+            self.analyses.popitem(last=False)
+        return {
+            key: value for key, value in result.items()
+            if key not in {"details", "rollups", "members"}
+        }
 
     def _claim(self, body: dict[str, Any]) -> dict[str, Any]:
         claim = body.get("claim", {})
@@ -299,69 +415,53 @@ class Application:
             self.invalidate()
             return result
         if path == "/api/analysis":
-            capture_id = _string(body, "capture_id", limit=128)
-            capture = self.store.get_capture(capture_id)
-            config = self.store.config()
-            requested_revision = body.get("classification_revision", config["revision"])
-            if requested_revision != config["revision"]:
-                raise AppError("classification_changed", "项目规则已更新，请刷新后重新预览。", 409)
-            result = analysis.analyze(
-                capture["data"],
-                capture["metadata"],
-                config,
-                _string(body, "start_date", limit=10),
-                _string(body, "end_date", limit=10),
-                _string(body, "project_id", "all", 128),
-            )
-            result["capture_id"] = capture_id
-            result["source"] = capture["source"]
-            for key in (
-                "usage_snapshot_id",
-                "metadata_snapshot_id",
-                "created_at",
-                "counts",
-                "coverage",
-            ):
-                if key in capture:
-                    result[key] = capture[key]
-            analysis_id = secrets.token_urlsafe(24)
-            result["analysis_id"] = analysis_id
-            result["metadata_coverage"] = self.capture_info(capture_id)["metadata_coverage"]
-            result["unassigned_count"] = sum(
-                1 for row in result["details"] if not row.get("project_id")
-            ) + sum(
-                row.get("request_count", 0)
-                for row in result["rollups"]
-                if not row.get("project_id")
-            )
-            self.analyses[analysis_id] = (self.generation, result)
-            while len(self.analyses) > 24:
-                self.analyses.popitem(last=False)
-            preview = {
-                key: value
-                for key, value in result.items()
-                if key not in {"details", "rollups", "members"}
-            }
-            preview["overlaps"] = self.store.overlaps(result)
-            return preview
+            return self._new_analysis(body)
+        if match := re.fullmatch(r"/api/batches/" + SAFE_ID + r"/analysis", path):
+            return self._new_analysis(body, match[1])
         if path == "/api/batches/preview":
             batch_id = (
-                None
-                if body.get("batch_id") is None
-                else (_string(body, "batch_id", limit=128) or None)
+                None if body.get("batch_id") is None
+                else _string(body, "batch_id", limit=128)
             )
+            batch_id = batch_id or None
             result = self._batch_analysis(body, batch_id)
-            return {"overlaps": self.store.overlaps(result, batch_id)}
+            if result["availability_mode"] != "available":
+                raise AppError("read_only_analysis", "全部用量仅供查看，请切换到可用用量。", 409)
+            if not result["members"]:
+                raise AppError("empty_analysis", "当前没有可用用量，请调整项目或日期。", 409)
+            conflicts = analysis.selection_conflicts(
+                result, self.store.claim_snapshot(batch_id), batch_id
+            )
+            return {"overlaps": conflicts, "conflicts": conflicts, "blocking": bool(conflicts)}
         if path == "/api/batches" or re.fullmatch(r"/api/batches/" + SAFE_ID + r"/revisions", path):
             batch_id = None if path == "/api/batches" else path.split("/")[3]
-            result = self._batch_analysis(body, batch_id)
-            key = _string(body, "idempotency_key", limit=128)
-            if len(key) < 16:
-                raise AppError("idempotency_required", "请刷新页面后重新创建，操作标识不完整。")
-            return self.store.create_batch(result, self._claim(body), key, batch_id)
+            key = _retry_key(body)
+            signature = content_hash({"path": path, "body": body})
+            if prior := self.store.replay_create(key, signature):
+                return prior
+            result = self._batch_analysis(body, batch_id, for_save=True)
+            return self.store.create_batch(
+                result, self._claim(body), key, batch_id,
+                expected_generation=_generation(body) if batch_id else None,
+                expected_active_version=_version(body.get("base_version")) if batch_id else None,
+                request_signature=signature,
+            )
+        if match := re.fullmatch(r"/api/batches/" + SAFE_ID + r"/(withdraw|void|resolve)", path):
+            batch_id, operation = match[1], match[2]
+            generation = _generation(body)
+            reason = _string(body, "reason", limit=4000)
+            key = _retry_key(body)
+            if operation == "withdraw":
+                return self.store.withdraw_batch(batch_id, generation, reason, key)
+            if operation == "void":
+                return self.store.void_batch(batch_id, generation, reason, key)
+            return self.store.resolve_legacy(
+                batch_id, _version(body.get("selected_version")), generation, reason, key
+            )
         if match := re.fullmatch(r"/api/batches/" + SAFE_ID + r"/revisions/([0-9]+)/status", path):
             return self.store.set_status(
-                match[1], _version(int(match[2])), _string(body, "status", limit=32)
+                match[1], _version(int(match[2])), _string(body, "status", limit=32),
+                expected_generation=_generation(body),
             )
         raise AppError("not_found", "未找到此操作。", 404)
 
@@ -376,6 +476,7 @@ class LocalHTTPServer(ThreadingHTTPServer):
         self.app = app
         super().__init__(("127.0.0.1", port), RequestHandler)
         self.origin = f"http://127.0.0.1:{self.server_port}"
+        self.session_cookie_name = f"aha_session_{self.server_port}"
 
     @property
     def bootstrap_url(self) -> str:
@@ -464,7 +565,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         try:
             cookies = SimpleCookie()
             cookies.load(self.headers.get("Cookie", ""))
-            cookie = cookies.get("aha_session")
+            cookie = cookies.get(self.server.session_cookie_name)
         except CookieError:
             cookie = None
         if cookie is None or not _equal(cookie.value, self.server.app.session_token):
@@ -527,8 +628,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "text/plain",
                     {
                         "Location": "/",
-                        "Set-Cookie": f"aha_session={app.session_token}; Path=/; "
-                        "HttpOnly; SameSite=Strict",
+                        "Set-Cookie": (
+                            f"{self.server.session_cookie_name}={app.session_token}; Path=/; "
+                            "HttpOnly; SameSite=Strict"
+                        ),
                     },
                 )
                 return

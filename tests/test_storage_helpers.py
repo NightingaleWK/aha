@@ -112,4 +112,7 @@ def analyze_capture(
         selection.get("project_id", "all"),
     )
     result["capture_id"] = capture["id"]
+    result["claim_revision"] = store.claim_revision()
+    result["availability_mode"] = "available"
+    result["target_batch_id"] = selection.get("target_batch_id")
     return result

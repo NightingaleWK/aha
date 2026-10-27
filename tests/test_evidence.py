@@ -10,8 +10,9 @@ import zipfile
 from decimal import Decimal
 from pathlib import Path
 
-from test_storage_helpers import analyze_capture, claim, detail, rollup, source_data
+from test_storage_helpers import analyze_capture, claim, detail, metadata, rollup, source_data
 
+from aha.analysis import analyze
 from aha.domain import AppError
 from aha.evidence import safe_filename_component, validate_claim
 from aha.storage import Store
@@ -69,7 +70,11 @@ class EvidenceTests(unittest.TestCase):
             report = package.read("费用说明.html").decode("utf-8")
             self.assertIn("1.12345674", report)
             self.assertIn("0 CNY", report)
-            self.assertIn("不是官方账单", report)
+            self.assertIn("参考成本为 CC Switch 保存的模型用量估算", report)
+            self.assertIn("申请报销金额", report)
+            self.assertIn("北京时间", report)
+            self.assertEqual(manifest["manifest_version"], 2)
+            self.assertTrue(manifest["effective_basis"]["effective_when_saved"])
 
     def test_csv_formula_guard_html_escaping_safe_name_and_private_fields(self) -> None:
         project = self.store.save_project(
@@ -108,6 +113,26 @@ class EvidenceTests(unittest.TestCase):
             )
             self.assertEqual(manifest["source"]["name"], "usage.sql")
 
+    def test_report_explains_reference_cost_once_and_retains_specific_notes(self) -> None:
+        result = analyze_capture(self.store)
+        old_note = "参考成本沿用 CC Switch 保存值，是估算使用价值，不能单独证明实际扣款。"
+        current_note = "参考成本按 CC Switch 历史记录汇总，申请报销金额由你填写。"
+        specific_note = "所选日期包含历史来源说明。"
+        self.assertIn(current_note, result["warnings"])
+        result["warnings"].extend([{"message": old_note}, specific_note])
+        package, _ = self.package(result)
+        with package:
+            report = package.read("费用说明.html").decode("utf-8")
+            self.assertEqual(
+                report.count("参考成本为 CC Switch 保存的模型用量估算；申请报销金额由申请人填写。"),
+                1,
+            )
+            self.assertNotIn(old_note, report)
+            self.assertNotIn(current_note, report)
+            self.assertIn(specific_note, report)
+            manifest = json.loads(package.read("导出信息.json"))
+            self.assertEqual(manifest["warnings"], result["warnings"])
+
     def test_export_contains_all_rows_and_no_fabricated_rollup_details(self) -> None:
         data = source_data([detail(f"r{i}") for i in range(1201)], [rollup()])
         result = analyze_capture(self.store, data)
@@ -122,18 +147,49 @@ class EvidenceTests(unittest.TestCase):
             self.assertEqual(manifest["summary"]["rollup_record_count"], 7)
             self.assertEqual(len(manifest["members"]), 1202)
 
-    def test_empty_result_is_truthful_and_still_exportable(self) -> None:
+    def test_empty_result_cannot_create_a_claim(self) -> None:
         result = analyze_capture(self.store, start_date="2020-01-01", end_date="2020-01-02")
+        with self.assertRaises(AppError) as failure:
+            self.package(result)
+        self.assertEqual(failure.exception.code, "empty_usage")
+        self.assertEqual(self.store.list_batches(), [])
+
+    def test_available_export_freezes_exclusions_and_keeps_ledger_private(self) -> None:
+        first = analyze_capture(self.store)
+        self.store.create_batch(first, claim(), "first-record")
+        second = detail("r2", created_at=detail()["created_at"] + 1, total_cost_usd="0.00000003")
+        data = source_data([detail(), second])
+        capture = self.store.retain(data, metadata())
+        loaded = self.store.get_capture(capture["id"])
+        result = analyze(
+            loaded["data"], loaded["metadata"], self.store.config(),
+            "2026-10-26", "2026-10-26", claim_snapshot=self.store.claim_snapshot(),
+            availability_mode="available",
+        )
+        result["capture_id"] = capture["id"]
+        result["availability"]["private_path"] = "/private/should-not-share"
+        result["availability"]["excluded_groups"][0]["owners"][0]["private_path"] = "SECRET"
         package, _ = self.package(result)
         with package:
-            rows = list(
-                csv.DictReader(io.StringIO(package.read("使用明细.csv").decode("utf-8-sig")))
-            )
-            self.assertEqual(rows, [])
             manifest = json.loads(package.read("导出信息.json"))
-            self.assertEqual(manifest["summary"]["record_count"], 0)
-            self.assertIsNone(manifest["claim"]["amount"])
-            self.assertIn("没有匹配记录", package.read("费用说明.html").decode("utf-8"))
+            rows = list(csv.DictReader(io.StringIO(
+                package.read("使用明细.csv").decode("utf-8-sig")
+            )))
+            self.assertEqual([row["request_id"] for row in rows], ["r2"])
+            self.assertEqual(manifest["summary"]["total_cost_usd"], "0.00000003")
+            self.assertEqual(manifest["availability"]["mode"], "available")
+            excluded = manifest["availability"]["excluded_summary"]
+            self.assertEqual(excluded["record_count"], 1)
+            self.assertEqual(excluded["total_cost_usd"], "0.1234567")
+            self.assertEqual(manifest["effective_basis"]["version"], 1)
+            all_bytes = b"\n".join(package.read(name) for name in package.namelist())
+            self.assertNotIn(b"/private/should-not-share", all_bytes)
+            self.assertNotIn(b"SECRET", all_bytes)
+            report = package.read("费用说明.html").decode("utf-8")
+            self.assertIn("已排除用量", report)
+            self.assertIn("0.00000003 USD", report)
+            self.assertIn("0.1234567 USD", report)
+            self.assertNotIn("+00:00", report)
 
     def test_amount_validation_distinguishes_blank_zero_and_invalid_inputs(self) -> None:
         self.assertIsNone(validate_claim(claim(amount=""))["amount"])

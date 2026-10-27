@@ -9,12 +9,13 @@ import io
 import re
 import unicodedata
 import zipfile
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from . import __version__
 from .archive import safe_source
-from .domain import AppError, canonical_bytes, decimal_text
+from .domain import BEIJING, AppError, canonical_bytes, decimal_text
 
 UPSTREAM_COMMIT = "e55d8a21b3897b595b746e9f2139716b2931641d"
 DETAIL_COLUMNS = (
@@ -151,104 +152,164 @@ def _escape(value: Any) -> str:
     return html.escape("" if value is None else str(value), quote=True)
 
 
+def _display_time(value: Any) -> str:
+    if not isinstance(value, str) or not value:
+        return "未提供"
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(BEIJING).strftime("%Y-%m-%d %H:%M（北京时间）")
+    except ValueError:
+        return value
+
+
+def _availability_basis(analysis: dict[str, Any]) -> dict[str, Any] | None:
+    original = analysis.get("availability")
+    if not isinstance(original, dict):
+        return None
+    summary_fields = (
+        "record_count", "detail_count", "rollup_record_count", "fresh_input_tokens",
+        "output_tokens", "cache_read_tokens", "cache_creation_tokens", "total_tokens",
+        "total_cost_usd", "detail_cost_usd", "rollup_cost_usd", "unpriced_count", "source_grain",
+    )
+    result: dict[str, Any] = {
+        "mode": original.get("mode"), "claim_revision": original.get("claim_revision"),
+    }
+    for key in ("matched_summary", "available_summary", "excluded_summary"):
+        summary = original.get(key, {})
+        result[key] = {field: summary[field] for field in summary_fields if field in summary}
+    groups = []
+    for group in original.get("excluded_groups", []):
+        projected = {
+            key: group[key]
+            for key in (
+                "reason", "row_count", "record_count", "detail_count", "rollup_record_count",
+                "total_cost_usd",
+            )
+            if key in group
+        }
+        projected["owners"] = [
+            {key: owner[key] for key in ("batch_id", "number", "version", "status", "lifecycle")
+             if key in owner}
+            for owner in group.get("owners", [])
+        ]
+        groups.append(projected)
+    result["excluded_groups"] = groups
+    return result
+
+
 def _report(
     analysis: dict[str, Any], claim: dict[str, Any], batch: dict[str, Any], capture: dict[str, Any]
 ) -> bytes:
     summary = analysis["summary"]
     amount = "未填写" if claim["amount"] is None else f"{claim['amount']} {claim['currency']}"
+    grain_names = {"detail": "逐条明细", "daily_rollup": "历史日汇总", "mixed": "明细与汇总"}
     daily_rows = "".join(
         "<tr>"
         + "".join(
-            f"<td>{_escape(row.get(key))}</td>"
+            "<td>"
+            + _escape(
+                grain_names.get(row.get(key), row.get(key))
+                if key == "source_grain" else row.get(key)
+            )
+            + "</td>"
             for key in (
-                "project_name",
-                "date",
-                "model",
-                "detail_count",
-                "rollup_record_count",
-                "source_grain",
-                "total_cost_usd",
+                "project_name", "date", "model", "detail_count", "rollup_record_count",
+                "source_grain", "total_cost_usd",
             )
         )
         + "</tr>"
         for row in analysis["daily"]
     )
-    warning_items = [
-        "参考成本按 CCS 已保存的模型估算金额合计，不是官方账单、逐次扣款或付款证明。",
-        "申请金额由使用者独立填写；未自动分摊订阅费用或换算汇率。",
-        "历史日汇总没有逐次时间和会话；日期采用北京时间假设，不能据此还原明细。",
-        "没有记录的日期不证明零消耗。会话本地请求 ID 不属于官方账单流水号。",
-        "报销状态由本机使用者人工管理；生成和下载材料不代表已提交或已收款。",
+    note_items = [
+        "参考成本为 CC Switch 保存的模型用量估算；申请报销金额由申请人填写。",
+        "统计日期按北京时间计算，包含开始和结束日期。",
     ]
+    if analysis.get("rollups"):
+        note_items.append("历史日汇总按来源完整记录纳入，没有补成逐条调用。")
     if summary.get("unpriced_count", 0):
-        warning_items.append(f"含 {summary['unpriced_count']} 条未定价记录，零金额不等于免费。")
+        note_items.append(f"有 {summary['unpriced_count']} 条记录未计价，参考成本不完整。")
+    # The source's generic cost note is already explained once above.
+    generic_cost_notes = {
+        "参考成本沿用 CC Switch 保存值，是估算使用价值，不能单独证明实际扣款。",
+        "参考成本按 CC Switch 历史记录汇总，申请报销金额由你填写。",
+    }
     for warning in analysis.get("warnings", []):
-        warning_items.append(
+        message = (
             str(warning.get("message", warning)) if isinstance(warning, dict) else str(warning)
         )
-    warnings = "".join(f"<li>{_escape(item)}</li>" for item in warning_items)
+        if message not in generic_cost_notes and message not in note_items:
+            note_items.append(message)
+    notes = "".join(f"<li>{_escape(item)}</li>" for item in note_items)
     source = safe_source(capture.get("source", {}))
     information = [
         ("项目", analysis.get("project_name", "全部项目")),
-        ("期间（北京时间）", f"{analysis['start_date']} 至 {analysis['end_date']}，包含两端整日"),
-        ("用途", claim["purpose"] or "未填写"),
-        ("期间参考成本", f"{summary['total_cost_usd']} USD"),
-        (
-            "参考成本构成",
-            f"逐条明细 {summary.get('detail_cost_usd', '0')} USD；"
-            f"历史日汇总 {summary.get('rollup_cost_usd', '0')} USD",
-        ),
-        ("人工申请金额", amount),
+        ("统计期间", f"{analysis['start_date']} 至 {analysis['end_date']}（北京时间）"),
+        ("用途说明", claim["purpose"] or "未填写"),
+        ("参考成本", f"{summary['total_cost_usd']} USD"),
+        ("申请报销金额", amount),
         ("金额依据", claim["amount_note"] or "未填写"),
         (
             "用量记录",
-            f"实际明细 {summary.get('detail_count', 0)} 条；"
+            f"明细 {summary.get('detail_count', 0)} 条；"
             f"历史汇总代表 {summary.get('rollup_record_count', 0)} 条；"
             f"总 Token {summary.get('total_tokens', 0)}",
         ),
-        (
-            "来源",
-            f"{source.get('name')}；"
-            f"结构版本 {capture.get('data', {}).get('schema_version', 23)}；"
-            f"观察时间 {source.get('observed_at')}",
-        ),
-        ("留存与归属版本", f"{capture['id']}；归属版本 {analysis.get('classification_revision')}"),
-        (
-            "目录识别覆盖",
-            f"{capture.get('metadata', {}).get('matched_sessions', 0)} / "
-            f"{capture.get('metadata', {}).get('total_sessions', 0)} 个会话；"
-            "目录线索不等于业务归属证明",
-        ),
     ]
+    availability = _availability_basis(analysis)
+    if availability:
+        excluded = availability["excluded_summary"]
+        information.append(("用量范围", "本次可用用量"))
+        information.append((
+            "已排除用量",
+            f"{excluded.get('record_count', 0)} 条已占用或待核对记录，"
+            f"参考成本 {excluded.get('total_cost_usd', '0')} USD",
+        ))
     information_html = "".join(
         f"<dt>{_escape(label)}</dt><dd>{_escape(value)}</dd>" for label, value in information
+    )
+    source_information = [
+        ("数据文件", source.get("name")),
+        ("读取时间", _display_time(source.get("observed_at"))),
+        ("记录编号", f"{batch['number']} · v{batch['version']}"),
+        ("生成时间", _display_time(batch["created_at"])),
+    ]
+    source_html = "".join(
+        f"<dt>{_escape(label)}</dt><dd>{_escape(value)}</dd>" for label, value in source_information
     )
     report = f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>费用说明 · {_escape(batch["number"])} v{batch["version"]}</title>
 <style>
-body{{font:14px/1.65 'Microsoft YaHei','Noto Sans CJK SC',sans-serif;
-color:#152336;max-width:1100px;margin:36px auto;padding:0 22px}}
-h1{{font-size:25px}}h2{{font-size:18px;margin-top:25px}}
-dl{{display:grid;grid-template-columns:150px 1fr;gap:8px 16px}}
-dt{{color:#526178}}dd{{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}}
-table{{border-collapse:collapse;width:100%;font-size:12px}}
-th,td{{border:1px solid #cbd4e0;padding:7px;text-align:left;overflow-wrap:anywhere}}
-th{{background:#edf2f9}}li{{margin:7px 0}}.hint{{color:#526178}}
-thead{{display:table-header-group}}
-@media print{{body{{max-width:none;margin:0;padding:0}}@page{{size:A4;margin:16mm}}
-tr{{break-inside:avoid}}h2{{break-after:avoid}}}}
-</style></head><body><h1>Codex 项目用量与费用说明</h1>
-<p class="hint">本地批次 {_escape(batch["number"])} · 版本 {batch["version"]}
-· 生成时间 {_escape(batch["created_at"])}</p>
+body{{font:16px/1.65 'Segoe UI','Microsoft YaHei',sans-serif;color:#182638;
+max-width:1100px;margin:36px auto;padding:0 24px}}
+h1{{font-size:28px;line-height:1.4;margin:0 0 10px}}h2{{font-size:21px;margin:28px 0 14px}}
+dl{{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px 20px}}
+dt{{color:#526176}}dd{{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}}
+table{{border-collapse:collapse;width:100%;font-size:15px}}
+th,td{{border:1px solid #d1dbe6;padding:9px;text-align:left;overflow-wrap:anywhere}}
+th{{background:#f0f5f9;font-size:14px}}li{{margin:8px 0}}.hint{{color:#526176;font-size:14px}}
+thead{{display:table-header-group}}.table-wrap{{overflow-x:auto}}
+@media(max-width:600px){{body{{margin:24px auto;padding:0 18px}}
+dl{{grid-template-columns:1fr;gap:4px}}
+dd{{margin-bottom:12px}}h1{{font-size:24px}}}}
+@media print{{body{{font-size:14px;max-width:none;margin:0;padding:0}}
+@page{{size:A4;margin:16mm}}table{{font-size:12px}}th{{font-size:12px}}th,td{{padding:7px}}
+h1{{font-size:23px}}h2{{font-size:18px}}dl{{grid-template-columns:120px minmax(0,1fr);gap:8px 14px}}
+.table-wrap{{overflow:visible}}tr{{break-inside:avoid}}h2{{break-after:avoid}}}}
+</style></head><body>
+<h1>Codex 项目用量与费用说明</h1>
+<p class="hint">{_escape(batch["number"])} · v{batch["version"]}
+· {_escape(_display_time(batch["created_at"]))}</p>
 <dl>{information_html}</dl>
-<h2>每日与模型构成</h2><table><thead><tr><th>项目</th><th>日期</th><th>模型</th>
-<th>明细数</th><th>历史代表数</th><th>来源粒度</th><th>参考成本 USD</th>
-</tr></thead><tbody>{daily_rows}</tbody></table>
-<h2>使用与覆盖说明</h2><ul>{warnings}</ul>
-<p class="hint">本包另含使用明细 CSV、每日汇总 CSV 与导出信息 JSON；
-清单记录来源指纹和文件 SHA-256，便于材料复查。</p>
+<h2>每日用量与参考成本</h2><div class="table-wrap"><table><thead><tr>
+<th>项目</th><th>日期</th><th>模型</th><th>明细数</th>
+<th>汇总代表数</th><th>记录类型</th><th>参考成本 USD</th>
+</tr></thead><tbody>{daily_rows}</tbody></table></div>
+<h2>数据说明</h2><ul>{notes}</ul><dl>{source_html}</dl>
+<p class="hint">逐条明细见“使用明细.csv”，文件校验及来源信息见“导出信息.json”。</p>
 </body></html>"""
     return report.encode("utf-8")
 
@@ -282,7 +343,7 @@ def build_evidence(
         for row in analysis["details"] + analysis["rollups"]
     }
     manifest = {
-        "manifest_version": 1,
+        "manifest_version": 2,
         "application": {"name": "aha", "version": __version__},
         "batch": {key: batch[key] for key in ("id", "number", "version", "created_at")},
         "capture_id": capture["id"],
@@ -299,6 +360,10 @@ def build_evidence(
             "project_name": analysis.get("project_name", "全部项目"),
         },
         "classification_revision": analysis["classification_revision"],
+        "effective_basis": {
+            "batch_id": batch["id"], "version": batch["version"],
+            "effective_when_saved": True, "status_when_saved": "draft",
+        },
         "summary": analysis["summary"],
         "claim": claim,
         "members": [
@@ -325,6 +390,9 @@ def build_evidence(
             for name, raw in files.items()
         },
     }
+    availability = _availability_basis(analysis)
+    if availability is not None:
+        manifest["availability"] = availability
     files["导出信息.json"] = canonical_bytes(manifest)
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as package:
