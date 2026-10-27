@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
+- **Total Sessions**: 2
 - **Last Active**: 2026-10-27
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~29 | Active |
+| `journal-1.md` | ~66 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 2 | 2026-10-27 | 交付 aha v0.2.0 并合并 main | `1174db5ceb9cb9e8c5da18c63e31628bd7dc5218` | `main` |
 | 1 | 2026-10-27 | 完成 Codex 用量证据工具 v0.1.0 | `8d16266` | `feat/codex-usage-evidence` |
 <!-- @@@/auto:session-history -->
 
