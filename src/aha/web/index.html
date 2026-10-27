@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>aha · 用量与费用证据</title>
+  <link rel="icon" href="/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">跳到主要内容</a>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="aha 首页"><img src="/mark.svg" alt="" width="36" height="36"><span>aha<small>用量与费用证据</small></span></a>
+    <div class="nav-label">工作台</div>
+    <nav aria-label="主导航">
+      <button class="nav-item active" data-page="usage"><span aria-hidden="true">▤</span>用量导出</button>
+      <button class="nav-item" data-page="projects"><span aria-hidden="true">▱</span>项目管理<span id="project-nav-count" class="nav-count">0</span></button>
+      <button class="nav-item" data-page="batches"><span aria-hidden="true">◷</span>报销记录<span id="batch-nav-count" class="nav-count">0</span></button>
+    </nav>
+    <button id="shutdown-compact" class="compact-exit" aria-label="退出程序" title="退出程序">↗</button>
+    <div class="sidebar-bottom"><span class="local-dot"></span>所有资料仅在本机处理<p>项目、留存与已生成材料<br>在退出后继续保留。</p><button id="shutdown" class="sidebar-exit">退出程序 <span aria-hidden="true">↗</span></button></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong id="breadcrumb">用量导出</strong></div><div class="top-meta"><span class="local-badge"><span class="local-dot"></span>本机运行</span><span id="app-version">aha</span></div></header>
+    <main id="main" tabindex="-1">
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <section id="page-usage" class="page">
+        <div class="page-heading"><div><div class="eyebrow">USAGE & EVIDENCE</div><h1>把项目用量，留成可复查的证据</h1><p>选择一份来源和期间，核对用量，再保存报销批次。</p></div><button id="source-options" class="button">管理数据来源 <span aria-hidden="true">↗</span></button></div>
+        <section class="source-card" aria-label="当前数据来源">
+          <div class="source-icon" aria-hidden="true">▤</div><div class="source-description"><div class="source-title"><strong id="source-name">尚未读取数据</strong><span id="source-mode" class="tag">待选择来源</span></div><p id="source-description">只读打开 CC Switch 数据库，或导入一份 SQL 备份。</p></div>
+          <div class="source-actions"><button id="load-default" class="button primary">读取默认库</button><button id="import-sql" class="button">导入 SQL</button><input id="sql-file" type="file" accept=".sql" hidden></div>
+        </section>
+        <section class="panel filter-panel" aria-label="筛选条件">
+          <div class="filter-grid"><label class="field source-select-field">数据留存<select id="capture-select"><option value="">请先读取数据</option></select></label><label class="field">项目<select id="project-select"><option value="all">全部项目（含未归属）</option><option value="unassigned">未归属</option></select></label><label class="field">开始日期<input type="date" id="start-date" required></label><label class="field">结束日期<input type="date" id="end-date" required></label><button id="analyze" class="button primary filter-submit" disabled>更新预览 <span aria-hidden="true">→</span></button></div>
+          <div class="filter-footer"><div class="date-shortcuts"><span>北京时间 · 包含起止日</span><button data-range="today" class="chip active">今天</button><button data-range="week" class="chip">近 7 天</button><button data-range="month" class="chip">本月</button><button id="range-all" class="chip">来源全部日期</button></div><span id="filter-status" class="muted">等待选择数据</span></div>
+        </section>
+        <div class="metric-grid" aria-label="期间汇总">
+          <section class="metric metric-main"><div class="metric-label">期间参考成本 <span class="tag">USD</span></div><strong id="metric-cost">—</strong><p>沿用 CCS 保存金额</p></section>
+          <section class="metric"><div class="metric-label">用量记录数</div><strong id="metric-count">—</strong><p id="metric-count-note">明细与历史日汇总分开保留</p></section>
+          <section class="metric"><div class="metric-label">总 Token</div><strong id="metric-tokens">—</strong><p>新增输入 + 输出 + 缓存读写</p></section>
+          <section class="metric"><div class="metric-label">当前筛选中未归属</div><strong id="metric-unassigned">—</strong><p>可按记录、会话或完整日汇总修正</p></section>
+        </div>
+        <div id="token-strip" class="token-strip" hidden><span>新增输入 <strong id="token-input">0</strong></span><span>输出 <strong id="token-output">0</strong></span><span>缓存读取 <strong id="token-read">0</strong></span><span>缓存写入 <strong id="token-write">0</strong></span></div>
+        <div id="coverage-note" class="coverage-note" hidden></div>
+        <div id="analysis-warnings" class="analysis-warnings"></div>
+        <section class="panel preview-panel">
+          <div class="panel-heading"><div><h2>期间预览</h2><p id="preview-caption">预览和下载使用同一份数据与筛选结果。</p></div><div class="tabs" role="tablist" aria-label="预览粒度"><button class="tab active" data-tab="daily" role="tab" aria-selected="true">每日</button><button class="tab" data-tab="models" role="tab" aria-selected="false">模型</button><button class="tab" data-tab="details" role="tab" aria-selected="false">明细</button><button class="tab" data-tab="rollups" role="tab" aria-selected="false">历史日汇总</button></div></div>
+          <div id="assignment-bar" class="assignment-bar" hidden><span id="selection-count">已选 0 条</span><label class="field inline-field"><span class="sr-only">指定项目</span><select id="assignment-project"><option value="">清除人工指定</option></select></label><label id="session-scope-label" class="checkbox-label"><input type="checkbox" id="session-scope">包括所选会话在本份留存中的全部明细</label><button id="assign" class="button small">应用归属</button><button id="clear-selection" class="text-button">取消选择</button></div>
+          <div id="preview-table" class="table-wrap"><div class="empty-state"><span class="empty-icon" aria-hidden="true">▤</span><h3>从一份用量数据开始</h3><p>读取默认库或导入 SQL 后，即可按项目和日期核对。</p></div></div>
+          <div id="pagination" class="pagination" hidden><span id="page-label"></span><div><button id="prev-page" class="button small">上一页</button><button id="next-page" class="button small">下一页</button></div></div>
+        </section>
+        <section class="panel claim-panel"><div class="claim-heading"><div><h2>保存费用证据</h2><p>参考成本证明期间使用情况；申请金额由你填写。</p></div><span class="tag">四个文件 · 一次 ZIP 下载</span></div><div class="claim-grid"><label class="field purpose-field">项目用途与期间说明<textarea id="claim-purpose" rows="3" maxlength="4000" placeholder="例如：项目开发、问题排查与验证的 AI 辅助使用。"></textarea></label><label class="field">申请金额（可不填）<div class="amount-input"><input id="claim-amount" type="text" inputmode="decimal" maxlength="128" placeholder="未填写"><select id="claim-currency" aria-label="申请币种"><option value="CNY">CNY</option><option value="USD">USD</option></select></div><span class="field-help">空与 0 分别保留，不自动换算。</span></label><label class="field">申请金额依据<textarea id="claim-note" rows="3" maxlength="4000" placeholder="填写金额时，请说明支付凭证、订阅期间或其他依据。"></textarea></label></div><div class="claim-footer"><details class="scope-details"><summary>材料包含什么</summary><p>使用明细.csv、每日汇总.csv、可打印的费用说明.html、导出信息.json。历史日汇总不会补造成逐条记录；请求标识不等于官方账单流水号。</p></details><button id="create-batch" class="button primary" disabled>创建批次并下载 <span aria-hidden="true">↓</span></button></div></section>
+        <p class="page-footnote">金额按来源保存口径留存。生成或下载材料后，批次仍为草稿；提交与报销状态由你手动维护。<a href="/licenses" target="_blank" rel="noopener">开源说明</a></p>
+      </section>
+      <section id="page-projects" class="page" hidden><div class="page-heading"><div><div class="eyebrow">PROJECTS</div><h1>让目录归到正确的项目</h1><p>一个项目可关联多个目录，包含子目录；更具体的目录规则优先。</p></div><button id="new-project" class="button primary">＋ 新建项目</button></div><div id="project-list" class="project-list"></div><section class="panel metadata-panel"><div class="panel-heading"><div><h2>会话目录线索</h2><p>仅读取会话头部的工作目录，用于匹配你确认的规则。</p></div><button id="refresh-metadata" class="button">刷新目录识别</button></div><div id="directory-summary" class="directory-summary">读取一份数据后，这里会显示实际发现的目录。</div><div id="directory-list" class="directory-list"></div><details class="scope-details metadata-help"><summary>缺失、冲突或历史日汇总如何归属</summary><p>缺失或冲突会话保持未归属。在用量导出的明细表中选中记录，可人工指定项目，也可一次修正整个会话。旧日汇总没有会话信息，需在“历史日汇总”中选择完整记录指定项目。</p></details></section></section>
+      <section id="page-batches" class="page" hidden><div class="page-heading"><div><div class="eyebrow">CLAIM HISTORY</div><h1>每次申请，都有原始材料可查</h1><p>同版本重下载原 ZIP；改用途、金额或数据时创建新草稿版本。</p></div><button id="refresh-batches" class="button">刷新记录</button></div><div class="panel"><div id="batch-list" class="table-wrap"></div></div><div id="batch-detail" class="batch-detail"></div><p class="page-footnote">“草稿 / 已提交 / 已报销”是本机人工记录，可按实际情况纠正。下载不会改变状态。</p></section>
+    </main>
+  </div>
+  <dialog id="source-dialog" class="dialog"><form id="sqlite-form"><div class="dialog-heading"><div><span class="eyebrow">DATA SOURCE</span><h2>读取一份数据</h2></div><button type="button" class="icon-button" data-close="source-dialog" aria-label="关闭">×</button></div><p class="dialog-intro">原数据库、SQL 与会话文件保持原样。成功读取后，会在 aha 中保留必要用量和目录依据。</p><label class="field">其他 CCS SQLite 文件<input id="sqlite-path" type="text" maxlength="4096" placeholder="留空使用本机默认库；也可粘贴完整文件路径"></label><div class="dialog-actions"><button type="button" class="button" id="dialog-import-sql">选择 SQL 备份</button><button type="submit" class="button primary">只读加载数据库</button></div></form><div class="dialog-divider"></div><form id="metadata-form"><h3>Codex 目录识别</h3><label class="field">元数据根目录（每行一个）<textarea id="metadata-roots" rows="3" placeholder="留空使用本机默认 .codex 目录；可添加其他实际可访问的 .codex 目录。"></textarea><span class="field-help">仅关联会话工作目录，不采集对话或重新计算用量。</span></label><div class="dialog-actions"><button type="submit" id="scan-metadata" class="button">刷新当前留存的目录依据</button></div></form></dialog>
+  <dialog id="project-dialog" class="dialog wide-dialog"><form id="project-form"><div class="dialog-heading"><div><span class="eyebrow">PROJECT</span><h2 id="project-dialog-title">新建项目</h2></div><button type="button" class="icon-button" data-close="project-dialog" aria-label="关闭">×</button></div><input type="hidden" id="edit-project-id"><div class="two-column"><label class="field">项目名称<input id="edit-project-name" maxlength="160" required placeholder="例如：liuying-流萤-运维管理平台"></label><label class="field">说明（可不填）<input id="edit-project-description" maxlength="4000" placeholder="项目用途或识别说明"></label></div><h3>从已发现目录中选择</h3><div id="project-candidates" class="candidate-list"></div><label class="field">补充目录（每行一个）<textarea id="edit-project-directories" rows="4" placeholder="可填写 Windows 或 Linux 路径；目录不必在当前机器存在。"></textarea><span class="field-help">同一目录只能属于一个项目。保存后，当前预览需要重新计算。</span></label><div class="dialog-actions"><button type="button" class="button" data-close="project-dialog">取消</button><button type="submit" class="button primary">保存项目与目录</button></div></form></dialog>
+  <dialog id="overlap-dialog" class="dialog"><div class="dialog-heading"><div><span class="eyebrow">CHECK BEFORE SAVING</span><h2>部分用量出现在其他批次</h2></div><button class="icon-button" data-close="overlap-dialog" aria-label="关闭">×</button></div><p class="dialog-intro">请核对已有材料。以下提示不会自动扣减金额，你仍可继续创建。</p><div id="overlap-list" class="overlap-list"></div><div class="dialog-actions"><button class="button" data-close="overlap-dialog">返回核对</button><button id="confirm-batch" class="button primary">仍然创建并下载</button></div></dialog>
+  <dialog id="revision-dialog" class="dialog"><form id="revision-form"><div class="dialog-heading"><div><span class="eyebrow">NEW REVISION</span><h2>创建新草稿版本</h2></div><button type="button" class="icon-button" data-close="revision-dialog" aria-label="关闭">×</button></div><p id="revision-caption" class="dialog-intro"></p><label class="field">用量依据<select id="revision-basis"><option value="frozen">沿用所选旧版本的冻结用量</option><option value="current">使用用量导出页的当前预览</option></select><span class="field-help">原版本的材料与状态会保留。</span></label><label class="field">项目用途与期间说明<textarea id="revision-purpose" rows="3" maxlength="4000"></textarea></label><div class="two-column"><label class="field">申请金额（可不填）<input id="revision-amount" inputmode="decimal" maxlength="128"></label><label class="field">币种<select id="revision-currency"><option value="CNY">CNY</option><option value="USD">USD</option></select></label></div><label class="field">申请金额依据<textarea id="revision-note" rows="3" maxlength="4000"></textarea></label><div class="dialog-actions"><button type="button" class="button" data-close="revision-dialog">取消</button><button type="submit" class="button primary">保存新版本并下载</button></div></form></dialog>
+  <div id="busy" class="busy" role="status" aria-live="polite" hidden><span class="spinner" aria-hidden="true"></span><strong id="busy-label">正在处理…</strong><span>请保持页面打开</span></div>
+</body>
+</html>

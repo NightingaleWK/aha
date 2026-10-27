@@ -6,7 +6,20 @@
 
 ## Overview
 
-This directory contains guidelines for frontend development. Fill in each file with your project's specific conventions.
+The implemented interface is plain JavaScript/HTML/CSS under `src/aha/web`.
+Read its local web contract before changing code. Other topic files remain bootstrap templates;
+React hook patterns do not describe this application.
+
+## Pre-Development Checklist
+
+- Read [Local Web Contract](./local-web-contract.md) and the active task's design.
+- Check invalidation, optional-field payload shapes and frozen batch behavior at both ends.
+- Preserve Chinese product text and bundled local assets.
+
+## Quality Check
+
+- Run Node syntax validation and backend HTTP tests.
+- Exercise actual browser creation/download after payload or lifecycle changes.
 
 ---
 
@@ -14,6 +27,7 @@ This directory contains guidelines for frontend development. Fill in each file w
 
 | Guide | Description | Status |
 |-------|-------------|--------|
+| [Local Web Contract](./local-web-contract.md) | Actual DOM, state, API, privacy and download conventions | Implemented |
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
 | [Component Guidelines](./component-guidelines.md) | Component patterns, props, composition | To fill |
 | [Hook Guidelines](./hook-guidelines.md) | Custom hooks, data fetching patterns | To fill |

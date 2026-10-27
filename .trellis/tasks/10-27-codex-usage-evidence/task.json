@@ -1,0 +1,32 @@
+{
+  "id": "codex-usage-evidence",
+  "name": "codex-usage-evidence",
+  "title": "Codex 用量导出与报销证据工具",
+  "description": "独立本地工具：项目目录归属、Codex 用量留存、CSV 证据导出与报销批次管理",
+  "status": "in_progress",
+  "dev_type": "fullstack",
+  "scope": "usage-evidence",
+  "package": null,
+  "priority": "P2",
+  "creator": "NightingaleWK",
+  "assignee": "NightingaleWK",
+  "createdAt": "2026-10-27",
+  "completedAt": null,
+  "branch": "feat/codex-usage-evidence",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/aha/",
+    "tests/",
+    "scripts/",
+    "pyproject.toml",
+    "README.md"
+  ],
+  "notes": "",
+  "meta": {}
+}

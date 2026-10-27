@@ -1,0 +1,38 @@
+# Local runtimes, caches and build output
+.venv*/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+*.spec
+
+# Private source data, retained objects and generated evidence
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.sql
+*.zip
+*.csv
+*.xlsx
+*.png
+*.jpg
+*.jpeg
+*.pdf
+.aha-data/
+evidence/
+artifacts/
+.env
+.env.*
+
+# Editors and platform metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

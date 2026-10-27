@@ -6,7 +6,19 @@
 
 ## Overview
 
-This directory contains guidelines for backend development. Fill in each file with your project's specific conventions.
+The first implemented package is the Python local usage-evidence tool in `src/aha`.
+Read its executable contract before changing code. The other topic files remain bootstrap templates.
+
+## Pre-Development Checklist
+
+- Read [Usage Evidence Contract](./usage-evidence-contract.md) and the active task's PRD/design.
+- Identify the source read boundary, application-store owner and affected frozen-artifact contracts.
+- Use an isolated data directory and keep personal source/evidence outside Git.
+
+## Quality Check
+
+- Run unittest, Ruff, strict mypy and compileall as specified in the contract.
+- Exercise native Windows/browser/Excel behavior for release or cross-layer changes.
 
 ---
 
@@ -14,6 +26,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 
 | Guide | Description | Status |
 |-------|-------------|--------|
+| [Usage Evidence Contract](./usage-evidence-contract.md) | Actual source, arithmetic, store, HTTP and release contracts | Implemented |
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
 | [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
 | [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |

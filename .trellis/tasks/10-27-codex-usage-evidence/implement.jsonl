@@ -1,0 +1,9 @@
+{"file": ".trellis/tasks/10-27-codex-usage-evidence/research/source-findings.md", "reason": "CC Switch 固定源码依据、备份验证、Token 语义和证据边界"}
+{"file": ".trellis/tasks/10-27-codex-usage-evidence/research/runtime-and-delivery.md", "reason": "已验证 Windows 环境、只读数据库边界及本机交付约束"}
+{"file": ".trellis/tasks/10-27-codex-usage-evidence/research/project-identification.md", "reason": "已获用户确认的项目对象、多目录规则、178 会话关联及元数据边界"}
+{"file": ".trellis/tasks/10-27-codex-usage-evidence/research/retention-batch-contract.md", "reason": "已获批范围：不可变留存、单快照统计、批次版本状态、重下载和跨粒度重叠契约"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "输入、分析、预览和多格式导出的共享数据契约"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "Token 归一、金额和日期规则保持唯一实现"}
+{"file": ".trellis/tasks/10-27-codex-usage-evidence/research/implementation-api.md", "reason": "实施接口、数据形状和并行文件所有权，跨模块变更先协调"}
+{"file": ".trellis/spec/backend/usage-evidence-contract.md", "reason": "实现后形成的来源、精确金额、留存、批次及本机运行契约"}
+{"file": ".trellis/spec/frontend/local-web-contract.md", "reason": "实现后形成的界面失效、可选字段及证据下载契约"}
