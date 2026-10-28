@@ -46,6 +46,16 @@ Windows 默认资料目录为 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:
 
 每次启动仅监听 `127.0.0.1` 的本机端口，随机启动凭证换取本次会话 Cookie；接口校验 Host、Origin 与操作凭证，资源全部内置。资料目录中的 `runtime.json` 是本次启动的临时凭证文件，含本机启动地址与 PID，供无控制台启动和本机验收使用；正常退出删除。不要分享该文件或把它放进证据包。程序不自动清理历史资料。
 
+## 开发规范
+
+修改前按范围阅读当前实现的规范：
+
+- [后端规范](.trellis/spec/backend/index.md)：来源、核算、SQLite、用量独占、版本、错误和运行输出。
+- [前端规范](.trellis/spec/frontend/index.md)：HTTP、DOM、页面状态、数据边界和浏览器检查。
+- [思考指南](.trellis/spec/guides/index.md)：复用入口、跨层影响和证据核对。
+
+规范以当前源码与测试为依据；任务中的检查结果和历史原生成品验收分别记录。
+
 ## 源码运行与检查
 
 开发需要 Python 3.12+。使用任务自有隔离环境，不修改系统或 Codex bundled Python 的依赖：

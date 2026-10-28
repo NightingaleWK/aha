@@ -1,139 +1,50 @@
-# Bootstrap Task: Fill Project Development Guidelines
+# 项目开发规范初始化
 
-**You (the AI) are running this task. The developer does not read this file.**
+## 目标
 
-The developer just ran `trellis init` on this project for the first time.
-`.trellis/` now exists with empty spec scaffolding, and this bootstrap task
-exists under `.trellis/tasks/`. When they want to work on it, they should start
-this task from a session that provides Trellis session identity.
+以 aha v0.2.0 的真实源码、测试和已记录交付为依据，提供能指导后续开发的项目规范，消除初始化模板对技术栈、数据边界及验证方法的误导。
 
-**Your job**: help them populate `.trellis/spec/` with the team's real
-coding conventions. Every future AI session — this project's
-`trellis-implement` and `trellis-check` sub-agents — auto-loads spec files
-listed in per-task jsonl manifests. Empty spec = sub-agents write generic
-code. Real spec = sub-agents match the team's actual patterns.
+## 背景与来源
 
-Don't dump instructions. Open with a short greeting, figure out if the repo
-has any existing convention docs (CLAUDE.md, .cursorrules, etc.), and drive
-the rest conversationally.
+- 本任务由首次 `trellis init` 创建，稳定身份和目录为 `00-bootstrap-guidelines`，创建日期为 2026-10-27，状态为 `in_progress`。
+- 前两项产品任务已补充 backend 用量证据契约与 frontend 本机页面契约，但其余分题仍为模板，因此此前未将初始化工作标为完成。
+- aha 当前采用 Python 3.12+、原生 sqlite3、本机 HTTP 和原生 HTML/CSS/JavaScript。代码入口分别在 `src/aha/__main__.py`、`src/aha/storage.py`、`src/aha/server.py` 与 `src/aha/web/`。
+- 本次补齐由[现状校准任务](../10-27-spec-current-state-alignment/prd.md)承担，实施与检查记录归入该任务；本任务保留初始化工作的身份、来源和验收映射。
 
----
+## 交付范围
 
-## Status (update the checkboxes as you complete each item)
+| 入口 | 实际内容 |
+| --- | --- |
+| [后端规范](../../spec/backend/index.md) | 目录、SQLite、AppError、运行输出与审计历史、质量检查，以及现有用量证据契约 |
+| [前端规范](../../spec/frontend/index.md) | 资源组织、DOM 组件、状态与请求、JavaScript 数据边界、质量检查，以及现有本机页面契约 |
+| [思考指南](../../spec/guides/index.md) | aha 的复用入口与跨层检查，区分输入解析和写事务内重检 |
+| [README](../../../README.md) | 可找到规范入口，源码检查和 Windows 构建说明与项目实情一致 |
 
-- [ ] Fill backend guidelines
-- [ ] Fill frontend guidelines
-- [ ] Add code examples
+不适用的 React hooks 独立模板移除，实际请求、事件和异步操作归并到组件与状态规范。既有路径 `frontend/type-safety.md` 讲解 JavaScript 数据边界，不构成引入 TypeScript 的计划。
 
----
+## 需求
 
-## Spec files to populate
+- 所有现行规范使用简体中文说明，技术标识保持原样；不残留占位段落、虚构模块或不适用框架约定。
+- 关键规则有真实源码或测试入口，例子能从现有函数与行为核对；分题说明不重复维护完整业务契约。
+- 两份已有契约继续覆盖来源只读、Decimal、北京时间、单 capture、占用/版本/幂等、迁移/旧 writer、原证据包、隐私及本机 HTTP 边界。
+- 明确默认访问日志关闭、私有 AHA_URL/runtime 和库内操作事件的不同用途，不能虚构日志基础设施。
+- 索引、现行本地链接、源码引用和工作清单与最终交付一致；历史原生验收与本轮文档检查分开表述。
 
+## 验收清单
 
-### Backend guidelines
+以下项目只在对应文件和检查通过后勾选，具体结果记录于同目录 `verification.md`。
 
-| File | What to document |
-|------|------------------|
-| `.trellis/spec/backend/directory-structure.md` | Where different file types go (routes, services, utils) |
-| `.trellis/spec/backend/database-guidelines.md` | ORM, migrations, query patterns, naming conventions |
-| `.trellis/spec/backend/error-handling.md` | How errors are caught, logged, and returned |
-| `.trellis/spec/backend/logging-guidelines.md` | Log levels, format, what to log |
-| `.trellis/spec/backend/quality-guidelines.md` | Code review standards, testing requirements |
+- [x] 后端五份适用分题、入口及业务契约补齐并核对。
+- [x] 前端五份适用分题、入口及页面契约补齐并核对，hooks 内容归并完成。
+- [x] 每份分题提供实际源码/测试入口、短例子和常见错误。
+- [x] 三个思考指南符合 aha 现状，README 和索引导航完整。
+- [x] 占位、链接、源码引用、契约一致性及写入范围检查通过。
+- [x] 验证记录区分本轮检查和历史验收，完成声明均可追溯。
 
+## 收尾条件
 
-### Frontend guidelines
+规范验收齐备后，记录本任务已满足的交付项并供用户审阅。当前任务仍保留 `in_progress`，不自动归档；待用户明确决定后，才执行相应收尾动作。规范完成不代表产品已进行新的业务验收，也不涉及正式资料迁移、程序发布或 Git 提交/推送。
 
-| File | What to document |
-|------|------------------|
-| `.trellis/spec/frontend/directory-structure.md` | Component/page/hook organization |
-| `.trellis/spec/frontend/component-guidelines.md` | Component patterns, props conventions |
-| `.trellis/spec/frontend/hook-guidelines.md` | Custom hook naming, patterns |
-| `.trellis/spec/frontend/state-management.md` | State library, patterns, what goes where |
-| `.trellis/spec/frontend/type-safety.md` | TypeScript conventions, type organization |
-| `.trellis/spec/frontend/quality-guidelines.md` | Linting, testing, accessibility |
+## 收尾授权（2026-10-28）
 
-
-### Thinking guides (already populated)
-
-`.trellis/spec/guides/` contains general thinking guides pre-filled with
-best practices. Customize only if something clearly doesn't fit this project.
-
----
-
-## How to fill the spec
-
-### Step 1: Import from existing convention files first (preferred)
-
-Search the repo for existing convention docs. If any exist, read them and
-extract the relevant rules into the matching `.trellis/spec/` files —
-usually much faster than documenting from scratch.
-
-| File / Directory | Tool |
-|------|------|
-| `CLAUDE.md` / `CLAUDE.local.md` | Claude Code |
-| `AGENTS.md` | Codex / Claude Code / agent-compatible tools |
-| `.cursorrules` | Cursor |
-| `.cursor/rules/*.mdc` | Cursor (rules directory) |
-| `.windsurfrules` | Windsurf |
-| `.clinerules` | Cline |
-| `.roomodes` | Roo Code |
-| `.github/copilot-instructions.md` | GitHub Copilot |
-| `.vscode/settings.json` → `github.copilot.chat.codeGeneration.instructions` | VS Code Copilot |
-| `CONVENTIONS.md` / `.aider.conf.yml` | aider |
-| `CONTRIBUTING.md` | General project conventions |
-| `.editorconfig` | Editor formatting rules |
-
-### Step 2: Analyze the codebase for anything not covered by existing docs
-
-Scan real code to discover patterns. Before writing each spec file:
-- Find 2-3 real examples of each pattern in the codebase.
-- Reference real file paths (not hypothetical ones).
-- Document anti-patterns the team clearly avoids.
-
-### Step 3: Document reality, not ideals
-
-**Critical**: write what the code *actually does*, not what it should do.
-Sub-agents match the spec, so aspirational patterns that don't exist in the
-codebase will cause sub-agents to write code that looks out of place.
-
-If the team has known tech debt, document the current state — improvement
-is a separate conversation, not a bootstrap concern.
-
----
-
-## Quick explainer of the runtime (share when they ask "why do we need spec at all")
-
-- Every AI coding task spawns two sub-agents: `trellis-implement` (writes
-  code) and `trellis-check` (verifies quality).
-- Each task has `implement.jsonl` / `check.jsonl` manifests listing which
-  spec files to load.
-- The platform hook auto-injects those spec files + the task's `prd.md`
-  into every sub-agent prompt, so the sub-agent codes/reviews per team
-  conventions without anyone pasting them manually.
-- Source of truth: `.trellis/spec/`. That's why filling it well now pays
-  off forever.
-
----
-
-## Completion
-
-When the developer confirms the checklist items above are done with real
-examples (not placeholders), guide them to run:
-
-```bash
-python3 ./.trellis/scripts/task.py finish
-python3 ./.trellis/scripts/task.py archive 00-bootstrap-guidelines
-```
-
-After archive, every new developer who joins this project will get a
-`00-join-<slug>` onboarding task instead of this bootstrap task.
-
----
-
-## Suggested opening line
-
-"Welcome to Trellis! Your init just set me up to help you fill the project
-spec — a one-time setup so every future AI session follows the team's
-conventions instead of writing generic code. Before we start, do you have
-any existing convention docs (CLAUDE.md, .cursorrules, CONTRIBUTING.md,
-etc.) I can pull from, or should I scan the codebase from scratch?"
+用户已审阅规范交付并明确要求提交、推送、归档，授权将本任务与本轮现状校准任务一同归档。前文的保留 `in_progress` 是实施阶段的保护条件；本次由 Trellis 归档脚本写入 `completed` 和实际完成日期，保留初始化身份和来源。收尾包含会话日志及 `origin/main` 推送，不涉及产品修改或新的业务验收。

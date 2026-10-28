@@ -1,97 +1,24 @@
-# Thinking Guides
+# 项目思考指南
 
-> **Purpose**: Expand your thinking to catch things you might not have considered.
+这些指南用于修改前识别影响面和核对证据；具体实现约束仍由 [后端规范](../backend/index.md) 与 [前端规范](../frontend/index.md) 管理。
 
----
+| 指南 | 适用触发 |
+| --- | --- |
+| [代码复用](./code-reuse-thinking-guide.md) | 新增辅助函数、重复解析字段、复制核算/成员判断、修改共同常量或状态 |
+| [跨层修改](./cross-layer-thinking-guide.md) | 变更来源/留存/分析/保存/导出链路，或 HTTP、页面状态、schema、运行生命周期 |
 
-## Why Thinking Guides?
+## 修改前
 
-**Most bugs and tech debt come from "didn't think of that"**, not from lack of skill:
+- [ ] 读当前任务的需求、设计和执行边界，确认预期行为与当前行为的差距。
+- [ ] 用 rg 搜索真实生产者、消费者、共享函数和现有测试。
+- [ ] 区分输入格式检查、业务判断、事务内权威重检和 UI 提示，识别每个所有者。
+- [ ] 确认资料目录/只读来源/分享包各自边界，选择隔离测试数据。
 
-- Didn't think about what happens at layer boundaries → cross-layer bugs
-- Didn't think about code patterns repeating → duplicated code everywhere
-- Didn't think about edge cases → runtime errors
-- Didn't think about future maintainers → unreadable code
+## 检查反馈时
 
-These guides help you **ask the right questions before coding**.
+- [ ] 对每个问题定位到源码和可观察结果，核对是否已有设计或测试解释。
+- [ ] 不把 UI 看起来成功、HTTP 200、构建成功或历史截图推成业务验收。
+- [ ] 若确实发现范围外产品问题，记录事实与建议，再决定独立处理；不要靠改文档掩盖缺陷。
+- [ ] 只读证据、计划项、当前测试和原生验收分开表述。
 
----
-
-## Available Guides
-
-| Guide | Purpose | When to Use |
-|-------|---------|-------------|
-| [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
-| [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
-
----
-
-## Quick Reference: Thinking Triggers
-
-### When to Think About Cross-Layer Issues
-
-- [ ] Feature touches 3+ layers (API, Service, Component, Database)
-- [ ] Data format changes between layers
-- [ ] Multiple consumers need the same data
-- [ ] You're not sure where to put some logic
-- [ ] You are adding an event kind, JSONL record, RPC payload, or config field
-- [ ] UI / command code starts casting raw payload fields directly
-
-→ Read [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md)
-
-### When to Think About Code Reuse
-
-- [ ] You're writing similar code to something that exists
-- [ ] You see the same pattern repeated 3+ times
-- [ ] You're adding a new field to multiple places
-- [ ] **You're modifying any constant or config**
-- [ ] **You're creating a new utility/helper function** ← Search first!
-- [ ] Two files read the same untyped payload field with local casts
-- [ ] Multiple branches update the same derived state from `kind` / `action`
-
-→ Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
-
-### When Verifying AI Cross-Review Results
-
-- [ ] Reviewer claims "user input can be malicious" → Check the actual data source (internal manifest? user config? external API?)
-- [ ] Reviewer flags "missing validation" → Is the data from a trusted internal source?
-- [ ] Reviewer says "behavior change" → Read the code comments — is it intentional design?
-- [ ] Reviewer identifies a "bug" in test → Mentally delete the feature being tested — does the test still pass? If yes → tautological test
-
-**Common AI reviewer false-positive patterns**:
-1. **Trust boundary confusion**: Treating internal data (bundled JSON manifests) as untrusted external input
-2. **Ignoring design comments**: Flagging intentional behavior documented in code comments as bugs
-3. **Variable misreading**: Not tracing a variable to its actual definition (e.g., Map keyed by path vs name)
-
-**Verification rule**: Every CRITICAL/WARNING finding must be verified against the actual code before prioritizing. Budget ~35% false-positive rate for AI reviews.
-
----
-
-## Pre-Modification Rule (CRITICAL)
-
-> **Before changing ANY value, ALWAYS search first!**
-
-```bash
-# Search for the value you're about to change
-grep -r "value_to_change" .
-```
-
-This single habit prevents most "forgot to update X" bugs.
-
----
-
-## How to Use This Directory
-
-1. **Before coding**: Skim the relevant thinking guide
-2. **During coding**: If something feels repetitive or complex, check the guides
-3. **After bugs**: Add new insights to the relevant guide (learn from mistakes)
-
----
-
-## Contributing
-
-Found a new "didn't think of that" moment? Add it to the relevant guide.
-
----
-
-**Core Principle**: 30 minutes of thinking saves 3 hours of debugging.
+指南保持简短，用 aha 的真实文件举例；新增重要契约、错误矩阵或测试断言写入对应 spec，再从指南链接。
