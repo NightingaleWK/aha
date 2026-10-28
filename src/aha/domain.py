@@ -240,6 +240,16 @@ def normalize_row(row: Mapping[str, Any], grain: str) -> Row:
     return result
 
 
+def normalize_price(row: Mapping[str, Any]) -> Row:
+    if not set(PRICING_FIELDS).issubset(row):
+        raise AppError("incompatible_schema", "来源缺少必要价格依据字段。")
+    normalized: Row = {"model_id": _text(row["model_id"]),
+                       "display_name": _text(row["display_name"], empty=True)}
+    for key in PRICING_FIELDS[2:]:
+        normalized[key] = decimal_text(decimal_value(row[key], nonnegative=True))
+    return normalized
+
+
 def build_source_data(
     details: Iterable[Mapping[str, Any]],
     rollups: Iterable[Mapping[str, Any]],
@@ -276,14 +286,7 @@ def build_source_data(
         model_id = row.get("model_id")
         if model_id not in wanted:
             continue
-        if not set(PRICING_FIELDS).issubset(row):
-            raise AppError("incompatible_schema", "来源缺少必要价格依据字段。")
-        normalized = {
-            "model_id": _text(model_id),
-            "display_name": _text(row["display_name"], empty=True),
-        }
-        for key in PRICING_FIELDS[2:]:
-            normalized[key] = decimal_text(decimal_value(row[key], nonnegative=True))
+        normalized = normalize_price(row)
         if model_id in pricing_seen:
             raise AppError("duplicate_key", "来源中存在重复价格主键；未导入。")
         pricing_seen.add(str(model_id))

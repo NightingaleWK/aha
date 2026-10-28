@@ -7,7 +7,10 @@ import json
 import os
 import re
 import sqlite3
+import threading
+import time
 from collections import Counter
+from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
 from typing import Any, BinaryIO, cast
@@ -120,6 +123,7 @@ def _index_candidates(
     root: Path,
     session_ids: set[str],
     errors: Counter[str],
+    stopped: Callable[[], bool] = lambda: False,
 ) -> set[Path]:
     candidates: set[Path] = set()
     try:
@@ -128,13 +132,18 @@ def _index_candidates(
         errors["index_unavailable"] += 1
         return candidates
     for index in indexes:
+        if stopped():
+            return candidates
         try:
             uri = index.resolve().as_uri() + "?mode=ro"
             with closing(sqlite3.connect(uri, uri=True, timeout=0.1)) as connection:
+                connection.set_progress_handler(lambda: int(stopped()), 1000)
                 connection.execute("PRAGMA query_only=ON")
                 connection.execute("PRAGMA trusted_schema=OFF")
                 ids = sorted(session_ids)
                 for position in range(0, len(ids), 500):
+                    if stopped():
+                        return candidates
                     chunk = ids[position : position + 500]
                     placeholders = ",".join("?" for _ in chunk)
                     query = f"SELECT id, rollout_path FROM threads WHERE id IN ({placeholders})"
@@ -158,15 +167,19 @@ def _candidate_paths(
     session_ids: set[str],
     roots: list[Path],
     errors: Counter[str],
+    stopped: Callable[[], bool] = lambda: False,
 ) -> set[Path]:
     candidates: set[Path] = set()
     scanned = 0
     ordinary_ids = sorted(item for item in session_ids if not _UUID.fullmatch(item))
     for root in roots:
+        if stopped():
+            errors["scan_budget_exceeded"] += 1
+            return candidates
         if not root.is_dir():
             errors["root_unavailable"] += 1
             continue
-        candidates.update(_index_candidates(root, session_ids, errors))
+        candidates.update(_index_candidates(root, session_ids, errors, stopped))
         scan_roots = [
             root / name for name in ("sessions", "archived_sessions") if (root / name).is_dir()
         ]
@@ -178,6 +191,9 @@ def _candidate_paths(
             for directory, subdirectories, filenames in os.walk(scan_root, onerror=walk_error):
                 subdirectories.sort()
                 for filename in sorted(filenames):
+                    if stopped():
+                        errors["scan_budget_exceeded"] += 1
+                        return candidates
                     scanned += 1
                     if scanned > MAX_SCAN_FILES:
                         errors["scan_limit"] += 1
@@ -190,7 +206,18 @@ def _candidate_paths(
     return candidates
 
 
-def scan_metadata(session_ids: set[str], roots: list[Path]) -> dict[str, Any]:
+def scan_metadata(
+    session_ids: set[str],
+    roots: list[Path],
+    *,
+    cancel: threading.Event | None = None,
+    timeout: float = 10.0,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+
+    def stopped() -> bool:
+        return time.monotonic() >= deadline or (cancel is not None and cancel.is_set())
+
     if (
         not isinstance(session_ids, set)
         or len(session_ids) > MAX_SESSIONS
@@ -205,11 +232,14 @@ def scan_metadata(session_ids: set[str], roots: list[Path]) -> dict[str, Any]:
     errors: Counter[str] = Counter()
     if not session_ids:
         return {"sessions": sessions, "matched_sessions": 0, "total_sessions": 0, "errors": []}
-    paths = _candidate_paths(session_ids, [Path(root) for root in roots], errors)
+    paths = _candidate_paths(session_ids, [Path(root) for root in roots], errors, stopped)
     # One owner normalizes directory meaning for both matching and header conflicts.
     from .projects import canonical_path
 
     for path in sorted(paths, key=str):
+        if stopped():
+            errors["scan_budget_exceeded"] += 1
+            break
         try:
             session_id, cwd, parent = _header(path)
             if session_id not in sessions:

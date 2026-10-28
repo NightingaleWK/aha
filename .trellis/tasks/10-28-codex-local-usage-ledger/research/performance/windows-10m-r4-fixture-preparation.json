@@ -1,0 +1,49 @@
+{
+  "completed": true,
+  "application_fingerprint": "950468553e90d8cc319dc25e43a9ca670a6ef1660b76d724adf5cacf66966dc7",
+  "before": {
+    "records": 10010000,
+    "versions": 10111000
+  },
+  "after": {
+    "records": 10010000,
+    "versions": 10120000
+  },
+  "released": [],
+  "run": {
+    "metadata_errors": [],
+    "new_count": 0,
+    "observed": {
+      "detail": 20000,
+      "pricing": 20,
+      "rollup": 0
+    },
+    "pending_count": 0,
+    "revised_count": 9000,
+    "source_fingerprint": "64d6109543a900dae57e11c78fbc5e811d69453af59758d31de881e4d0a0612e",
+    "timings_ms": {
+      "compare_current_versions_ms": 33224.11660000216,
+      "derived_refresh_ms": 4402.903999998671,
+      "metadata_ms": 0.000300002284348011,
+      "publish_before_commit_ms": 37627.12100000135,
+      "source_projection_and_staging_ms": 3363.705399999162
+    },
+    "unchanged_count": 11000,
+    "id": "d0243f0b-2abe-4a68-9368-e4d1546b2dfe",
+    "run_id": "d0243f0b-2abe-4a68-9368-e4d1546b2dfe",
+    "state": "completed",
+    "started_at": "2026-10-28T06:18:21.593813+00:00",
+    "completed_at": "2026-10-28T06:19:02.626967+00:00",
+    "source_id": "benchmark-live",
+    "source": {
+      "kind": "history",
+      "name": "合成固定来源窗口"
+    },
+    "error_code": null,
+    "error_message": null,
+    "data_revision": 3
+  },
+  "source_detail_rows": 20000,
+  "allowed_projection_sha256": "b690e89c15ac59c8f73e423f306d087287524ae6707d5ff7a162254a23c7fc9f",
+  "note": "Normal live sync corrects 9000 existing synthetic costs to match saved 1m/20k baseline exactly; no facts removed."
+}

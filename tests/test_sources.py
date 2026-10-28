@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from typing import Any
@@ -382,6 +384,118 @@ class SourceIdentityTests(unittest.TestCase):
         other = rollup(request_model="changed")
         self.assertNotEqual(record_key(rollup(), "rollup"), record_key(other, "rollup"))
         self.assertEqual(set(rollup()), set(ROLLUP_FIELDS))
+
+
+class ConsistentProjectionTests(unittest.TestCase):
+    def test_delete_mode_writer_wait_is_bounded_by_reader_lifetime(self) -> None:
+        from aha.sources import scan_sqlite
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "source.db"
+            original = database(path, [detail()])
+            original.close()
+            attempted, committed = threading.Event(), threading.Event()
+            failures: list[Exception] = []
+
+            def writer() -> None:
+                try:
+                    connection = sqlite3.connect(path, timeout=2)
+                    row = detail(request_id="r2")
+                    connection.execute(
+                        "INSERT INTO proxy_request_logs VALUES ("
+                        + ",".join("?" for _ in DETAIL_FIELDS)
+                        + ")",
+                        [row[field] for field in DETAIL_FIELDS],
+                    )
+                    attempted.set()
+                    connection.commit()
+                    committed.set()
+                    connection.close()
+                except Exception as exc:
+                    failures.append(exc)
+
+            thread = threading.Thread(target=writer)
+            seen: list[str] = []
+
+            def sink(table: str, row: dict[str, Any]) -> None:
+                if table == "proxy_request_logs":
+                    seen.append(row["request_id"])
+                    thread.start()
+                    self.assertTrue(attempted.wait(1))
+                    self.assertFalse(committed.wait(0.03))
+
+            started = time.monotonic()
+            scan_sqlite(path, sink)
+            thread.join(2)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual(failures, [])
+            self.assertTrue(committed.is_set())
+            self.assertEqual(seen, ["r1"])
+            self.assertLess(time.monotonic() - started, 1)
+
+    def test_wal_cleanup_between_table_reads_cannot_mix_snapshots(self) -> None:
+        from aha.sources import scan_sqlite
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "source.db"
+            original = database(path, [detail()])
+            original.execute("PRAGMA journal_mode=WAL")
+            seen: dict[str, list[dict[str, Any]]] = {table: [] for table in TABLE_FIELDS}
+
+            def sink(table: str, row: dict[str, Any]) -> None:
+                seen[table].append(row)
+                if table == "proxy_request_logs":
+                    original.execute("BEGIN IMMEDIATE")
+                    original.execute("DELETE FROM proxy_request_logs")
+                    aggregate = rollup()
+                    original.execute(
+                        "INSERT INTO usage_daily_rollups VALUES ("
+                        + ",".join("?" for _ in ROLLUP_FIELDS)
+                        + ")",
+                        [aggregate[field] for field in ROLLUP_FIELDS],
+                    )
+                    original.commit()
+
+            try:
+                scan_sqlite(path, sink)
+                self.assertEqual(len(seen["proxy_request_logs"]), 1)
+                self.assertEqual(seen["usage_daily_rollups"], [])
+                count = original.execute("SELECT COUNT(*) FROM usage_daily_rollups").fetchone()[0]
+                self.assertEqual(count, 1)
+            finally:
+                original.close()
+
+    def test_projection_budget_ignores_unrelated_database_pages(self) -> None:
+        from aha.sources import scan_sqlite
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "source.db"
+            original = database(path, [detail()])
+            original.execute("CREATE TABLE unrelated(private BLOB)")
+            original.execute("INSERT INTO unrelated VALUES(zeroblob(2000000))")
+            original.commit()
+            original.close()
+            tables: set[str] = set()
+            with patch("aha.sources.MAX_DATABASE_BYTES", 4096):
+                scan_sqlite(path, lambda table, row: tables.add(table))
+            self.assertNotIn("unrelated", tables)
+            self.assertGreater(path.stat().st_size, 2000000)
+
+    def test_slow_consumer_and_cancel_cannot_publish_truncated_source(self) -> None:
+        from aha.sources import scan_sqlite
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "source.db"
+            original = database(path, [detail()])
+            original.close()
+            with self.assertRaises(AppError) as error:
+                scan_sqlite(path, lambda table, row: time.sleep(0.02), timeout=0.005)
+            self.assertEqual(error.exception.code, "source_busy")
+            cancelled = threading.Event()
+            cancelled.set()
+            with self.assertRaises(AppError) as error:
+                scan_sqlite(path, lambda table, row: None, cancel=cancelled)
+            self.assertEqual(error.exception.code, "sync_cancelled")
 
 
 if __name__ == "__main__":

@@ -99,20 +99,10 @@ def claim(**changes: Any) -> dict[str, Any]:
 def analyze_capture(
     store: Any, data: dict[str, Any] | None = None, **selection: Any
 ) -> dict[str, Any]:
-    from aha.analysis import analyze
-
-    capture = store.retain(data or source_data(), metadata())
-    loaded = store.get_capture(capture["id"])
-    result = analyze(
-        loaded["data"],
-        loaded["metadata"],
-        store.config(),
+    store.sync_data(data or source_data(), metadata(), trust="live")
+    return store.analyze(
         selection.get("start_date", "2026-10-24"),
         selection.get("end_date", "2026-10-26"),
         selection.get("project_id", "all"),
+        target_batch_id=selection.get("target_batch_id"),
     )
-    result["capture_id"] = capture["id"]
-    result["claim_revision"] = store.claim_revision()
-    result["availability_mode"] = "available"
-    result["target_batch_id"] = selection.get("target_batch_id")
-    return result

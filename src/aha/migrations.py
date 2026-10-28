@@ -1,201 +1,165 @@
-"""Application schema evolution, serialized by Store's write transaction."""
+"""Fresh schema3 only: trial business databases are deliberately not migrated."""
 
 from __future__ import annotations
 
-import hashlib
-from typing import TYPE_CHECKING, Any
+import sqlite3
+from typing import TYPE_CHECKING
 
-from .claims import evaluate, members_from_analysis, validate_members
-from .domain import AppError, content_hash
+from .domain import AppError
 
 if TYPE_CHECKING:
     from .storage import Store
 
+SCHEMA_VERSION = 3
+MONTHLY_SCHEMA = """
+CREATE TABLE IF NOT EXISTS monthly_usage_stats(month TEXT NOT NULL,
+ project_id TEXT NOT NULL,model TEXT NOT NULL,kind TEXT NOT NULL,state TEXT NOT NULL,
+ row_count INTEGER NOT NULL,record_count TEXT NOT NULL,fresh_input_tokens TEXT NOT NULL,
+ output_tokens TEXT NOT NULL,cache_read_tokens TEXT NOT NULL,
+ cache_creation_tokens TEXT NOT NULL,total_tokens TEXT NOT NULL,total_cost_usd TEXT NOT NULL,
+ unpriced_count TEXT NOT NULL DEFAULT '0',
+ PRIMARY KEY(month,project_id,model,kind,state));
+CREATE INDEX IF NOT EXISTS monthly_stats_project_month ON monthly_usage_stats(project_id,month);
+"""
+SOURCE_OBSERVATIONS_SCHEMA = """CREATE TABLE IF NOT EXISTS source_rollup_observations(
+ source_id TEXT NOT NULL REFERENCES source_profiles(id),record_key TEXT NOT NULL,
+ request_count TEXT NOT NULL,PRIMARY KEY(source_id,record_key))"""
+QUERY_INDEXES = """
+CREATE INDEX IF NOT EXISTS stats_excluded_day_model_state
+ ON daily_usage_stats(day,model,state) WHERE state!='available';
+CREATE INDEX IF NOT EXISTS stats_excluded_project_day_model_state
+ ON daily_usage_stats(project_id,day,model,state) WHERE state!='available';
+"""
+SCHEMA = """
+CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+INSERT INTO settings VALUES('revision','0'),('data_revision','0'),('claim_revision','0');
+CREATE TABLE projects(id TEXT PRIMARY KEY,name TEXT NOT NULL,description TEXT NOT NULL,
+ directories_json TEXT NOT NULL);
+CREATE TABLE overrides(record_key TEXT PRIMARY KEY,content_hash TEXT NOT NULL,
+ project_id TEXT NOT NULL REFERENCES projects(id));
+CREATE TABLE source_profiles(id TEXT PRIMARY KEY,kind TEXT NOT NULL,name TEXT NOT NULL,
+ location TEXT,trust TEXT NOT NULL,created_at TEXT NOT NULL,last_run_id TEXT);
+CREATE TABLE source_epochs(id TEXT PRIMARY KEY,source_id TEXT NOT NULL REFERENCES
+source_profiles(id),
+ state TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE sync_runs(id TEXT PRIMARY KEY,source_id TEXT REFERENCES source_profiles(id),
+ state TEXT NOT NULL,trigger TEXT NOT NULL,startup_id TEXT UNIQUE,started_at TEXT NOT NULL,
+ completed_at TEXT,heartbeat_at TEXT NOT NULL,result_json TEXT NOT NULL DEFAULT '{}',
+ error_code TEXT,error_message TEXT,data_revision INTEGER);
+CREATE UNIQUE INDEX one_sync_running ON sync_runs(state) WHERE state='running';
+CREATE TABLE usage_versions(id INTEGER PRIMARY KEY,record_key TEXT NOT NULL,
+ content_hash TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL,
+ source_id TEXT NOT NULL REFERENCES source_profiles(id),UNIQUE(record_key,content_hash));
+CREATE TABLE usage_records(record_key TEXT PRIMARY KEY,kind TEXT NOT NULL,
+ version_id INTEGER NOT NULL REFERENCES usage_versions(id),content_hash TEXT NOT NULL,
+ day TEXT NOT NULL,event_time INTEGER NOT NULL,scope_key TEXT NOT NULL,coverage_key TEXT NOT NULL,
+ semantic_key TEXT,model TEXT NOT NULL,pricing_model TEXT NOT NULL DEFAULT '',session_id
+TEXT,project_id TEXT NOT NULL DEFAULT '',
+ assignment_origin TEXT NOT NULL DEFAULT 'unassigned',cwd TEXT,
+ availability_state TEXT NOT NULL DEFAULT 'available',usage_reason TEXT NOT NULL DEFAULT '',
+ suppressed INTEGER NOT NULL DEFAULT 0,request_count TEXT NOT NULL,
+ fresh_input_tokens TEXT NOT NULL,output_tokens TEXT NOT NULL,cache_read_tokens TEXT NOT NULL,
+ cache_creation_tokens TEXT NOT NULL,total_tokens TEXT NOT NULL,total_cost_usd TEXT NOT NULL,
+ pricing_status TEXT NOT NULL DEFAULT 'missing_basis');
+CREATE INDEX usage_time ON usage_records(event_time,record_key);
+CREATE INDEX usage_project_time ON usage_records(project_id,event_time,record_key);
+CREATE INDEX usage_available_time ON
+usage_records(availability_state,suppressed,event_time,record_key);
+CREATE INDEX usage_project_available_time ON
+usage_records(project_id,availability_state,suppressed,event_time,record_key);
+CREATE INDEX usage_scope ON usage_records(scope_key);
+CREATE INDEX usage_coverage ON usage_records(coverage_key,kind);
+CREATE INDEX usage_semantic ON usage_records(semantic_key) WHERE semantic_key IS NOT NULL;
+CREATE INDEX usage_pricing ON usage_records(pricing_model,scope_key);
+CREATE INDEX usage_model ON usage_records(model,scope_key);
+CREATE INDEX usage_session ON usage_records(session_id) WHERE session_id IS NOT NULL;
+CREATE INDEX usage_day ON usage_records(day,project_id,model);
+CREATE TABLE record_evidence(version_id INTEGER NOT NULL REFERENCES usage_versions(id),
+ source_id TEXT NOT NULL REFERENCES source_profiles(id),run_id TEXT NOT NULL REFERENCES
+sync_runs(id),
+ PRIMARY KEY(version_id,source_id));
+CREATE TABLE record_aliases(alias_key TEXT PRIMARY KEY,canonical_key TEXT NOT NULL,reason TEXT
+NOT NULL);
+CREATE TABLE sessions(id TEXT PRIMARY KEY,cwd TEXT,status TEXT NOT NULL,parent_id TEXT,
+ content_hash TEXT NOT NULL,last_checked TEXT NOT NULL DEFAULT '');
+CREATE TABLE session_metadata_versions(id INTEGER PRIMARY KEY,session_id TEXT NOT NULL,
+ content_hash TEXT NOT NULL,payload_json TEXT NOT NULL,created_at TEXT NOT NULL,
+ UNIQUE(session_id,content_hash));
+CREATE TABLE pricing(model_id TEXT PRIMARY KEY,payload_json TEXT NOT NULL);
+CREATE TABLE coverage_groups(id TEXT PRIMARY KEY,scope_key TEXT NOT NULL,day TEXT NOT NULL,
+ model TEXT NOT NULL,basis TEXT NOT NULL DEFAULT 'unknown',generation INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE reconciliation_cases(id TEXT PRIMARY KEY,type TEXT NOT NULL,
+ coverage_key TEXT,record_key TEXT,source_id TEXT,state TEXT NOT NULL DEFAULT 'open',
+ generation INTEGER NOT NULL DEFAULT 1,message TEXT NOT NULL,info_json TEXT NOT NULL,
+ UNIQUE(type,coverage_key,record_key,source_id));
+CREATE INDEX cases_coverage ON reconciliation_cases(coverage_key,state);
+CREATE INDEX cases_source ON reconciliation_cases(source_id,state);
+CREATE INDEX cases_record ON reconciliation_cases(record_key,state);
+CREATE TABLE reconciliation_events(id INTEGER PRIMARY KEY,case_id TEXT NOT NULL,
+ choice TEXT NOT NULL,reason TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE reconciliation_idempotency(key TEXT PRIMARY KEY,payload_hash TEXT NOT
+NULL,result_json TEXT NOT NULL);
+CREATE TABLE daily_usage_stats(day TEXT NOT NULL,project_id TEXT NOT NULL,model TEXT NOT NULL,
+ kind TEXT NOT NULL,state TEXT NOT NULL,row_count INTEGER NOT NULL,record_count TEXT NOT NULL,
+ fresh_input_tokens TEXT NOT NULL,output_tokens TEXT NOT NULL,cache_read_tokens TEXT NOT NULL,
+ cache_creation_tokens TEXT NOT NULL,total_tokens TEXT NOT NULL,total_cost_usd TEXT NOT NULL,
+ unpriced_count TEXT NOT NULL DEFAULT '0',
+ PRIMARY KEY(day,project_id,model,kind,state));
+CREATE INDEX stats_project_day ON daily_usage_stats(project_id,day);
+CREATE TABLE sync_stage(run_id TEXT NOT NULL,record_key TEXT NOT NULL,kind TEXT NOT NULL,
+ content_hash TEXT NOT NULL,payload_json TEXT NOT NULL,PRIMARY KEY(run_id,record_key));
+CREATE TABLE sync_pricing(run_id TEXT NOT NULL,model_id TEXT NOT NULL,payload_json TEXT NOT NULL,
+ PRIMARY KEY(run_id,model_id));
+"""
 
-V2_STATEMENTS = (
-    "ALTER TABLE revisions ADD COLUMN claim_protocol INTEGER NOT NULL DEFAULT 0",
-    "ALTER TABLE revisions ADD COLUMN write_generation INTEGER NOT NULL DEFAULT 0",
-    "ALTER TABLE idempotency ADD COLUMN request_signature TEXT NOT NULL DEFAULT ''",
-    "INSERT INTO settings(key,value) VALUES('claim_revision','0')",
-    """CREATE TABLE batch_control(
-        batch_id TEXT PRIMARY KEY NOT NULL REFERENCES batches(id),
-        active_version INTEGER,
-        lifecycle TEXT NOT NULL CHECK(lifecycle IN ('active','voided','legacy_review')),
-        generation INTEGER NOT NULL CHECK(generation>=1),
-        voided_at TEXT,void_reason TEXT,
-        FOREIGN KEY(batch_id,active_version) REFERENCES revisions(batch_id,version),
-        CHECK(lifecycle!='active' OR active_version IS NOT NULL))""",
-    """CREATE TABLE usage_claims(
-        record_key TEXT PRIMARY KEY NOT NULL,
-        batch_id TEXT NOT NULL REFERENCES batches(id),owner_version INTEGER NOT NULL,
-        kind TEXT NOT NULL CHECK(kind IN ('detail','rollup')),
-        scope_key TEXT NOT NULL,semantic_key TEXT,member_json TEXT NOT NULL,
-        FOREIGN KEY(batch_id,owner_version) REFERENCES revisions(batch_id,version))""",
-    "CREATE INDEX usage_claim_scope ON usage_claims(scope_key,kind)",
-    "CREATE INDEX usage_claim_semantic ON usage_claims(semantic_key) "
-    "WHERE semantic_key IS NOT NULL",
-    "CREATE INDEX usage_claim_owner ON usage_claims(batch_id)",
-    """CREATE TABLE legacy_holds(
-        record_key TEXT NOT NULL,batch_id TEXT NOT NULL REFERENCES batches(id),
-        version INTEGER NOT NULL,kind TEXT NOT NULL,scope_key TEXT NOT NULL,
-        semantic_key TEXT,member_json TEXT NOT NULL,
-        PRIMARY KEY(record_key,batch_id,version),
-        FOREIGN KEY(batch_id,version) REFERENCES revisions(batch_id,version))""",
-    "CREATE INDEX legacy_hold_scope ON legacy_holds(scope_key,kind)",
-    "CREATE INDEX legacy_hold_semantic ON legacy_holds(semantic_key) "
-    "WHERE semantic_key IS NOT NULL",
-    "CREATE INDEX legacy_hold_owner ON legacy_holds(batch_id)",
-    """CREATE TABLE claim_events(
-        id INTEGER PRIMARY KEY,batch_id TEXT NOT NULL REFERENCES batches(id),version INTEGER,
-        action TEXT NOT NULL,reason TEXT NOT NULL,created_at TEXT NOT NULL,
-        from_version INTEGER,to_version INTEGER,old_status TEXT,new_status TEXT)""",
-    """CREATE TABLE action_idempotency(
-        key TEXT PRIMARY KEY NOT NULL,payload_hash TEXT NOT NULL,
-        batch_id TEXT NOT NULL REFERENCES batches(id),operation TEXT NOT NULL)""",
-    """CREATE TRIGGER revisions_protocol BEFORE INSERT ON revisions
-        WHEN NEW.claim_protocol IS NOT 2
-        BEGIN SELECT RAISE(ABORT,'aha_upgrade_required'); END""",
-    """CREATE TRIGGER revisions_status_protocol
-        BEFORE UPDATE OF status,status_updated_at ON revisions
-        WHEN NEW.write_generation IS NOT OLD.write_generation+1 OR NOT EXISTS(
-            SELECT 1 FROM batch_control c WHERE c.batch_id=OLD.batch_id
-            AND c.active_version=OLD.version AND c.lifecycle='active')
-        BEGIN SELECT RAISE(ABORT,'aha_upgrade_required'); END""",
-    """CREATE TRIGGER claim_events_immutable_update BEFORE UPDATE ON claim_events
-        BEGIN SELECT RAISE(ABORT,'aha_immutable_history'); END""",
-    """CREATE TRIGGER claim_events_immutable_delete BEFORE DELETE ON claim_events
-        BEGIN SELECT RAISE(ABORT,'aha_immutable_history'); END""",
-)
 
-
-def initialize(store: Store, base_schema: str) -> None:
-    """Called inside BEGIN IMMEDIATE; never use executescript within this boundary."""
-    version = store._db.execute("PRAGMA user_version").fetchone()[0]
-    if version == 2:
+def initialize(store: Store, base_schema: str = "") -> None:
+    connection = store._db
+    version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+    if version == SCHEMA_VERSION:
         return
-    if version == 0:
-        if store._db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchone():
-            raise AppError("unsupported_store", "无法识别这份资料，请使用对应版本程序。", 409)
-        for statement in base_schema.split(";"):
-            if statement.strip():
-                store._db.execute(statement)
-    elif version == 1:
-        store._backup_v1()
-    else:
-        raise AppError("unsupported_store", "这份资料需要其他版本程序，请保留原目录。", 409)
-    for statement in V2_STATEMENTS:
-        store._db.execute(statement)
-    if version == 1:
-        _backfill(store)
-    if store._db.execute("PRAGMA foreign_key_check").fetchone() is not None:
-        raise AppError("migration_damaged", "资料关联校验失败，请保留原目录和升级备份。", 409)
-    store._db.execute("PRAGMA user_version=2")
-
-
-def _backfill(store: Store) -> None:
-    from .batches import add_members, record_event
-
-    batches = store._db.execute("SELECT * FROM batches ORDER BY number").fetchall()
-    all_entries: list[dict[str, Any]] = []
-    versions: dict[str, list[dict[str, Any]]] = {}
-    review: set[str] = set()
-    try:
-        for batch in batches:
-            rows = store._db.execute(
-                "SELECT * FROM revisions WHERE batch_id=? ORDER BY version", (batch["id"],)
-            ).fetchall()
-            if not rows:
-                raise ValueError
-            selected = []
-            for row in rows:
-                analysis = store._decode(row["analysis_json"])
-                if not isinstance(analysis, dict):
-                    raise ValueError
-                members = members_from_analysis(analysis)
-                stored_members = validate_members(store._decode(row["members_json"]))
-                declared = {item["key"]: item for item in stored_members}
-                if len(declared) != len(stored_members) or set(declared) != {
-                    m["key"] for m in members
-                }:
-                    raise ValueError
-                for member in members:
-                    if any(
-                        declared[member["key"]].get(key) != value for key, value in member.items()
-                    ):
-                        raise ValueError
-                batch_info = {
-                    "id": batch["id"],
-                    "number": f"AHA-{batch['number']:06d}",
-                    "version": row["version"],
-                    "created_at": row["created_at"],
-                }
-                frozen = content_hash(
-                    {
-                        "analysis": analysis,
-                        "claim": store._decode(row["claim_json"]),
-                        "batch": batch_info,
-                    }
-                )
-                if frozen != row["frozen_hash"]:
-                    raise ValueError
-                if hashlib.sha256(store._read_file(row["zip_path"])).hexdigest() != row["zip_hash"]:
-                    raise ValueError
-                owner = {
-                    "batch_id": batch["id"],
-                    "number": batch_info["number"],
-                    "version": row["version"],
-                    "status": row["status"],
-                    "lifecycle": "legacy_review",
-                }
-                entries = [{"member": member, "owner": owner} for member in members]
-                selected.append({"row": row, "members": members, "entries": entries})
-                all_entries.extend(entries)
-            versions[batch["id"]] = selected
-            # Multiple v1 revisions were independently mutable; never infer a winner.
-            if len(rows) != 1:
-                review.add(batch["id"])
-        snapshot = {"claim_revision": 0, "claims": [], "legacy_holds": all_entries}
-        for batch_id, selected in versions.items():
-            for item in selected:
-                unavailable = evaluate(item["members"], snapshot, batch_id)["excluded"]
-                if unavailable:
-                    review.add(batch_id)
-                    for exclusion in unavailable:
-                        review.update(owner["batch_id"] for owner in exclusion["owners"])
-        for batch in batches:
-            batch_id = batch["id"]
-            selected = versions[batch_id]
-            is_review = batch_id in review
-            active_version = None if is_review else selected[0]["row"]["version"]
-            store._db.execute(
-                "INSERT INTO batch_control(batch_id,active_version,lifecycle,generation) "
-                "VALUES(?,?,?,1)",
-                (batch_id, active_version, "legacy_review" if is_review else "active"),
-            )
-            for item in selected:
-                add_members(
-                    store,
-                    batch_id,
-                    item["row"]["version"],
-                    item["members"],
-                    hold=is_review,
-                )
-            record_event(
-                store,
-                batch_id,
-                active_version,
-                "migrate",
-                "旧资料存在多个候选或重复用量，等待核对。" if is_review else "已升级并保留原记录。",
-                None,
-                active_version,
-                None,
-                None,
-            )
-        if batches:
-            store._db.execute("UPDATE settings SET value='1' WHERE key='claim_revision'")
-    except (KeyError, TypeError, ValueError, AppError) as exc:
+    if (
+        version != 0
+        or connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchone()
+    ):
         raise AppError(
-            "migration_damaged",
-            "旧资料校验失败，升级已取消。请保留原资料和升级备份。",
-            409,
-        ) from exc
+            "unsupported_store", "这份试用资料需要先保全历史用量并受控重建；未改动原资料。", 409
+        )
+    for statement in SCHEMA.split(";"):
+        if statement.strip():
+            connection.execute(statement)
+    initialize_monthly(connection)
+    initialize_source_observations(connection)
+    initialize_query_indexes(connection)
+    from . import batches
+
+    batches.initialize_schema(connection)
+    connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+    if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
+        raise AppError("storage_damaged", "资料结构校验失败。", 500)
+
+
+def initialize_monthly(connection: sqlite3.Connection) -> None:
+    """Fresh schema3 DDL; also used explicitly to update isolated benchmark fixtures."""
+    for statement in MONTHLY_SCHEMA.split(";"):
+        if statement.strip():
+            connection.execute(statement)
+
+
+def initialize_source_observations(connection: sqlite3.Connection) -> None:
+    connection.execute(SOURCE_OBSERVATIONS_SCHEMA)
+
+
+def initialize_query_indexes(connection: sqlite3.Connection) -> None:
+    for statement in QUERY_INDEXES.split(";"):
+        if statement.strip():
+            connection.execute(statement)
+
+
+def sqlite_wal_safe(version: tuple[int, ...] | None = None) -> bool:
+    actual = version or sqlite3.sqlite_version_info
+    return (
+        actual >= (3, 51, 3)
+        or (actual[:2] == (3, 50) and actual >= (3, 50, 7))
+        or (actual[:2] == (3, 44) and actual >= (3, 44, 6))
+    )

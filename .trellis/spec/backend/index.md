@@ -1,6 +1,6 @@
 # 后端开发规范
 
-aha v0.2.0 是 Python 3.12+ 本机用量与费用证据工具。产品实现位于 `src/aha/`，SQLite 来源只读，应用资料由独立 `Store` 管理。这里记录当前实现的开发约束；用户说明见 [README](../../../README.md)。
+aha v0.3.0 是 Python 3.12+ 本机 Codex 台账与费用证据工具。产品实现位于 `src/aha/`，CCS 来源只读，业务在独立 Store/schema3 查询；SQLite 运行时必须通过并发修复门禁。这里记录当前实现的开发约束；用户说明见 [README](../../../README.md)。
 
 ## 开发前检查
 

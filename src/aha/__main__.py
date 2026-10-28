@@ -101,8 +101,7 @@ def main() -> None:
         pass
     finally:
         server.server_close()
-        with server.app.lock:
-            server.app.close()
+        server.app.close()
         remove_launch_descriptor(descriptor, run_id)
 
 

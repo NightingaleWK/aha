@@ -85,92 +85,177 @@ def classify(
     }
 
 
-def configuration(store: Store) -> dict[str, Any]:
-    with store._lock:
-        store._ensure_open()
-        revision = int(
-            store._db.execute("SELECT value FROM settings WHERE key='revision'").fetchone()[0]
-        )
-        projects = [
-            {
-                "id": row["id"],
-                "name": row["name"],
-                "description": row["description"],
-                "directories": store._decode(row["directories_json"]),
-            }
-            for row in store._db.execute("SELECT * FROM projects ORDER BY name,id")
-        ]
-        overrides = {
-            row["record_key"]: {
-                "project_id": row["project_id"],
-                "content_hash": row["content_hash"],
-            }
-            for row in store._db.execute("SELECT * FROM overrides ORDER BY record_key")
+def configuration(store: Store, connection: Any = None) -> dict[str, Any]:
+    if connection is None:
+        with store.read_connection() as reader:
+            return configuration(store, reader)
+    projects = [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "description": row["description"],
+            "directories": store._decode(row["directories_json"]),
         }
-        return {"revision": revision, "projects": projects, "overrides": overrides}
+        for row in connection.execute("SELECT * FROM projects ORDER BY name,id")
+    ]
+    return {
+        "revision": store.revisions(connection)["classification_revision"],
+        "projects": projects,
+        "override_count": connection.execute("SELECT COUNT(*) FROM overrides").fetchone()[0],
+    }
 
 
 def save_project(
     store: Store, project_id: str | None, name: str, description: str, directories: list[str]
 ) -> dict[str, Any]:
+    from . import ledger
+
     if not isinstance(name, str) or not name.strip() or len(name) > 160:
         raise AppError("invalid_project", "项目名称不能为空，且最多为 160 个字符。")
     if not isinstance(description, str) or len(description) > 4000:
         raise AppError("invalid_project", "项目说明最多为 4000 个字符。")
     if not isinstance(directories, list) or len(directories) > 200:
         raise AppError("invalid_directory", "每个项目最多绑定 200 个目录。")
-    normalized: dict[str, str] = {}
-    for directory in directories:
-        normalized.setdefault(canonical_path(directory), directory.strip())
+    normalized = {canonical_path(directory): directory.strip() for directory in directories}
     with store._transaction():
-        config = configuration(store)
-        if project_id is not None and project_id not in {p["id"] for p in config["projects"]}:
-            raise AppError("project_not_found", "项目不存在，请刷新项目列表。", 404)
-        for existing in config["projects"]:
-            if existing["id"] != project_id:
-                if any(canonical_path(d) in normalized for d in existing["directories"]):
-                    raise AppError(
-                        "directory_conflict", "该目录已绑定其他项目，请先调整原绑定。", 409
-                    )
-        project_id = project_id or str(uuid4())
+        connection = store._db
+        config = configuration(store, connection)
+        existing = next((p for p in config["projects"] if p["id"] == project_id), None)
+        if project_id is not None and existing is None:
+            raise AppError("project_not_found", "项目不存在，请刷新。", 404)
+        for project in config["projects"]:
+            if project["id"] != project_id and any(
+                canonical_path(d) in normalized for d in project["directories"]
+            ):
+                raise AppError("directory_conflict", "该目录已绑定其他项目。", 409)
+        identity = project_id or str(uuid4())
+        old_directories = existing["directories"] if existing else []
+        scopes = _affected_directories(
+            connection, [*old_directories, *normalized.values()], identity
+        )
         saved = {
-            "id": project_id,
+            "id": identity,
             "name": name.strip(),
             "description": description.strip(),
             "directories": list(normalized.values()),
         }
-        store._db.execute(
-            "INSERT INTO projects(id,name,description,directories_json) VALUES(?,?,?,?) "
-            "ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,"
-            "directories_json=excluded.directories_json",
-            (project_id, saved["name"], saved["description"], store._encode(saved["directories"])),
+        connection.execute(
+            (
+                "INSERT INTO projects VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE S"
+                "ET name=excluded.name,description=excluded.description,directori"
+                "es_json=excluded.directories_json"
+            ),
+            (identity, saved["name"], saved["description"], store._encode(saved["directories"])),
         )
         store._advance_revision()
-        result = configuration(store)
-        result["project"] = saved
-        return result
+        ledger.reclassify(connection, scopes)
+        ledger.refresh_availability(connection, scopes)
+        return {**configuration(store, connection), "project": saved}
 
 
-def assign(
-    store: Store, rows: list[dict[str, Any]], project_id: str | None, grain: str = "detail"
-) -> dict[str, Any]:
-    if grain not in {"detail", "rollup"} or not isinstance(rows, list):
-        raise AppError("invalid_assignment", "请选择有效的明细或完整日汇总记录。")
-    identities = [(record_key(row, grain), row_fingerprint(row, grain)) for row in rows]
-    with store._transaction():
-        config = configuration(store)
-        if project_id is not None and project_id not in {p["id"] for p in config["projects"]}:
-            raise AppError("project_not_found", "项目不存在，请刷新项目列表。", 404)
-        for key, fingerprint in identities:
-            if project_id is None:
-                store._db.execute("DELETE FROM overrides WHERE record_key=?", (key,))
-            else:
-                store._db.execute(
-                    "INSERT INTO overrides(record_key,content_hash,project_id) VALUES(?,?,?) "
-                    "ON CONFLICT(record_key) DO UPDATE SET content_hash=excluded.content_hash,"
-                    "project_id=excluded.project_id",
-                    (key, fingerprint, project_id),
+def _affected_directories(connection: Any, directories: list[str], project_id: str) -> set[str]:
+    scopes = {
+        r[0]
+        for r in connection.execute(
+            "SELECT DISTINCT scope_key FROM usage_records WHERE project_id=?", (project_id,)
+        )
+    }
+    # Sessions are the smaller metadata domain; no full fact/override list is materialised.
+    rules = [canonical_path(d) for d in directories]
+    if rules:
+        for session in connection.execute(
+            "SELECT id,cwd FROM sessions WHERE status='matched' AND cwd IS NOT NULL"
+        ):
+            try:
+                candidate = canonical_path(session["cwd"])
+            except AppError:
+                continue
+            if any(_contains(rule, candidate) for rule in rules):
+                scopes.update(
+                    r[0]
+                    for r in connection.execute(
+                        "SELECT DISTINCT scope_key FROM usage_records WHERE session_id=?",
+                        (session["id"],),
+                    )
                 )
-        if identities:
-            store._advance_revision()
-        return configuration(store)
+    return scopes
+
+
+def assign_keys(store: Store, keys: list[str], project_id: str | None) -> dict[str, Any]:
+    from . import ledger
+
+    if (
+        not isinstance(keys, list)
+        or not keys
+        or len(keys) > 10000
+        or not all(isinstance(key, str) for key in keys)
+    ):
+        raise AppError("invalid_assignment", "请选择有效用量，单次最多一万行。")
+    with store._transaction():
+        connection = store._db
+        _validate_project(connection, project_id)
+        scopes: set[str] = set()
+        for key in dict.fromkeys(keys):
+            row = connection.execute(
+                "SELECT content_hash,scope_key FROM usage_records WHERE record_key=?", (key,)
+            ).fetchone()
+            if row is None:
+                raise AppError("record_not_found", "所选用量不存在，请刷新。", 404)
+            _override(connection, key, row["content_hash"], project_id)
+            scopes.add(row["scope_key"])
+        store._advance_revision()
+        ledger.reclassify(connection, scopes)
+        ledger.refresh_availability(connection, scopes)
+        return configuration(store, connection)
+
+
+def _validate_project(connection: Any, project_id: str | None) -> None:
+    if (
+        project_id is not None
+        and connection.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone()
+        is None
+    ):
+        raise AppError("project_not_found", "所选项目不存在。", 404)
+
+
+def _override(connection: Any, key: str, fingerprint: str, project_id: str | None) -> None:
+    if project_id is None:
+        connection.execute("DELETE FROM overrides WHERE record_key=?", (key,))
+    else:
+        connection.execute(
+            (
+                "INSERT INTO overrides VALUES(?,?,?) ON CONFLICT(record_key) DO U"
+                "PDATE SET content_hash=excluded.content_hash,project_id=excluded"
+                ".project_id"
+            ),
+            (key, fingerprint, project_id),
+        )
+
+
+def assign_sessions(store: Store, session_ids: list[str], project_id: str | None) -> dict[str, Any]:
+    from . import ledger
+
+    if (
+        not isinstance(session_ids, list)
+        or not session_ids
+        or len(session_ids) > 1000
+        or not all(isinstance(s, str) for s in session_ids)
+    ):
+        raise AppError("invalid_assignment", "请选择有效会话。")
+    with store._transaction():
+        connection = store._db
+        _validate_project(connection, project_id)
+        scopes: set[str] = set()
+        for session_id in dict.fromkeys(session_ids):
+            cursor = connection.execute(
+                "SELECT record_key,content_hash,scope_key FROM usage_records WHERE session_id=?",
+                (session_id,),
+            )
+            while rows := cursor.fetchmany(512):
+                for row in rows:
+                    _override(connection, row["record_key"], row["content_hash"], project_id)
+                    scopes.add(row["scope_key"])
+        store._advance_revision()
+        ledger.reclassify(connection, scopes)
+        ledger.refresh_availability(connection, scopes)
+        return configuration(store, connection)

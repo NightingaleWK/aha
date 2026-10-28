@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "scope": "synthetic detail-only; independently streamed CSV and JSON members, reconstructed every source content hash, checked frozen SQL count/summary and daily totals",
+  "members": 101066,
+  "daily_groups": 2938,
+  "package": "6b2545eba6ef4ddb8b7279a501de4b91.zip",
+  "package_bytes": 13122358,
+  "package_sha256": "b5b0d47cc369090e6d8fb0284ed5fac192c295af4246ce7b3c4f231acdd2e8f1",
+  "cost_usd": "124.772748422",
+  "token_totals": {
+    "fresh_input_tokens": 6669796,
+    "output_tokens": 2122386,
+    "cache_read_tokens": 10106600,
+    "cache_creation_tokens": 505330,
+    "total_tokens": 19404112
+  },
+  "all_file_hashes": {
+    "使用明细.csv": {
+      "sha256": "11841eaca381cd57e7a90984fb3254ef5142df02f29171531049f81ae864d5df",
+      "bytes": 21615192
+    },
+    "每日汇总.csv": {
+      "sha256": "264163386864639c50d5e52583d37b642a47a020f8ae46a2e4d495ce4d96c06f",
+      "bytes": 318759
+    },
+    "费用说明.html": {
+      "sha256": "85897cd80ba317260fa7d1270170cd620fc51d0c553059c34aa0d9636d872dba",
+      "bytes": 390152
+    }
+  },
+  "manifest_batch_and_selection_match": true
+}

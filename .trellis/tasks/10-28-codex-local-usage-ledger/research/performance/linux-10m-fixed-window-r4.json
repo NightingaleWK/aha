@@ -1,0 +1,143 @@
+{
+  "completed": true,
+  "application_fingerprint": "950468553e90d8cc319dc25e43a9ca670a6ef1660b76d724adf5cacf66966dc7",
+  "machine": {
+    "os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "cpu": "Intel(R) Xeon(R) Silver 4210R CPU @ 2.40GHz",
+    "logical_cpu_count": 20,
+    "python": "3.14.4",
+    "sqlite": "3.53.4",
+    "application_version": "0.3.0",
+    "disk_type": "not_detected",
+    "filesystem_type": "ext4",
+    "disk_free_bytes": 975503261696,
+    "clock": "time.perf_counter",
+    "cold_definition": "new process: Store open + full-range analysis + first50 rows; interpreter import excluded; OS cache not flushed"
+  },
+  "setup": "Normal live sync restores first1000 synthetic costs to original values, retaining added10000 and all versions; a separate synthetic source profile observes the exact original10k projection once outside measurement.",
+  "before_setup": {
+    "records": 10010000,
+    "versions": 10111000
+  },
+  "restore": {
+    "metadata_errors": [],
+    "new_count": 0,
+    "observed": {
+      "detail": 20000,
+      "pricing": 20,
+      "rollup": 0
+    },
+    "pending_count": 0,
+    "revised_count": 1000,
+    "source_fingerprint": "64d6109543a900dae57e11c78fbc5e811d69453af59758d31de881e4d0a0612e",
+    "timings_ms": {
+      "compare_current_versions_ms": 12440.33130599928,
+      "derived_refresh_ms": 1671.6909860006126,
+      "metadata_ms": 0.0005020010576117784,
+      "publish_before_commit_ms": 14112.257668999519,
+      "source_projection_and_staging_ms": 2547.0173159992555
+    },
+    "unchanged_count": 19000,
+    "id": "cef840c8-f484-4e2f-b66f-58b60e34e89e",
+    "run_id": "cef840c8-f484-4e2f-b66f-58b60e34e89e",
+    "state": "completed",
+    "started_at": "2026-10-28T06:23:55.378985+00:00",
+    "completed_at": "2026-10-28T06:24:12.058715+00:00",
+    "source_id": "benchmark-live",
+    "source": {
+      "kind": "history",
+      "name": "合成固定来源窗口"
+    },
+    "error_code": null,
+    "error_message": null,
+    "data_revision": 3
+  },
+  "initial_observation": {
+    "metadata_errors": [],
+    "new_count": 0,
+    "observed": {
+      "detail": 10000,
+      "pricing": 20,
+      "rollup": 0
+    },
+    "pending_count": 0,
+    "revised_count": 0,
+    "source_fingerprint": "b374de3cd99db54ddf789e7a0e8fda7460a59e20cd8f52f90bfa27ffa7d738cf",
+    "timings_ms": {
+      "compare_current_versions_ms": 342.0370490021014,
+      "derived_refresh_ms": 2.399856999545591,
+      "metadata_ms": 0.00035500124795362353,
+      "publish_before_commit_ms": 344.4469409987505,
+      "source_projection_and_staging_ms": 1329.611538003519
+    },
+    "unchanged_count": 10000,
+    "id": "9bb294cd-3908-4de3-972c-0d502da6f408",
+    "run_id": "9bb294cd-3908-4de3-972c-0d502da6f408",
+    "state": "completed",
+    "started_at": "2026-10-28T06:24:14.384271+00:00",
+    "completed_at": "2026-10-28T06:24:16.083122+00:00",
+    "source_id": "benchmark-fixed-window-recheck",
+    "source": {
+      "kind": "history",
+      "name": "合成相同10k窗口复测"
+    },
+    "error_code": null,
+    "error_message": null,
+    "data_revision": 3
+  },
+  "unchanged_sync": {
+    "samples": 100,
+    "measured_scope": "normalized source window through Store.sync_data; input build excluded",
+    "source_detail_rows": 10000,
+    "allowed_projection_sha256": "b6e781e344135c55139deb3ab5c256a6119cbb2e72ee53b6ea925e4bdfb6c91f",
+    "p50_seconds": 1.5993159120007476,
+    "p95_seconds": 2.022043845998269,
+    "phases_ms": {
+      "compare_current_versions_ms": {
+        "p50_ms": 367.0776799990563,
+        "p95_ms": 409.73567399851163
+      },
+      "derived_refresh_ms": {
+        "p50_ms": 2.5205919992004056,
+        "p95_ms": 3.2638970005791634
+      },
+      "metadata_ms": {
+        "p50_ms": 0.00036849996831733733,
+        "p95_ms": 0.0007809976523276418
+      },
+      "publish_before_commit_ms": {
+        "p50_ms": 369.6132509976451,
+        "p95_ms": 412.3810599994613
+      },
+      "source_projection_and_staging_ms": {
+        "p50_ms": 1119.6340530004818,
+        "p95_ms": 1393.3746969996719
+      }
+    },
+    "before": {
+      "records": 10010000,
+      "versions": 10111000
+    },
+    "after": {
+      "records": 10010000,
+      "versions": 10111000
+    },
+    "new_fact_versions": 0,
+    "database_growth_bytes_including_wal": 0,
+    "baseline_rss_bytes": 55222272,
+    "peak_rss_bytes": 55267328,
+    "extra_peak_rss_bytes": 45056
+  },
+  "fixed_window_ratio": {
+    "baseline_file": "linux-1m-sync-export.json",
+    "baseline_p50_seconds": 1.7176635109999552,
+    "ratio": 0.931099660532283,
+    "target": 1.5,
+    "target_met": true,
+    "same_allowed_projection_sha256": true
+  },
+  "after": {
+    "records": 10010000,
+    "versions": 10111000
+  }
+}

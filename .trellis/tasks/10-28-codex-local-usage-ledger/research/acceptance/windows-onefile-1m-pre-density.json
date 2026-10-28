@@ -1,0 +1,56 @@
+{
+  "passed": true,
+  "mode": "actual_native_exe_http",
+  "packaging": "onefile",
+  "name": "1m-onefile-r3",
+  "bootstrap_ms": 1584.1461999989406,
+  "counts": {
+    "detail_count": 1010000,
+    "rollup_count": 0,
+    "record_count": 1009900,
+    "pending_count": 100
+  },
+  "cases": {
+    "all_available": {
+      "analysis_ms": 137.33940000020084,
+      "samples": 100,
+      "warmup": 10,
+      "page_p50_ms": 28.263899999728892,
+      "page_p95_ms": 35.161300000254414,
+      "page_max_ms": 38.284800000838004,
+      "returned_rows": 50
+    },
+    "all_all": {
+      "analysis_ms": 134.08999999955995,
+      "samples": 100,
+      "warmup": 10,
+      "page_p50_ms": 28.012199999466247,
+      "page_p95_ms": 36.794199999349075,
+      "page_max_ms": 41.83209999973769,
+      "returned_rows": 50
+    },
+    "p000_available": {
+      "analysis_ms": 36.26499999882071,
+      "samples": 100,
+      "warmup": 10,
+      "page_p50_ms": 12.422299999343522,
+      "page_p95_ms": 35.812100000839564,
+      "page_max_ms": 40.74840000066615,
+      "returned_rows": 50
+    },
+    "p000_all": {
+      "analysis_ms": 34.7051000007923,
+      "samples": 100,
+      "warmup": 10,
+      "page_p50_ms": 14.80849999916245,
+      "page_p95_ms": 34.461300001567,
+      "page_max_ms": 36.124199999903794,
+      "returned_rows": 50
+    }
+  },
+  "licenses_embedded": true,
+  "last_success_unchanged": true,
+  "exit_code": 0,
+  "descriptor_removed": true,
+  "exe_sha256": "c8c5774f843d9766458602a02f1d7a8bd7922328bc09f65b197f8f36cf365c73"
+}

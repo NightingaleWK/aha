@@ -1,0 +1,867 @@
+{
+  "sqlite": "3.53.1",
+  "marker": {
+    "format": 1,
+    "rows": 1000000,
+    "seed": 20261028,
+    "source_window": 10000,
+    "completed": true,
+    "incremental": {
+      "added": 10000,
+      "revised": 10000
+    }
+  },
+  "page_size": 4096,
+  "page_count": 1039598,
+  "freelist_pages": 22779,
+  "objects": [
+    {
+      "name": "batch_events",
+      "pages": 1,
+      "cells": 2,
+      "bytes": 4096,
+      "payload": 201,
+      "unused": 3879,
+      "type": "table",
+      "table": "batch_events"
+    },
+    {
+      "name": "batches",
+      "pages": 1,
+      "cells": 2,
+      "bytes": 4096,
+      "payload": 209,
+      "unused": 3870,
+      "type": "table",
+      "table": "batches"
+    },
+    {
+      "name": "billing_sequence",
+      "pages": 1,
+      "cells": 1,
+      "bytes": 4096,
+      "payload": 4,
+      "unused": 4080,
+      "type": "table",
+      "table": "billing_sequence"
+    },
+    {
+      "name": "cases_coverage",
+      "pages": 1,
+      "cells": 100,
+      "bytes": 4096,
+      "payload": 899,
+      "unused": 2889,
+      "type": "index",
+      "table": "reconciliation_cases"
+    },
+    {
+      "name": "cases_record",
+      "pages": 4,
+      "cells": 100,
+      "bytes": 16384,
+      "payload": 8099,
+      "unused": 7941,
+      "type": "index",
+      "table": "reconciliation_cases"
+    },
+    {
+      "name": "cases_source",
+      "pages": 1,
+      "cells": 100,
+      "bytes": 4096,
+      "payload": 2596,
+      "unused": 1192,
+      "type": "index",
+      "table": "reconciliation_cases"
+    },
+    {
+      "name": "coverage_groups",
+      "pages": 1594,
+      "cells": 38128,
+      "bytes": 6529024,
+      "payload": 6102200,
+      "unused": 161207,
+      "type": "table",
+      "table": "coverage_groups"
+    },
+    {
+      "name": "daily_usage_stats",
+      "pages": 6716,
+      "cells": 309596,
+      "bytes": 27508736,
+      "payload": 25222777,
+      "unused": 354492,
+      "type": "table",
+      "table": "daily_usage_stats"
+    },
+    {
+      "name": "idempotency",
+      "pages": 1,
+      "cells": 2,
+      "bytes": 4096,
+      "payload": 301,
+      "unused": 3777,
+      "type": "table",
+      "table": "idempotency"
+    },
+    {
+      "name": "monthly_stats_project_month",
+      "pages": 74,
+      "cells": 13365,
+      "bytes": 303104,
+      "payload": 224629,
+      "unused": 37496,
+      "type": "index",
+      "table": "monthly_usage_stats"
+    },
+    {
+      "name": "monthly_usage_stats",
+      "pages": 306,
+      "cells": 13669,
+      "bytes": 1253376,
+      "payload": 1164878,
+      "unused": 16918,
+      "type": "table",
+      "table": "monthly_usage_stats"
+    },
+    {
+      "name": "one_sync_running",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "index",
+      "table": "sync_runs"
+    },
+    {
+      "name": "overrides",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "table",
+      "table": "overrides"
+    },
+    {
+      "name": "pricing",
+      "pages": 3,
+      "cells": 21,
+      "bytes": 12288,
+      "payload": 4250,
+      "unused": 7903,
+      "type": "table",
+      "table": "pricing"
+    },
+    {
+      "name": "projects",
+      "pages": 3,
+      "cells": 101,
+      "bytes": 12288,
+      "payload": 5600,
+      "unused": 6253,
+      "type": "table",
+      "table": "projects"
+    },
+    {
+      "name": "reconciliation_cases",
+      "pages": 9,
+      "cells": 107,
+      "bytes": 36864,
+      "payload": 28069,
+      "unused": 8170,
+      "type": "table",
+      "table": "reconciliation_cases"
+    },
+    {
+      "name": "reconciliation_events",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "table",
+      "table": "reconciliation_events"
+    },
+    {
+      "name": "reconciliation_idempotency",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "table",
+      "table": "reconciliation_idempotency"
+    },
+    {
+      "name": "record_aliases",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "table",
+      "table": "record_aliases"
+    },
+    {
+      "name": "record_evidence",
+      "pages": 13140,
+      "cells": 1033105,
+      "bytes": 53821440,
+      "payload": 47047436,
+      "unused": 447516,
+      "type": "table",
+      "table": "record_evidence"
+    },
+    {
+      "name": "revision_member_record",
+      "pages": 12556,
+      "cells": 400156,
+      "bytes": 51429376,
+      "payload": 43685201,
+      "unused": 6393039,
+      "type": "index",
+      "table": "revision_members"
+    },
+    {
+      "name": "revision_members",
+      "pages": 200581,
+      "cells": 600233,
+      "bytes": 821579776,
+      "payload": 765198123,
+      "unused": 50197972,
+      "type": "table",
+      "table": "revision_members"
+    },
+    {
+      "name": "revisions",
+      "pages": 5,
+      "cells": 2,
+      "bytes": 20480,
+      "payload": 19613,
+      "unused": 828,
+      "type": "table",
+      "table": "revisions"
+    },
+    {
+      "name": "session_metadata_versions",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "table",
+      "table": "session_metadata_versions"
+    },
+    {
+      "name": "sessions",
+      "pages": 5,
+      "cells": 104,
+      "bytes": 20480,
+      "payload": 14317,
+      "unused": 5594,
+      "type": "table",
+      "table": "sessions"
+    },
+    {
+      "name": "settings",
+      "pages": 1,
+      "cells": 3,
+      "bytes": 4096,
+      "payload": 47,
+      "unused": 4029,
+      "type": "table",
+      "table": "settings"
+    },
+    {
+      "name": "source_epochs",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "table",
+      "table": "source_epochs"
+    },
+    {
+      "name": "source_profiles",
+      "pages": 1,
+      "cells": 2,
+      "bytes": 4096,
+      "payload": 236,
+      "unused": 3844,
+      "type": "table",
+      "table": "source_profiles"
+    },
+    {
+      "name": "source_rollup_observations",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "table",
+      "table": "source_rollup_observations"
+    },
+    {
+      "name": "sqlite_autoindex_batches_1",
+      "pages": 1,
+      "cells": 2,
+      "bytes": 4096,
+      "payload": 70,
+      "unused": 4012,
+      "type": "index",
+      "table": "batches"
+    },
+    {
+      "name": "sqlite_autoindex_batches_2",
+      "pages": 1,
+      "cells": 2,
+      "bytes": 4096,
+      "payload": 8,
+      "unused": 4074,
+      "type": "index",
+      "table": "batches"
+    },
+    {
+      "name": "sqlite_autoindex_coverage_groups_1",
+      "pages": 752,
+      "cells": 36540,
+      "bytes": 3080192,
+      "payload": 2561445,
+      "unused": 400107,
+      "type": "index",
+      "table": "coverage_groups"
+    },
+    {
+      "name": "sqlite_autoindex_daily_usage_stats_1",
+      "pages": 4642,
+      "cells": 302899,
+      "bytes": 19013632,
+      "payload": 15818175,
+      "unused": 2231060,
+      "type": "index",
+      "table": "daily_usage_stats"
+    },
+    {
+      "name": "sqlite_autoindex_idempotency_1",
+      "pages": 1,
+      "cells": 2,
+      "bytes": 4096,
+      "payload": 84,
+      "unused": 3998,
+      "type": "index",
+      "table": "idempotency"
+    },
+    {
+      "name": "sqlite_autoindex_monthly_usage_stats_1",
+      "pages": 190,
+      "cells": 13365,
+      "bytes": 778240,
+      "payload": 639377,
+      "unused": 96492,
+      "type": "index",
+      "table": "monthly_usage_stats"
+    },
+    {
+      "name": "sqlite_autoindex_overrides_1",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "index",
+      "table": "overrides"
+    },
+    {
+      "name": "sqlite_autoindex_pricing_1",
+      "pages": 1,
+      "cells": 20,
+      "bytes": 4096,
+      "payload": 359,
+      "unused": 3669,
+      "type": "index",
+      "table": "pricing"
+    },
+    {
+      "name": "sqlite_autoindex_projects_1",
+      "pages": 1,
+      "cells": 100,
+      "bytes": 4096,
+      "payload": 799,
+      "unused": 2989,
+      "type": "index",
+      "table": "projects"
+    },
+    {
+      "name": "sqlite_autoindex_reconciliation_cases_1",
+      "pages": 1,
+      "cells": 100,
+      "bytes": 4096,
+      "payload": 2485,
+      "unused": 1303,
+      "type": "index",
+      "table": "reconciliation_cases"
+    },
+    {
+      "name": "sqlite_autoindex_reconciliation_cases_2",
+      "pages": 4,
+      "cells": 100,
+      "bytes": 16384,
+      "payload": 10396,
+      "unused": 5644,
+      "type": "index",
+      "table": "reconciliation_cases"
+    },
+    {
+      "name": "sqlite_autoindex_reconciliation_idempotency_1",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "index",
+      "table": "reconciliation_idempotency"
+    },
+    {
+      "name": "sqlite_autoindex_record_aliases_1",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "index",
+      "table": "record_aliases"
+    },
+    {
+      "name": "sqlite_autoindex_record_evidence_1",
+      "pages": 7871,
+      "cells": 1020000,
+      "bytes": 32239616,
+      "payload": 27384541,
+      "unused": 1700627,
+      "type": "index",
+      "table": "record_evidence"
+    },
+    {
+      "name": "sqlite_autoindex_revision_members_1",
+      "pages": 12498,
+      "cells": 400156,
+      "bytes": 51191808,
+      "payload": 43685201,
+      "unused": 6156167,
+      "type": "index",
+      "table": "revision_members"
+    },
+    {
+      "name": "sqlite_autoindex_revisions_1",
+      "pages": 1,
+      "cells": 2,
+      "bytes": 4096,
+      "payload": 72,
+      "unused": 4010,
+      "type": "index",
+      "table": "revisions"
+    },
+    {
+      "name": "sqlite_autoindex_session_metadata_versions_1",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "index",
+      "table": "session_metadata_versions"
+    },
+    {
+      "name": "sqlite_autoindex_sessions_1",
+      "pages": 1,
+      "cells": 101,
+      "bytes": 4096,
+      "payload": 2009,
+      "unused": 1776,
+      "type": "index",
+      "table": "sessions"
+    },
+    {
+      "name": "sqlite_autoindex_settings_1",
+      "pages": 1,
+      "cells": 3,
+      "bytes": 4096,
+      "payload": 46,
+      "unused": 4033,
+      "type": "index",
+      "table": "settings"
+    },
+    {
+      "name": "sqlite_autoindex_source_epochs_1",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "index",
+      "table": "source_epochs"
+    },
+    {
+      "name": "sqlite_autoindex_source_profiles_1",
+      "pages": 1,
+      "cells": 2,
+      "bytes": 4096,
+      "payload": 38,
+      "unused": 4044,
+      "type": "index",
+      "table": "source_profiles"
+    },
+    {
+      "name": "sqlite_autoindex_source_rollup_observations_1",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "index",
+      "table": "source_rollup_observations"
+    },
+    {
+      "name": "sqlite_autoindex_sync_pricing_1",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "index",
+      "table": "sync_pricing"
+    },
+    {
+      "name": "sqlite_autoindex_sync_runs_1",
+      "pages": 4,
+      "cells": 203,
+      "bytes": 16384,
+      "payload": 8164,
+      "unused": 7567,
+      "type": "index",
+      "table": "sync_runs"
+    },
+    {
+      "name": "sqlite_autoindex_sync_runs_2",
+      "pages": 1,
+      "cells": 203,
+      "bytes": 4096,
+      "payload": 887,
+      "unused": 2592,
+      "type": "index",
+      "table": "sync_runs"
+    },
+    {
+      "name": "sqlite_autoindex_sync_stage_1",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "index",
+      "table": "sync_stage"
+    },
+    {
+      "name": "sqlite_autoindex_usage_claims_1",
+      "pages": 8939,
+      "cells": 300000,
+      "bytes": 36614144,
+      "payload": 23367105,
+      "unused": 12239775,
+      "type": "index",
+      "table": "usage_claims"
+    },
+    {
+      "name": "sqlite_autoindex_usage_records_1",
+      "pages": 22634,
+      "cells": 1010000,
+      "bytes": 92708864,
+      "payload": 78747105,
+      "unused": 10660155,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "sqlite_autoindex_usage_versions_1",
+      "pages": 43313,
+      "cells": 1030000,
+      "bytes": 177410048,
+      "payload": 148287105,
+      "unused": 24483191,
+      "type": "index",
+      "table": "usage_versions"
+    },
+    {
+      "name": "sqlite_schema",
+      "pages": 5,
+      "cells": 90,
+      "bytes": 20480,
+      "payload": 14334,
+      "unused": 5593
+    },
+    {
+      "name": "sqlite_stat1",
+      "pages": 1,
+      "cells": 39,
+      "bytes": 4096,
+      "payload": 1950,
+      "unused": 1982,
+      "type": "table",
+      "table": "sqlite_stat1"
+    },
+    {
+      "name": "stats_excluded_day_model_state",
+      "pages": 1110,
+      "cells": 107404,
+      "bytes": 4546560,
+      "payload": 4188756,
+      "unused": 22276,
+      "type": "index",
+      "table": "daily_usage_stats"
+    },
+    {
+      "name": "stats_excluded_project_day_model_state",
+      "pages": 1251,
+      "cells": 107404,
+      "bytes": 5124096,
+      "payload": 4721648,
+      "unused": 65228,
+      "type": "index",
+      "table": "daily_usage_stats"
+    },
+    {
+      "name": "stats_project_day",
+      "pages": 1989,
+      "cells": 302899,
+      "bytes": 8146944,
+      "payload": 6340215,
+      "unused": 874168,
+      "type": "index",
+      "table": "daily_usage_stats"
+    },
+    {
+      "name": "sync_pricing",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "table",
+      "table": "sync_pricing"
+    },
+    {
+      "name": "sync_runs",
+      "pages": 29,
+      "cells": 230,
+      "bytes": 118784,
+      "payload": 106899,
+      "unused": 10357,
+      "type": "table",
+      "table": "sync_runs"
+    },
+    {
+      "name": "sync_stage",
+      "pages": 1,
+      "cells": 0,
+      "bytes": 4096,
+      "payload": 0,
+      "unused": 4088,
+      "type": "table",
+      "table": "sync_stage"
+    },
+    {
+      "name": "usage_available_time",
+      "pages": 27721,
+      "cells": 1010000,
+      "bytes": 113545216,
+      "payload": 94307105,
+      "unused": 15875463,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_claim_owner",
+      "pages": 3027,
+      "cells": 300000,
+      "bytes": 12398592,
+      "payload": 9867105,
+      "unused": 1595167,
+      "type": "index",
+      "table": "usage_claims"
+    },
+    {
+      "name": "usage_claim_scope",
+      "pages": 8423,
+      "cells": 300000,
+      "bytes": 34500608,
+      "payload": 23367105,
+      "unused": 10132431,
+      "type": "index",
+      "table": "usage_claims"
+    },
+    {
+      "name": "usage_claim_semantic",
+      "pages": 8090,
+      "cells": 300000,
+      "bytes": 33136640,
+      "payload": 21267105,
+      "unused": 10872459,
+      "type": "index",
+      "table": "usage_claims"
+    },
+    {
+      "name": "usage_claims",
+      "pages": 75189,
+      "cells": 374999,
+      "bytes": 307974144,
+      "payload": 279391550,
+      "unused": 25225971,
+      "type": "table",
+      "table": "usage_claims"
+    },
+    {
+      "name": "usage_coverage",
+      "pages": 24110,
+      "cells": 1010000,
+      "bytes": 98754560,
+      "payload": 78747105,
+      "unused": 16688139,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_day",
+      "pages": 10705,
+      "cells": 1010000,
+      "bytes": 43847680,
+      "payload": 36306273,
+      "unused": 4382951,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_model",
+      "pages": 26817,
+      "cells": 1010000,
+      "bytes": 109842432,
+      "payload": 86827105,
+      "unused": 19663527,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_pricing",
+      "pages": 26817,
+      "cells": 1010000,
+      "bytes": 109842432,
+      "payload": 86827105,
+      "unused": 19663527,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_project_available_time",
+      "pages": 28971,
+      "cells": 1010000,
+      "bytes": 118665216,
+      "payload": 99336273,
+      "unused": 15951295,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_project_time",
+      "pages": 25544,
+      "cells": 1010000,
+      "bytes": 104628224,
+      "payload": 88826273,
+      "unused": 12465427,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_records",
+      "pages": 131166,
+      "cells": 1140836,
+      "bytes": 537255936,
+      "payload": 506249301,
+      "unused": 21727202,
+      "type": "table",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_scope",
+      "pages": 21949,
+      "cells": 1010000,
+      "bytes": 89903104,
+      "payload": 71677105,
+      "unused": 14932615,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_semantic",
+      "pages": 20604,
+      "cells": 1010000,
+      "bytes": 84393984,
+      "payload": 71677105,
+      "unused": 9439635,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_session",
+      "pages": 6836,
+      "cells": 1010000,
+      "bytes": 28000256,
+      "payload": 21636654,
+      "unused": 3251574,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_time",
+      "pages": 24076,
+      "cells": 1010000,
+      "bytes": 98615296,
+      "payload": 83797105,
+      "unused": 11499283,
+      "type": "index",
+      "table": "usage_records"
+    },
+    {
+      "name": "usage_versions",
+      "pages": 206508,
+      "cells": 1236005,
+      "bytes": 845856768,
+      "payload": 765407730,
+      "unused": 69750732,
+      "type": "table",
+      "table": "usage_versions"
+    }
+  ],
+  "index_bytes": 1562800128,
+  "revision_table_bytes": 1667440640,
+  "counts": {
+    "usage_records": 1010000,
+    "usage_versions": 1030000,
+    "usage_claims": 300000,
+    "daily_usage_stats": 302899,
+    "monthly_usage_stats": 13365
+  },
+  "files": {
+    ".aha-ledger-benchmark.json": 142,
+    "aha.sqlite3": 4258193408,
+    "aha.sqlite3-shm": 32768,
+    "aha.sqlite3-wal": 0
+  },
+  "packages": {
+    "count": 1,
+    "bytes": 13618328
+  },
+  "measurement_seconds": 182.68366220000098
+}

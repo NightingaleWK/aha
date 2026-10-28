@@ -1,74 +1,61 @@
-# aha · 用量与费用 v0.2.0
+# aha · 用量与费用 v0.3.0
 
-aha 是 Windows 本机工具：读取 CC Switch 的 Codex 用量，按项目和北京时间期间保存报销材料。双击 `aha.exe` 后在浏览器使用，程序内置运行环境和 SQLite 数据库。
+aha 是 Windows 本机 Codex 用量台账与报销材料工具。双击 `aha.exe` 后在浏览器使用，运行环境和 SQLite 均内置。CC Switch 的数据按记录长期保存在 aha 自己的数据库，查询和导出使用本地台账。
 
 ## 使用
 
-1. 打开程序后，默认加载当前 Windows 用户的 `%USERPROFILE%\.cc-switch\cc-switch.db`。也可点击“导入备份”选择 SQL 文件，或在“数据来源”填写其他数据库路径。支持 CCS 结构版本 `23`。
-2. 在“项目管理”新建项目，勾选发现的工作目录，也可手填 Windows / Linux 路径。一个项目可对应多个目录，更具体的目录优先；未匹配的用量保持“未归属”。
-3. 在“用量与费用”选择数据快照、项目和日期，点击“更新预览”。日期按北京时间整日计算，包含起止两天；每次使用一份数据快照。
-4. 默认显示“可用用量”，排除已被其他报销记录占用或待核对的部分，并显示原因和对应记录。“全部用量（查看）”用于核对总消耗，不能直接保存新报销。
-5. 需要分配项目时，在“明细”或“历史日汇总”勾选记录，再点击“分配项目”。会话可整批分配；历史汇总按完整记录处理。
-6. 填写用途和选填的申请报销金额、币种、金额依据，点击“保存并下载”。金额为空与零分别保留；填写金额须提供依据。
-7. 下载包包含 `使用明细.csv`、`每日汇总.csv`、`费用说明.html`、`导出信息.json`。CSV 可用 Excel 打开，HTML 可打印或另存 PDF。导出包含本次预览的全部可用记录，不受分页限制。
-8. 在“报销记录”查看状态、下载材料或修改当前草稿。退出时点击“退出程序”；仅关闭浏览器标签不会结束本机程序。
+1. 每次打开程序自动同步一次 `%USERPROFILE%\.cc-switch\cc-switch.db`；也可点“立即同步”、填写其他 SQLite 路径或导入 SQL 备份。支持 CCS schema23，仅统计 `codex_session`。同步不要求抢在 CCS 前启动。
+2. 页面先显示已有本地资料。来源正忙、无法读取或同步失败时仍可查询旧资料，并显示上次成功时间；需要核对的来源变化单独提示。程序只在打开和手动操作时读取来源，没有周期采集、关闭后同步或开机自启。
+3. 在“项目管理”新建项目，绑定发现的工作目录或手填 Windows/Linux 路径。一个项目可绑定多个目录，更具体的目录优先；未匹配保持“未归属”，也可人工分配。
+4. 在“用量与费用”选择项目和北京时间日期范围，点击“更新预览”。明细、历史日汇总、每日和模型使用游标翻页，查询不依赖原 CCS 文件仍存在。
+5. 默认“可用用量”排除已占用及待核对部分，显示原因。“全部用量（查看）”用于核对，不能直接保存新申请。明细与来源历史日汇总存在重叠时不相加，身份、版本或覆盖不清楚时先核对。
+6. 填写用途、选填申请金额/币种/金额依据，点击“保存并下载”。空金额与零分别保留；填金额须有依据。参考 USD 成本沿用来源保存值，不按今天价格重算，不自动换算或分摊订阅。
+7. ZIP 含 `使用明细.csv`、`每日汇总.csv`、`费用说明.html`、`导出信息.json`；导出完整筛选范围，不受当前页限制。CSV 用 Excel 打开，HTML 可打印或另存 PDF。
+8. 在“报销记录”查状态、修改当前草稿或重下材料。退出时点“退出程序”；只关浏览器标签，服务仍在运行，但不会新增周期同步。
 
-参考成本沿用 CC Switch 保存的模型用量估算，申请报销金额由你另填。工具不自动分摊订阅或换算汇率；旧日期只有汇总时按汇总保留。
+## 历史保留与核对
 
-## 一次使用与修改
+同步完整比较当前来源的允许字段，只把新记录和变化写入本地；旧费用回填可以识别。重复导入不产生重复消费。源库清理不会删除本地历史；源异常缩水或疑似重建先提示核对，未确认前保持原台账和成功时间。
 
-保存草稿成功，用量立即由这条报销记录占用；下载失败也不会释放。其他记录只能使用剩余可用用量。两个窗口同时保存同一用量时，后保存的一方需要更新预览。
+旧备份的导入时间不代表数据更新。与已知记录冲突的备份保留候选，明确选择时填写原因；新旧key可能指向同一消费时按确认后的身份关联。只有历史日汇总就按该粒度保留，不编造明细或按比例补差。
 
-- **草稿**：可点击“修改报销记录”。保留当前用量，或在修改窗口重新选择数据快照、项目和日期。保存后新版本成为当前记录，旧版材料仍可下载。
-- **已提交**：可标记已报销，或填写原因“撤回为草稿”再修改。撤回保持用量占用。
-- **已报销**：可查询和下载；填错时通过“作废记录”纠正，再新建需要的记录。
-- **作废记录**：原因必填。作废后释放用量，原金额、状态历史和材料保留；作废是终态。
+同步对 CCS 使用有界只读事务，包含已提交 WAL，也支持 DELETE 日志模式；遇锁冲突有限等待后失败，可稍后手动重试。不会修改 CCS 的索引、日志模式、数据、设置或 Codex 会话文件。
 
-每条报销记录只有一个当前有效版本。历史版本不能再次修改状态，但“下载材料”始终下载当时保存的原包。同版本重复下载的字节和校验和保持相同。
+## 报销记录与冻结材料
 
-占用规则作用于同一份本地资料库。程序不能控制下载文件在外部被再次发送，也不协调两份独立复制的资料库。完整历史日汇总或疑似重建记录无法确认独立时会标为待核对，不按比例拆分。
+保存草稿即占用用量；下载失败不释放。其他记录使用剩余可用部分；两个窗口抢同一消费时后保存者须更新预览。
 
-## 从 v0.1.0 升级
+- 草稿可以修改用途，沿用原冻结用量，或重新按当前台账筛选；保存后只有一个有效版本。
+- 已提交可带原因撤回为草稿，保留占用；也可标记已报销。
+- 已报销填错时带原因作废，再新建；作废释放占用且为终态。
+- 旧版本和作废版本仍能下载原包，字节与SHA不变。后续来源改价只显示与当前值的差异，不改历史申请和材料。
 
-先在旧程序里点击“退出程序”，再运行新版。保留旧成品即可；项目和记录使用原来的应用资料目录。
+占用规则作用于同一份本地资料库，不协调两份独立复制的账本或外部重复发送。
 
-新版首次打开旧资料时，会先在资料目录的 `backups` 下保存升级前的完整数据库快照，再将应用数据库升级为结构版本 `2`。原数据留存对象和证据包保留，无冲突的草稿会接续占用。备份或校验失败会取消升级。
+## 从试用版本重建
 
-旧记录存在重复占用、多个候选版本或无法安全确定当前版本时，会显示“待核对”。先查看冲突，填写原因作废不保留的记录，再明确确认保留版本；未处理的候选用量暂不可被新申请使用。
+v0.3.0 使用全新 schema3，不自动升级schema1/2，也不承接旧试用项目、人工归属、报销、占用和材料。首次运行遇到旧库会明确拒绝打开。保留旧EXE和完整恢复副本，不能让旧版直接打开新库。
 
-已升级的数据库不能由旧版直接打开。需要回退时，先退出所有版本，保留当前整个资料目录，再将 `backups` 中升级前的数据库恢复为 `aha.sqlite3`，配套 `objects`、`packages` 一并保留；不要在程序运行时替换文件。
+本项目当前重建授权仅针对尚未正式使用的试用资料。工具 [rebuild_trial_data.py](scripts/rebuild_trial_data.py) 默认只盘点；依次执行 inspect、extract、apply、import-history。inspect 记录逐文件指纹及保护路径，extract 校验并独立保全旧留存中的CCS允许投影；apply 在退出旧程序、指纹和文件集未变化、历史已保全且备份校验成功时，才删除清单中的旧aha试用文件；import-history 将保全用量导入新台账。具体参数见各子命令 `--help`。
+
+未知文件、CCS原件/sidecar/历史库/SQL、未保全用量、符号链接及嵌套输出都会阻断清理。不要递归删除父目录或按扩展名扫库。失败保留输入和恢复副本；回退先退出所有版本，再隔离新资料并恢复配套旧目录，不能混用数据库与材料。
 
 ## 本机资料与隐私
 
-Windows 默认资料目录为 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。其中 `aha.sqlite3` 保存项目、占用、报销记录及操作历史，`objects` 保存必要用量与目录依据，`packages` 保存原始证据 ZIP，`backups` 保存升级前数据库备份。程序不修改 CCS / Codex 数据或设置，不读取聊天正文，不上传用量，也不自动写入 OneDrive 费用目录。
+Windows默认 `%LOCALAPPDATA%\aha`，Linux默认 `${XDG_DATA_HOME:-~/.local/share}/aha`。`aha.sqlite3` 保存行式事实、修订/核对、归属、精确统计与新报销；`packages` 保存指定版本原ZIP。历史来源和重建恢复副本独立保管，程序不自动清理长期事实。
 
-分享包不附全库 SQL、账号配置、API Key、IP、完整对话、原来源的绝对路径或完整目录规则。项目名称、用途及用户填写的说明会进入材料，分享前按实际用途核对。
+不读取聊天正文，不上传数据，不自动写入 OneDrive 费用目录。分享包不附全库SQL、账号配置、API Key、IP、完整来源绝对路径或目录规则；项目、用途与用户填写说明会进入材料。
 
-每次启动仅监听 `127.0.0.1` 的本机端口，随机启动凭证换取本次会话 Cookie；接口校验 Host、Origin 与操作凭证，资源全部内置。资料目录中的 `runtime.json` 是本次启动的临时凭证文件，含本机启动地址与 PID，供无控制台启动和本机验收使用；正常退出删除。不要分享该文件或把它放进证据包。程序不自动清理历史资料。
+服务仅监听127.0.0.1，校验Host/Origin/CSRF，资源内置。本次随机启动地址换取按端口隔离的Cookie；`runtime.json` 含临时地址与PID，退出删除，不应分享、提交Git或放进材料。
 
-## 开发规范
+## 开发与检查
 
-修改前按范围阅读当前实现的规范：
-
-- [后端规范](.trellis/spec/backend/index.md)：来源、核算、SQLite、用量独占、版本、错误和运行输出。
-- [前端规范](.trellis/spec/frontend/index.md)：HTTP、DOM、页面状态、数据边界和浏览器检查。
-- [思考指南](.trellis/spec/guides/index.md)：复用入口、跨层影响和证据核对。
-
-规范以当前源码与测试为依据；任务中的检查结果和历史原生成品验收分别记录。
-
-## 源码运行与检查
-
-开发需要 Python 3.12+。使用任务自有隔离环境，不修改系统或 Codex bundled Python 的依赖：
+修改前阅读 [后端规范](.trellis/spec/backend/index.md)、[前端规范](.trellis/spec/frontend/index.md) 和 [思考指南](.trellis/spec/guides/index.md)。Python3.12+；SQLite须通过运行时门禁。使用任务隔离环境，避免修改系统或工具bundled依赖：
 
 ```bash
 python -m venv .venv
 .venv/bin/python -m pip install -e . -r requirements-dev.txt
-.venv/bin/python -m aha --data-dir .aha-data --port 0 --no-browser
-```
-
-Windows 的解释器入口改为 `.venv\Scripts\python.exe`。`--port 0` 自动选择端口；省略 `--no-browser` 会自动打开浏览器。有控制台时启动输出 `AHA_URL=...`，无控制台时可在指定资料目录的 `runtime.json` 找到本次地址。该地址仅本次进程有效。开发和测试必须指定隔离的 `--data-dir`，以免混入实际项目规则或批次。
-
-```bash
+.venv/bin/python -m aha --data-dir .aha-data/dev --port 0 --no-browser
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m ruff check src tests scripts
 .venv/bin/python -m mypy src/aha
@@ -76,9 +63,22 @@ Windows 的解释器入口改为 `.venv\Scripts\python.exe`。`--port 0` 自动�
 node --check src/aha/web/app.js
 ```
 
+Windows使用 `.venv\Scripts\python.exe`。开发/测试必须指定隔离data-dir。`--port 0` 自动选择端口；不加 `--no-browser` 自动开浏览器。控制台输出 `AHA_URL=...`，无控制台时从私有runtime.json取本次地址。Windows Node读取WSL UNC路径失败时可从stdin检查同一脚本，见前端质量规范。
+
+## 可复现规模验证
+
+[benchmark_ledger.py](scripts/benchmark_ledger.py) 仅生成合成样例，固定seed、项目/模型分布、历史跨度、30%占用和1%修订；实际Store小样本链路及完整projection抽样对账独立校验。需要可容纳数据库的本机物理磁盘，不使用用户CCS输入。
+
+```bash
+.venv/bin/python scripts/benchmark_ledger.py --rows 1000000 --seed 20261028 --data-dir .aha-data/bench/1m --output .aha-data/bench/1m-seed.json --fast-seed --skip-queries
+.venv/bin/python scripts/benchmark_ledger.py --rows 1000000 --seed 20261028 --data-dir .aha-data/bench/1m --output .aha-data/bench/1m.json --query-only --sync-samples 100 --sync-added 10000 --sync-revised 1000 --export-rows 100000
+```
+
+千万条将rows改为10000000、export-rows改为1000000，并使用另一新目录。fast-seed只加速夹具准备，之后恢复生产索引/参数；query-only从新进程按正常配置测量。默认预热10次/采样100次，含首/中/深游标、月/年统计、固定10000条来源窗口、内存与EXPLAIN。进程冷启动保留操作系统磁盘缓存，不做全机缓存清理；结果必须注明存储和运行时，不能用tmpfs或小样本代替目标Windows实测。本轮具体结果记录在任务verification.md。
+
 ## Windows 原生构建
 
-在 Windows x64 的任务自有目录创建隔离环境；使用实际 Windows Python 3.12+，不能把 Linux 产物改名为 EXE。推荐直接运行纯 Python 构建入口，无需执行 PowerShell 脚本或调整本机执行策略。打包依赖固定在 `scripts/requirements-build.txt`，开发检查依赖固定在 `requirements-dev.txt`。以下路径是构建示例，应换成实际隔离目录：
+在 Windows x64 的任务自有目录创建隔离环境；使用实际 Windows Python 3.12+，不能把 Linux 产物改名为 EXE。SQLite须为已修复WAL并发问题的版本（3.51.3+，或受支持的3.50.7/3.44.6维护分支）。推荐直接运行纯 Python 构建入口，无需执行 PowerShell 脚本或调整本机执行策略。打包依赖固定在 `scripts/requirements-build.txt`，开发检查依赖固定在 `requirements-dev.txt`。以下路径是构建示例，应换成实际隔离目录：
 
 ```powershell
 $BuildRoot = Join-Path $env:LOCALAPPDATA 'aha-build\my-build'
@@ -87,13 +87,13 @@ $BuildPython = Join-Path $BuildRoot 'venv\Scripts\python.exe'
 & $BuildPython .\scripts\build_windows.py --build-root $BuildRoot --stage Directory
 ```
 
-先原生运行 `release\directory\aha\aha.exe`，使用隔离资料目录核对数据库 / SQL、压缩会话头、项目归属、留存重开、批次重下载和退出；验证后再构建单文件：
+先原生运行 `release\directory\aha\aha.exe`，使用隔离资料目录核对数据库 / SQL、压缩会话头、项目归属、本地重开、同步失败/待核对、版本重下载和退出；验证后再构建单文件：
 
 ```powershell
 & $BuildPython .\scripts\build_windows.py --build-root $BuildRoot --stage OneFile --directory-verified
 ```
 
-`--python-exe` 可显式指定隔离环境解释器，缺省使用当前解释器；`--source-root` 可指定源码根目录，缺省为构建脚本所在项目。入口会检查所选解释器为 64 位 Windows 隔离环境，再安装固定构建依赖并采集许可证。已有的 `scripts/build_windows.ps1` 保留为兼容入口；无需为使用它改变执行策略。
+`--python-exe` 可显式指定隔离环境解释器，缺省使用当前解释器；`--source-root` 可指定源码根目录，缺省为构建脚本所在项目。入口会检查所选解释器为 64 位 Windows 隔离环境和修复版SQLite，并写runtime-versions.json，再安装固定构建依赖并采集许可证。已有的 `scripts/build_windows.ps1` 保留为兼容入口；无需为使用它改变执行策略。
 
 便携成品在 `release\portable\aha.exe`。脚本输出 EXE 路径与 SHA-256；构建成功本身不代表通过业务验收。CSV 还需在目标 Windows 表格软件打开，HTML 在浏览器查看并打印预览。构建脚本采集实际 CPython、zstandard、zstd 和 PyInstaller 的许可证原文及指纹并内置在成品中，启动后通过页面底部“开源说明”查看。
 

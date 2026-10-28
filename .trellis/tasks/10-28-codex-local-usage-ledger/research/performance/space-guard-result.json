@@ -1,0 +1,9 @@
+{
+  "phase": "guard_finished",
+  "owned_benchmark_pid": 34196,
+  "benchmark_exit_code": 79,
+  "minimum_free_bytes": 10737418240,
+  "lowest_observed_free_bytes": 22393831424,
+  "seconds": 120.0145890712738,
+  "stopped_for_space": false
+}

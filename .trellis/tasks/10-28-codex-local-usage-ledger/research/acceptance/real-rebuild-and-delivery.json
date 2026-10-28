@@ -1,0 +1,74 @@
+{
+  "technical_acceptance_passed": true,
+  "removed_trial_files": 12,
+  "backup_verified_before_delete": true,
+  "historical_versions_verified_before_and_after_live": 14148,
+  "history_detail_count": 14036,
+  "history_rollup_count": 112,
+  "new_business_counts": {
+    "projects": 0,
+    "overrides": 0,
+    "batches": 0,
+    "revisions": 0,
+    "usage_claims": 0
+  },
+  "quick_check": "ok",
+  "launches": [
+    {
+      "number": 1,
+      "startup_state": "completed",
+      "startup_error_code": null,
+      "ledger_counts": {
+        "detail_count": 16013,
+        "rollup_count": 112,
+        "record_count": 51505,
+        "pending_count": 10
+      },
+      "analysis_ms": 7.789599996613106,
+      "returned_rows": 50,
+      "exit_code": 0,
+      "descriptor_removed": true
+    },
+    {
+      "number": 2,
+      "startup_state": "completed",
+      "startup_error_code": null,
+      "ledger_counts": {
+        "detail_count": 16019,
+        "rollup_count": 112,
+        "record_count": 51511,
+        "pending_count": 10
+      },
+      "analysis_ms": 7.634400000824826,
+      "returned_rows": 50,
+      "exit_code": 0,
+      "descriptor_removed": true
+    }
+  ],
+  "physical_default_data_path_verified": true,
+  "after": {
+    "usage_records": 16131,
+    "usage_versions": 16131,
+    "projects": 0,
+    "usage_claims": 0,
+    "batches": 0,
+    "overrides": 0,
+    "revisions": 0,
+    "quick_check": "ok",
+    "schema": 3
+  },
+  "exe_sha256": "d60a491eabecb0a6eb2969ceb95a45c309fe4f198adc907e0bc5956efcff31e5",
+  "desktop_delivery": {
+    "delivered": true,
+    "native_path": "C:\\Users\\djsyw\\Desktop\\aha-v0.3.0\\aha.exe",
+    "sha256": "d60a491eabecb0a6eb2969ceb95a45c309fe4f198adc907e0bc5956efcff31e5",
+    "bytes": 10226535,
+    "files": [
+      "aha.exe",
+      "SHA256.txt",
+      "使用说明.txt"
+    ],
+    "existing_executables_overwritten": false
+  },
+  "private_inputs_and_financial_totals_excluded": true
+}

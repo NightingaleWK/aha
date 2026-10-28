@@ -1,14 +1,8 @@
 # 后端质量要求
 
-## 代码与环境
+## 环境与检查
 
-配置来源是 [pyproject.toml](../../../pyproject.toml)：Python 3.12+，Ruff `E/F/I/UP`、100 字符行宽，mypy strict。当前领域数据大量使用 `dict[str, Any]`/`Row`；严格检查不等于已经存在完整 DTO 模型。复用 domain 的归一化和校验，不用随意 cast 或忽略诊断代替边界验证。
-
-开发使用任务自有 `.venv` 与 `--data-dir`，不修改系统或工具 bundled Python 的依赖。合成夹具/临时目录用于测试；个人源库、runtime 凭证、证据包及截图保持仓库外。
-
-## 常规检查
-
-从仓库根在已配置的隔离环境执行：
+[pyproject.toml](../../../pyproject.toml) 定义 Python3.12+、Ruff E/F/I/UP 与100字符行宽、mypy strict。复用 domain 校验和精确十进制聚合，不用 cast/ignore 掩盖边界。使用任务隔离环境和资料目录，不修改系统或工具 bundled 依赖。
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
@@ -18,30 +12,24 @@
 node --check src/aha/web/app.js
 ```
 
-Windows 将 Python 入口换成 `.venv\Scripts\python.exe`；Node 使用可用的本地运行时。构建依赖固定在 `scripts/requirements-build.txt`，开发检查依赖固定在 `requirements-dev.txt`，运行步骤见 [README](../../../README.md)。
+SQLite 必须通过 [运行时门禁](./database-guidelines.md)；版本不满足时在任务环境准备修复版本，不全局替换库。Windows 使用 Scripts/python.exe；Node UNC 检查方式见 [前端质量](../frontend/quality-guidelines.md)。
 
-## 测试如何选
+## 按修改选择验证
 
-| 修改范围 | 至少核对的场景 |
+| 范围 | 测试与断言 |
 | --- | --- |
-| 来源/金额/目录依据 | `test_sources.py`、`test_session_meta.py`、`test_analysis.py`、`test_projects.py`：WAL、不可执行 SQL、精确成本、时间边界、粒度与归属 |
-| 留存/SQLite/文件 | `test_storage.py`、`test_storage_helpers.py`：原子失败、缺失/损坏、重启及原件移除后独立恢复 |
-| 占用/版本/升级 | `test_claims.py`、`test_batches.py`、`test_claim_concurrency.py`、`test_migrations.py`：双连接/进程竞争、失败回滚、旧 writer、原包保留 |
-| 导出 | `test_evidence.py`：全成员/合计、BOM、公式/HTML 保护、manifest、隐私、空/零/非法金额 |
-| 路由/运行生命周期 | `test_http.py`、`test_http_cli.py`：真实请求、CookieJar 双实例、过期主体、幂等重放、退出/重启 |
+| 来源/SQL/金额/元数据 | test_sources、test_session_meta；WAL/DELETE、busy、读取边界、取消、SQL不可执行、精确历史金额 |
+| 台账/修订/覆盖/核对 | test_storage、test_storage_helpers；重复导入、改价、备份冲突、重建别名、needs_review、源清理后本地保留 |
+| 本地查询/归属 | test_analysis、test_projects；游标与revision绑定、聚合精确、未归属、目录最长匹配、人工覆盖 |
+| 占用/报销 | test_claims、test_batches、test_claim_concurrency；跨连接/进程竞争、冻结成员、换版回滚、别名修订、防重复报销、原包SHA |
+| 新库/重建 | test_migrations、test_rebuild_trial_data；拒绝旧库、保全/回滚、受保护源与未知文件阻断、历史精确提取 |
+| 材料 | test_evidence；全范围流式输出、BOM、公式/HTML保护、manifest3、隐私、空/零/非法金额 |
+| 运行/HTTP | test_http、test_http_cli；启动只同步一次、job真实终态、Cookie/Origin/CSRF、旧预览409、退出和重启 |
 
-表中测试均位于 `tests/`。测试必须观察失效/错误后的数据状态，不能仅断言函数返回成功。真实例子来自 [test_batches.py](../../../tests/test_batches.py) 的有效版本测试：
+失败测试必须检查持久状态、旧成功时间和文件，不能只看返回值。并发不能只用一个线程内的锁代替独立连接/进程。复用合成夹具，资源显式关闭，私有源/包/截图留 Git 外。
 
-```python
-self.assertFalse(history["revisions"][0]["is_effective"])
-self.assertTrue(history["revisions"][1]["is_effective"])
-self.assertEqual(self.store.download(first["id"], 1), original)
-```
+## 规模与 Windows 门禁
 
-创建新测试时先复用合成来源与现有夹具，显式关闭资源；并发问题不能只用一个线程内的锁替代双进程测试。可逆小文档变动检查引用与一致性即可；没有源码变化或新问题时不重复已通过的产品基线。
+性能用 [benchmark_ledger.py](../../../scripts/benchmark_ledger.py) 的固定seed百万/千万样本，记录机器、物理存储、预热/样本、P95、进程冷启动定义、RSS、固定来源窗口和真实导出校验。fast-seed仅用于建夹具，恢复生产索引/参数并抽样全projection验证后再查询；不能将 tmpfs预跑当物理盘结果，不能清全机缓存模拟冷启动。
 
-## Windows 发布门禁
-
-使用真实 Windows x64 隔离环境，先目录包，实际 EXE/浏览器核对导入、项目、占用/版本、迁移副本、下载、重启和退出；CSV 在目标 Excel 打开，HTML 实际打印检查，再构建 OneFile 并验证。使用 [build_windows.py](../../../scripts/build_windows.py) 的 `--directory-verified` 前必须已有目录包验收。
-
-构建成功、HTTP 200、Linux 测试或历史记录不能单独证明当前原生成品已验收；个人资料副本测试也不等于正式资料迁移或业务报销成功。检查断言见 [主契约第 6 部分](./usage-evidence-contract.md#6-测试要求)。
+Windows先目录包真实EXE/浏览器、CSV Excel、HTML A4打印，再构建并验收OneFile。脚本的 --directory-verified 不能代替已执行的目录包验证。重建演练、成品验收、实际试用清理和正式报销各自记录，不把一种证据冒充另一种。完整断言见 [主契约](./usage-evidence-contract.md)。

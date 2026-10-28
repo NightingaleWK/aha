@@ -1,0 +1,6 @@
+{
+  "stopped_owned_benchmark_pid": 34196,
+  "exit_code": 79,
+  "reason": "User explicitly cancelled million-scale test and requested release of test disk space. Remaining large-test acceptance waived by user; not passed.",
+  "user_aha_and_ccs_untouched": true
+}

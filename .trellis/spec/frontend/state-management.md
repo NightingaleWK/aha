@@ -2,49 +2,31 @@
 
 ## 状态所有权
 
-[app.js](../../../src/aha/web/app.js) 的单个 `state` 管本次页面状态。持久资料由服务器 Store 管，页面不另存一份报销账本。
+[app.js](../../../src/aha/web/app.js) 的 state 管本次页面，持久台账和报销事实由 Store 管。
 
-| 状态 | 内容与使用方式 |
+| 状态 | 用途 |
 | --- | --- |
-| csrf/today | 当前启动凭证和北京时间，由 status 初始化 |
-| captures/capture/currentCaptureId/config | 资料快照、当前选中与项目配置 |
-| analysis/tab/page/rows/total/selected | 当前分析、预览分页和选择；selected 是 Map |
-| batches/batch | 报销列表和展开详情，变更后刷新 |
-| pendingBatch | 本次保存的 request、batchId、signature、previewed，用于同内容重试 |
-| revision/lifecycle | 打开弹窗的批次、版本、generation、分析或操作身份 |
-| busy/noticeTimer/stopped | 串行操作、短成功提示计时与退出后的控件禁用 |
+| csrf/today | 本次启动凭证和北京时间 |
+| ledger/sync/syncBusy/reconciliations | 本地统计、最近同步任务、同步控件、待核对事项 |
+| config | 项目与分类 revision |
+| analysis/tab/page/rows/total/cursor/nextCursor/cursors/selected | 分析、游标导航和跨页选择；page 仅为本地显示计数 |
+| batches/batch | 报销列表和详情 |
+| pendingBatch | 保存 request、signature、batchId、previewed，用于同内容重试 |
+| revision/lifecycle | 弹窗的目标批次、版本、generation、分析及操作身份 |
+| busy/noticeTimer/stopped | 普通串行操作、成功提示与退出状态 |
 
-完整字段、权限和失效规则以 [页面契约](./local-web-contract.md) 为准。
+## 请求与同步
 
-## 请求与串行操作
+api 统一凭证和安全错误。run 在 busy 时不重复执行并在 finally 恢复普通控件；同步使用独立 syncBusy，不锁住旧本地查询。只有 running job 继续轮询，completed/failed/needs_review 均终止；刷新从 status 恢复最近 job。失败或待核对不更新成功时间，不清掉旧台账。
 
-`api(path, body?)` 统一 same-origin Cookie、JSON、X-AHA-CSRF 和安全错误。`run(label, action)` 在 busy 时不重复执行，禁用控件、展示忙碌状态，finally 恢复并调用 syncActions。异步入口复用 run，不在事件函数里另发不受控保存。
+prepareBatch 对 `{payload,batchId}` 计算签名，内容未变沿用原幂等 key，内容改变才换 key。丢失响应后重试原请求，Store 持久重放。页面不存第二套占用账。
 
-预检与重试身份来自 `prepareBatch` 的真实片段：
+## 失效与修订
 
-```javascript
-const signature = JSON.stringify({payload, batchId});
-const prior = state.pendingBatch;
-const key = prior?.signature === signature ? prior.request.idempotency_key : crypto.randomUUID();
-const request = {...payload, idempotency_key: key};
-```
+筛选、分类、占用或数据 revision 改变后 invalidate 清分析、pendingBatch、选择和表格。相同标签翻页保留选择，切标签/重分析清选择。total=null 的聚合页仍显示本页数量和 next_cursor，不隐藏分页或猜测全量。
 
-请求未变化时复用 key。丢失创建响应后应重试原保存，不强行用新的临时预览覆盖；后端在 Store 中持久化重放。内容变更必须生成新身份。页面刷新后的后端状态仍以 records 为准。
+权威失效错误也清打开的 current 修订 analysis 并禁保存；frozen 修订继续绑定原版本。current 必须使用专用批次分析、base_version/expected_generation；主页面不能借自身占用豁免新建。
 
-## 失效与修订主体
+## 保存与生命周期
 
-来源、元数据、分类/人工归属、筛选或占用改变后调用 invalidate，清空当前分析、pendingBatch、选择和旧表格，禁用保存，要求新预览。翻页保留跨页选择；切 tab、重新分析、失效或显式清除会清空选择。导出基于当前分析的完整范围，不受分页影响。
-
-`api` 收到 analysis_expired/classification_changed/availability_changed/usage_claimed 时，还会清除打开的 current 修订弹窗的 analysis、替换提示并 syncActions；仅清主页面是不完整的。frozen 修订维持冻结依据；current 修订的独立 capture/project/date 变化后必须重新预览。
-
-当前修订绑定 batchId、base_version、expected_generation，并调用专用 `/api/batches/{id}/analysis`。不能把主页面的新建预览借作排除自身占用的修订，也不能让新建请求使用修订豁免。批次权威失效时刷新列表并重新打开当前记录。
-
-## 保存、下载与生命周期
-
-saveBatch 先保存，再清理相应状态、刷新记录/预览，最后下载已保存版本；下载失败明确提示“记录已保存”，从报销记录重下原包。下载不能设置提交或已报销状态。
-
-生命周期由服务端 `is_effective/lifecycle/generation/can_*` 决定；弹窗的原因和选中版本参与请求签名，原子处理在后端。前端状态不是抢占用量或释放占用的依据。
-
-## 检查入口
-
-[test_http.py](../../../tests/test_http.py) 覆盖过期预览、专用主体和持久重放，[test_batches.py](../../../tests/test_batches.py) 覆盖版本/占用结果。实际浏览器须额外保持修订弹窗打开，制造一次权威变化并核对禁保存，再更新预览保存；HTTP 测试不能单独证明 DOM 状态已正确清除。
+先保存、刷新记录，再下载指定版本；下载失败显示已保存。动作由 is_effective/lifecycle/generation/can_* 决定。撤回保留占用，作废释放，旧版本原包仍可下载。前端提示不能代替写事务权威重检。完整接口和浏览器场景见 [页面契约](./local-web-contract.md)。

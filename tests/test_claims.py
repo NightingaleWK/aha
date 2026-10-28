@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-import copy
+import tempfile
 import unittest
+from pathlib import Path
 
+from billing_fixtures import seed_analysis
 from test_storage_helpers import detail, rollup
 
-from aha.claims import evaluate, member_from_row, scope_key, semantic_key
+from aha.claims import evaluate, indexed_exclusion, member_from_row, scope_key, semantic_key
 from aha.domain import AppError
+from aha.storage import Store
 
 
 def owned(member: dict, batch: str = "a", version: int = 1) -> dict:
@@ -75,14 +78,20 @@ class ClaimAlgorithmTests(unittest.TestCase):
             "rollup_scope",
         )
 
-    def test_multiple_legacy_holders_remain_blocked_and_never_mutate_inputs(self) -> None:
-        member = member_from_row(detail(), "detail")
-        snapshot = {"legacy_holds": [owned(member, "a"), owned(member, "b")]}
-        original = copy.deepcopy(snapshot)
-        result = evaluate([member], snapshot, "a")
-        self.assertEqual(result["excluded"][0]["reason"], "legacy_hold")
-        self.assertEqual(result["excluded"][0]["owners"][0]["batch_id"], "b")
-        self.assertEqual(snapshot, original)
+    def test_derived_total_tokens_can_exceed_one_source_integer(self) -> None:
+        maximum = 2**63 - 1
+        member = member_from_row(
+            detail(
+                input_tokens=maximum,
+                output_tokens=maximum,
+                cache_read_tokens=maximum,
+                cache_creation_tokens=maximum,
+                input_token_semantics=2,
+            ),
+            "detail",
+        )
+        self.assertEqual(member["total_tokens"], maximum * 4)
+        self.assertEqual(evaluate([member], {})["available_keys"], [member["key"]])
 
     def test_duplicate_or_invalid_members_fail_closed(self) -> None:
         member = member_from_row(detail(), "detail")
@@ -93,3 +102,32 @@ class ClaimAlgorithmTests(unittest.TestCase):
         ):
             with self.assertRaises(AppError):
                 evaluate(bad, {})
+
+    def test_indexed_explanations_match_identity_semantic_scope_and_self_rules(self) -> None:
+        from test_storage_helpers import claim
+
+        with tempfile.TemporaryDirectory() as folder:
+            store = Store(Path(folder))
+            try:
+                saved = store.create_batch(seed_analysis(store), claim(), "first")
+                first = member_from_row(detail(), "detail")
+                candidates = [
+                    first,
+                    member_from_row(detail("new-id"), "detail"),
+                    member_from_row(rollup(date=first["date"]), "rollup"),
+                    member_from_row(
+                        detail("independent", created_at=detail()["created_at"] + 1), "detail"
+                    ),
+                ]
+                snapshot = {"claims": [owned(first, saved["id"])]}
+                with store.read_connection() as connection:
+                    for candidate in candidates:
+                        expected = evaluate([candidate], snapshot)["excluded"]
+                        actual = indexed_exclusion(connection, candidate)
+                        self.assertEqual(
+                            actual["reason"] if actual else None,
+                            expected[0]["reason"] if expected else None,
+                        )
+                        self.assertIsNone(indexed_exclusion(connection, candidate, saved["id"]))
+            finally:
+                store.close()

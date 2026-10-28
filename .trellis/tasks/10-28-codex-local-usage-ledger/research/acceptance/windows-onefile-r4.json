@@ -1,0 +1,113 @@
+{
+  "passed": true,
+  "packaging": "onefile",
+  "application_fingerprint": "950468553e90d8cc319dc25e43a9ca670a6ef1660b76d724adf5cacf66966dc7",
+  "exe_sha256": "d60a491eabecb0a6eb2969ceb95a45c309fe4f198adc907e0bc5956efcff31e5",
+  "started_at": "2026-10-28T06:21:43.307Z",
+  "finished_at": "2026-10-28T06:23:11.206Z",
+  "browser": "156.0.8078.48",
+  "stages": [
+    {
+      "name": "startup-auto-sync-and-refresh-dedup",
+      "passed": true,
+      "elapsed_ms": 2250
+    },
+    {
+      "name": "four-preview-tabs-and-stable-cursor",
+      "passed": true,
+      "elapsed_ms": 845
+    },
+    {
+      "name": "failed-sync-retains-local-query-and-success-time",
+      "passed": true,
+      "elapsed_ms": 727
+    },
+    {
+      "name": "directory-project-and-manual-assignment",
+      "passed": true,
+      "elapsed_ms": 1156
+    },
+    {
+      "name": "save-stream-download-and-open-current-revision",
+      "passed": true,
+      "elapsed_ms": 1589
+    },
+    {
+      "name": "already-open-current-revision-invalidated-by-claim-change",
+      "passed": true,
+      "elapsed_ms": 1669
+    },
+    {
+      "name": "frozen-purpose-revision-survives-source-change-and-old-package-stable",
+      "passed": true,
+      "elapsed_ms": 15691
+    },
+    {
+      "name": "submit-withdraw-reimburse-void-and-reuse",
+      "passed": true,
+      "elapsed_ms": 28410
+    },
+    {
+      "name": "backup-source-revision-reconciliation-with-reason",
+      "passed": true,
+      "elapsed_ms": 12346
+    },
+    {
+      "name": "desktop-mobile-layout-and-computed-fonts",
+      "passed": true,
+      "elapsed_ms": 9697
+    },
+    {
+      "name": "chrome-a4-print-of-generated-report",
+      "passed": true,
+      "elapsed_ms": 603
+    },
+    {
+      "name": "source-shrink-needs-review-keeps-success-time",
+      "passed": true,
+      "elapsed_ms": 6535
+    },
+    {
+      "name": "ui-exit-process-and-private-descriptor-removal",
+      "passed": true,
+      "elapsed_ms": 3600
+    }
+  ],
+  "page_error_count": 0,
+  "http_error_statuses": [
+    409
+  ],
+  "excel": {
+    "passed": true,
+    "excel_version": "16.0",
+    "package_sha256": "d960772aa40d2f5fce55961c8b8dbafe02dd5ef28eca286a306b6d1a55b2e035",
+    "files": [
+      {
+        "name": "使用明细.csv",
+        "rows": 61,
+        "columns": 23,
+        "chinese_text_preserved": true,
+        "cost_values_checked": true,
+        "formulas": false,
+        "readonly": true
+      },
+      {
+        "name": "每日汇总.csv",
+        "rows": 1,
+        "columns": 17,
+        "chinese_text_preserved": true,
+        "cost_values_checked": true,
+        "formulas": false,
+        "readonly": true
+      }
+    ]
+  },
+  "print_review": {
+    "chrome_a4_generated": true,
+    "poppler_rendered": true,
+    "root_viewed_first_page": true,
+    "clipping_found": false
+  },
+  "private_evidence_run": "run-2026-10-28T06-21-42-634Z",
+  "privacy": "Whitelisted summary only; bootstrap URL, cookies, CSRF, raw request/response snapshots excluded."
+}

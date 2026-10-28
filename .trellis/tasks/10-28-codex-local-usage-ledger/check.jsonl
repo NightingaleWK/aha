@@ -1,0 +1,13 @@
+{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"沿用未被本任务替代的金额、Token、只读、独占与冻结合同；单capture、旧schema兼容以本任务设计替代"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"Store连接和事务所有权、精确绑定、不可变文件；新库与WAL策略以本任务设计为准"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"同步失败、忙冲突、公开安全错误及回滚要求"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"隔离运行时、必要检查、并发与Windows发布证据"}
+{"file":".trellis/spec/frontend/local-web-contract.md","reason":"本机安全、页面可读性、财务操作与过期修订；capture主体由新台账替代"}
+{"file":".trellis/spec/frontend/state-management.md","reason":"请求主体、预览失效、幂等、修订弹窗及保存下载"}
+{"file":".trellis/spec/frontend/type-safety.md","reason":"精确字符串金额、空值、输入与输出边界"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"真实浏览器、HTTP、字号与跨层流程验证"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"来源到事实、统计、占用和材料的统一口径与权威重检"}
+{"file":".trellis/tasks/10-28-codex-local-usage-ledger/research/source-sync-contract.md","reason":"完整核对允许投影、差异写入、源分批重建与跨粒度覆盖；先读顶部范围更新"}
+{"file":".trellis/tasks/10-28-codex-local-usage-ledger/research/ledger-storage-and-query.md","reason":"精确聚合、局部占用查询、流式材料、性能与运行时门禁；旧业务兼容研究已取消"}
+{"file":".trellis/tasks/10-28-codex-local-usage-ledger/research/ui-and-validation-contract.md","reason":"启动/手动同步、查询并发、范围撤回与本机验证；旧试用资料保留义务以新设计覆盖"}
+{"file": ".trellis/tasks/10-28-codex-local-usage-ledger/research/implementation-api.md", "reason": "当前实现的跨模块API与schema3合约，检查时避免旧capture/报销兼容漂移。"}

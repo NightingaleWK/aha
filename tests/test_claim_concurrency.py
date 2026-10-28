@@ -7,15 +7,18 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
-from migration_fixtures import legacy_analysis, legacy_store, seed_revision
-from test_storage_helpers import analyze_capture, claim, detail, source_data
+from billing_fixtures import frozen_analysis, seed_analysis
+from test_storage_helpers import claim, detail, source_data
 
+from aha import decimal_sql
+from aha.batches import _prepare_selection
 from aha.domain import AppError
 from aha.storage import Store
 
 
-def compete(root: str, analysis: dict | None, key: str, ready: Any, start: Any, out: Any) -> None:
+def compete(root: str, analysis: dict, key: str, ready: Any, start: Any, out: Any) -> None:
     store = None
     try:
         store = Store(Path(root))
@@ -23,11 +26,8 @@ def compete(root: str, analysis: dict | None, key: str, ready: Any, start: Any, 
         if not start.wait(20):
             out.put(("error", "start timeout"))
             return
-        if analysis is None:
-            out.put(("ok", store._db.execute("PRAGMA user_version").fetchone()[0]))
-        else:
-            result = store.create_batch(analysis, claim(), key)
-            out.put(("ok", result["id"]))
+        saved = store.create_batch(analysis, claim(), key)
+        out.put(("ok", saved["id"], saved["version"]))
     except AppError as error:
         out.put(("conflict", error.code))
     except BaseException as error:
@@ -38,12 +38,16 @@ def compete(root: str, analysis: dict | None, key: str, ready: Any, start: Any, 
 
 
 class CommitFailureConnection(sqlite3.Connection):
-    fail_next_commit = False
+    fail_revision_commit = False
+    revision_written = False
 
     def execute(self, sql: str, parameters: Any = ()) -> sqlite3.Cursor:
-        if sql == "COMMIT" and self.fail_next_commit:
-            self.fail_next_commit = False
-            raise sqlite3.OperationalError("synthetic commit failure")
+        if sql.startswith("INSERT INTO revisions") and self.fail_revision_commit:
+            self.revision_written = True
+        if sql == "COMMIT" and self.revision_written:
+            self.revision_written = False
+            self.fail_revision_commit = False
+            raise sqlite3.OperationalError("synthetic final commit failure")
         return super().execute(sql, parameters)
 
 
@@ -55,11 +59,10 @@ class ClaimConcurrencyTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
-    def run_children(self, analysis: dict | None, same_key: bool = False) -> list[tuple]:
+    def run_children(self, analysis: dict, same_key: bool = False) -> list[tuple]:
         context = multiprocessing.get_context("spawn")
-        ready, output = context.Queue(), context.Queue()
-        start = context.Event()
-        processes = [
+        ready, output, start = context.Queue(), context.Queue(), context.Event()
+        children = [
             context.Process(
                 target=compete,
                 args=(
@@ -74,91 +77,114 @@ class ClaimConcurrencyTests(unittest.TestCase):
             for index in range(2)
         ]
         try:
-            for process in processes:
-                process.start()
-            for _ in processes:
+            for child in children:
+                child.start()
+            for _ in children:
                 ready.get(timeout=20)
             start.set()
-            results = [output.get(timeout=20) for _ in processes]
-            for process in processes:
-                process.join(timeout=20)
-                self.assertEqual(process.exitcode, 0)
+            results = [output.get(timeout=20) for _ in children]
+            for child in children:
+                child.join(timeout=20)
+                self.assertEqual(child.exitcode, 0)
             return results
         finally:
             start.set()
-            for process in processes:
-                if process.is_alive():
-                    process.terminate()
-                    process.join(timeout=5)
+            for child in children:
+                if child.is_alive():
+                    child.terminate()
+                    child.join(timeout=5)
             ready.close()
             output.close()
 
-    def test_two_independent_connections_only_one_distinct_request_wins(self) -> None:
+    def test_two_connections_have_one_winner_for_distinct_requests(self) -> None:
         first, second = Store(self.root), Store(self.root)
         try:
-            analysis = analyze_capture(first)
+            preview = seed_analysis(first)
 
             def save(pair: tuple[Store, str]) -> tuple:
                 try:
-                    return ("ok", pair[0].create_batch(analysis, claim(), pair[1])["id"])
+                    return ("ok", pair[0].create_batch(preview, claim(), pair[1])["id"])
                 except AppError as error:
                     return ("conflict", error.code)
 
             with ThreadPoolExecutor(max_workers=2) as pool:
-                results = list(pool.map(save, [(first, "one"), (second, "two")]))
-            self.assertEqual(sum(result[0] == "ok" for result in results), 1)
+                result = list(pool.map(save, ((first, "one"), (second, "two"))))
+            self.assertEqual(sum(item[0] == "ok" for item in result), 1, result)
             self.assertEqual(len(first.list_batches()), 1)
-            self.assertEqual(len(first.claim_snapshot()["claims"]), 1)
+            self.assertEqual(
+                first._db.execute("SELECT COUNT(*) FROM usage_claims").fetchone()[0], 1
+            )
         finally:
             first.close()
             second.close()
 
-    def test_two_processes_competing_for_one_usage_have_one_winner(self) -> None:
+    def test_two_processes_have_one_winner_for_distinct_requests(self) -> None:
         store = Store(self.root)
-        analysis = analyze_capture(store)
-        store.close()
-        results = self.run_children(analysis)
-        self.assertEqual(sum(result[0] == "ok" for result in results), 1, results)
-        self.assertTrue(all(result[0] in {"ok", "conflict"} for result in results), results)
+        try:
+            preview = seed_analysis(store)
+        finally:
+            store.close()
+        result = self.run_children(preview)
+        self.assertEqual(sum(item[0] == "ok" for item in result), 1, result)
+        self.assertTrue(all(item[0] in {"ok", "conflict"} for item in result), result)
         reopened = Store(self.root)
         try:
             self.assertEqual(len(reopened.list_batches()), 1)
-            self.assertEqual(len(reopened.claim_snapshot()["claims"]), 1)
+            self.assertEqual(
+                reopened._db.execute("SELECT COUNT(*) FROM usage_claims").fetchone()[0], 1
+            )
         finally:
             reopened.close()
 
-    def test_two_processes_with_one_retry_key_return_the_same_version(self) -> None:
+    def test_same_key_processes_return_same_persisted_version(self) -> None:
         store = Store(self.root)
-        analysis = analyze_capture(store)
-        store.close()
-        results = self.run_children(analysis, same_key=True)
-        self.assertEqual(results[0], results[1])
-        self.assertEqual(results[0][0], "ok")
-
-    def test_two_processes_upgrade_schema1_once_with_one_backup(self) -> None:
-        old = legacy_store(self.root)
-        seed_revision(old, "a", 1, 1, legacy_analysis(old))
-        old.close()
-        results = self.run_children(None)
-        self.assertEqual(results, [("ok", 2), ("ok", 2)])
-        self.assertEqual(len(list((self.root / "backups").glob("*.sqlite3"))), 1)
-        reopened = Store(self.root)
         try:
-            self.assertEqual(len(reopened.claim_snapshot()["claims"]), 1)
+            preview = seed_analysis(store)
         finally:
-            reopened.close()
+            store.close()
+        result = self.run_children(preview, same_key=True)
+        self.assertEqual(result[0], result[1], result)
+        self.assertEqual(result[0][0], "ok")
 
-    def test_commit_failure_after_all_writes_restores_old_version_and_usage(self) -> None:
+    def test_same_request_committed_between_replay_check_and_freezing_is_replayed(self) -> None:
+        first, second = Store(self.root), Store(self.root)
+        winner = None
+        try:
+            analysis = seed_analysis(first)
+
+            def prepare(store, *args):
+                nonlocal winner
+                if store is first:
+                    winner = second.create_batch(analysis, claim(), "same-request-race")
+                return _prepare_selection(store, *args)
+
+            with patch("aha.batches._prepare_selection", side_effect=prepare):
+                replayed = first.create_batch(analysis, claim(), "same-request-race")
+            self.assertEqual(replayed, winner)
+            self.assertEqual(len(first.list_batches()), 1)
+            self.assertEqual(
+                first._db.execute("SELECT COUNT(*) FROM usage_claims").fetchone()[0], 1
+            )
+        finally:
+            first.close()
+            second.close()
+
+    def test_failed_final_commit_preserves_old_version_claims_and_original_zip(self) -> None:
         store = Store(self.root)
         try:
-            analysis = analyze_capture(
-                store, source_data([detail(), detail("r2", created_at=detail()["created_at"] + 1)])
+            initial = seed_analysis(
+                store,
+                source_data(
+                    [
+                        detail(),
+                        detail("r2", created_at=detail()["created_at"] + 1),
+                    ]
+                ),
             )
-            first = store.create_batch(analysis, claim(), "first")
-            original = store.download(first["id"], 1)
-            replacement = analyze_capture(
-                store, source_data([detail()]), target_batch_id=first["id"]
-            )
+            first = store.create_batch(initial, claim(), "first")
+            original_path, _ = store.download(first["id"], 1)
+            original = original_path.read_bytes()
+            revision = frozen_analysis(store, first["id"])
             store._db.close()
             connection = sqlite3.connect(
                 self.root / "aha.sqlite3",
@@ -168,16 +194,28 @@ class ClaimConcurrencyTests(unittest.TestCase):
             )
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA foreign_keys=ON")
+            decimal_sql.register(connection)
             store._db = connection
-            connection.fail_next_commit = True
+            connection.fail_revision_commit = True
             with self.assertRaises(AppError):
-                store.create_batch(replacement, claim(purpose="修改"), "failed", first["id"])
-            self.assertEqual(store.batch_detail(first["id"])["active_version"], 1)
-            self.assertEqual(len(store.batch_detail(first["id"])["revisions"]), 1)
-            self.assertEqual(len(store.claim_snapshot()["claims"]), 2)
-            self.assertEqual(store.download(first["id"], 1), original)
+                store.create_batch(
+                    revision,
+                    claim(purpose="修改"),
+                    "failed",
+                    first["id"],
+                    expected_generation=first["generation"],
+                    expected_active_version=1,
+                )
+            history = store.batch_detail(first["id"])
+            self.assertEqual(history["active_version"], 1)
+            self.assertEqual(len(history["revisions"]), 1)
+            self.assertEqual(
+                store._db.execute("SELECT COUNT(*) FROM usage_claims").fetchone()[0], 2
+            )
             self.assertIsNone(
                 store._db.execute("SELECT 1 FROM idempotency WHERE key='failed'").fetchone()
             )
+            self.assertEqual(original_path.read_bytes(), original)
+            self.assertEqual(len(list((self.root / "packages").iterdir())), 1)
         finally:
             store.close()

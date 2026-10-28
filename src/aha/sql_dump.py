@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from typing import Any
 
@@ -186,7 +186,10 @@ def _declaration(lexer: _Lexer, columns: dict[str, set[str]]) -> None:
 
 
 def _insert(
-    lexer: _Lexer, columns: dict[str, set[str]], rows: dict[str, list[dict[str, Any]]]
+    lexer: _Lexer,
+    columns: dict[str, set[str]],
+    sink: Callable[[str, dict[str, Any]], None],
+    counts: dict[str, int],
 ) -> None:
     lexer.expect("INTO")
     table = lexer.identifier()
@@ -227,9 +230,10 @@ def _insert(
                 raise _invalid()
         if len(values) != len(fields):
             raise _invalid()
-        rows[table].append(dict(zip(fields, values, strict=True)))
-        if len(rows[table]) > MAX_STATEMENT_ROWS:
+        counts[table] += 1
+        if counts[table] > MAX_STATEMENT_ROWS:
             raise AppError("source_too_large", "SQL 用量记录过多，请选择较小的备份。", 413)
+        sink(table, dict(zip(fields, values, strict=True)))
         token = lexer.take()
         if token == ("end", ""):
             break
@@ -237,7 +241,9 @@ def _insert(
             raise _invalid()
 
 
-def load_sql_dump(data: bytes, name: str) -> dict[str, Any]:
+def scan_sql_dump(
+    data: bytes, name: str, sink: Callable[[str, dict[str, Any]], None]
+) -> dict[str, Any]:
     if not isinstance(data, bytes):
         raise AppError("invalid_sql", "请读取 UTF-8 格式的 SQL 备份。")
     if len(data) > MAX_SQL_BYTES:
@@ -248,7 +254,7 @@ def load_sql_dump(data: bytes, name: str) -> dict[str, Any]:
         raise AppError("invalid_sql_encoding", "SQL 备份必须使用 UTF-8 编码。") from exc
     versions: set[int] = set()
     columns: dict[str, set[str]] = {}
-    rows: dict[str, list[dict[str, Any]]] = {table: [] for table in TABLE_FIELDS}
+    counts = dict.fromkeys(TABLE_FIELDS, 0)
     for statement in _statements(text, versions):
         lexer = _Lexer(statement)
         kind, command = lexer.take()
@@ -258,7 +264,7 @@ def load_sql_dump(data: bytes, name: str) -> dict[str, Any]:
         if kind != "word":
             raise _invalid()
         if command == "INSERT":
-            _insert(lexer, columns, rows)
+            _insert(lexer, columns, sink, counts)
         elif command == "CREATE":
             if lexer.peek()[1].upper() not in {"TABLE", "INDEX", "UNIQUE"}:
                 raise _invalid()
@@ -290,15 +296,19 @@ def load_sql_dump(data: bytes, name: str) -> dict[str, Any]:
             raise AppError(
                 "incompatible_schema", "SQL 缺少必要表或列，请选择完整的 CC Switch 备份。"
             )
+    return {
+        "kind": "sql",
+        "name": source_name(name),
+        "fingerprint_kind": "original_file_sha256",
+        "fingerprint": hashlib.sha256(data).hexdigest(),
+        "observed_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def load_sql_dump(data: bytes, name: str) -> dict[str, Any]:
+    """Bounded fixture/convenience loader; the sync pipeline uses scan_sql_dump."""
+    rows: dict[str, list[dict[str, Any]]] = {table: [] for table in TABLE_FIELDS}
+    source = scan_sql_dump(data, name, lambda table, row: rows[table].append(row))
     return build_source_data(
-        rows["proxy_request_logs"],
-        rows["usage_daily_rollups"],
-        rows["model_pricing"],
-        {
-            "kind": "sql",
-            "name": source_name(name),
-            "fingerprint_kind": "original_file_sha256",
-            "fingerprint": hashlib.sha256(data).hexdigest(),
-            "observed_at": datetime.now(UTC).isoformat(),
-        },
+        rows["proxy_request_logs"], rows["usage_daily_rollups"], rows["model_pricing"], source
     )

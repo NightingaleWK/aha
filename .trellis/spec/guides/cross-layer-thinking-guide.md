@@ -1,39 +1,27 @@
 # 跨层修改思考指南
 
-## 先画实际链路
+## 实际链路
 
 ```text
-CCS SQLite/SQL → 允许投影与元数据 → Store 留存 → 归属/分析/可用成员
-页面操作 → HTTP 参数与主体 → Store 写事务重检 → 有效版本/占用/原包
-分析与冻结资料 → CSV/HTML/manifest/ZIP → 页面展示与指定版本下载
+只读CCS SQLite/受限SQL → staging → 身份/版本/覆盖核对 → 本地SQLite事实与精确日聚合
+页面筛选 → HTTP边界 → 本地分析/游标 → 保存事务重检 → 冻结版本/占用/事件/原包
+冻结行 → 流式CSV/HTML/manifest3/ZIP → 指定版本下载
 ```
 
-链路入口可对照 [sources.py](../../../src/aha/sources.py)、[archive.py](../../../src/aha/archive.py)、[server.py](../../../src/aha/server.py)、[storage.py](../../../src/aha/storage.py) 和 [app.js](../../../src/aha/web/app.js)。
+入口是 sources/sql_dump、sync/ledger、queries/storage、claims/batches/evidence、server 和 web/app.js。查询不重新读取CCS、不解压历史capture。
 
-## 修改前检查
+## 检查边界
 
-- [ ] 记录每个 producer/consumer 的字段、默认值、空值、错误码和数据所有者；依 [后端契约](../backend/usage-evidence-contract.md) 与 [页面契约](../frontend/local-web-contract.md) 核对。
-- [ ] 金额仍是精确十进制字符串、时间仍是北京时间整日、粒度和 capture 没有被隐式合并？
-- [ ] 新字段会否改变原始身份、分类 revision、业务哈希、占用评估或分享投影？变更范围需逐一确认。
-- [ ] 新建/修订主体与自身占用豁免是否绑定；过期页面和打开的弹窗如何失效？
-- [ ] 迁移失败能否保留原库和原包；新写入是否仍与事件/幂等/有效版本一起提交？
-- [ ] 本机启动凭证、Cookie、路径或元数据是否会穿入公开错误或分享包？
+- 字段、默认值、空值、错误码及所有者在 [后端](../backend/usage-evidence-contract.md) 和 [页面](../frontend/local-web-contract.md) 对齐。
+- 身份与内容hash分离；金额精确字符串，北京时间整日；detail与rollup覆盖只计一次，未知需核对。
+- 变更是否影响 data/classification/claim revision、分页、别名、冻结成员或分享投影？打开的current修订如何失效？
+- 读取失败/取消/源缩水待核对后，旧事实、聚合和成功时间是否保留？新epoch是否经过明确核对？
+- 写事务内重检当前版本、generation、主体、占用与幂等；预览不是占用证明。
+- 新库拒绝schema1/2；一次性清理只能删除已核实试用allowlist，先保全历史CCS输入与完整恢复副本。
+- 凭证、源路径、完整目录、会话正文不能穿入分享包或公开错误。
 
-## 区分校验职责
+## 穿过边界验证
 
-HTTP 边界解析类型、格式、长度和请求来源，领域函数统一计算及投影；这些结果不能替代保存时的权威检查。页面预览后另一个进程可能修改占用，Store 必须在写事务内重新核对当前成员、claim revision、generation 和 active version。
+实际HTTP看输入输出，双连接/进程看竞争，真实浏览器看job终态、DOM失效和下载。对比预览、游标页、聚合、manifest和ZIP的同一冻结成员与精确合计；旧包核对原SHA。百万/千万和Windows/Excel/打印写实际版本、介质与时间，不用历史证据替代当前验证。
 
-- [ ] 共享解析是否由所属模块复用，避免不同消费者另写规则？
-- [ ] 写入重检是否仍在同一个 `BEGIN IMMEDIATE` 内，而非只做一次入口判断？
-- [ ] 同 key 重试、旧作废请求重放、失败换版和资料重启后是否维持原语义？
-
-具体规则见 [SQLite 规范](../backend/database-guidelines.md) 与 [状态规范](../frontend/state-management.md)。
-
-## 验证穿过边界
-
-- [ ] 用真实 HTTP 请求确认输入/输出和错误，用独立连接/进程确认竞争，用实际浏览器确认 DOM 失效和下载。
-- [ ] 对比预览、明细/每日、HTML/JSON 的同一成员与精确金额，不从页面分页回算全体。
-- [ ] 对旧资料、历史版本和原 ZIP 核对保留，不用重新生成材料掩盖差异。
-- [ ] Windows/Excel/打印结果按实际版本和执行时间记录，历史验收与本轮验证分开。
-
-测试入口与触发条件见 [后端质量](../backend/quality-guidelines.md) 和 [前端质量](../frontend/quality-guidelines.md)。
+复用入口见 [复用指南](./code-reuse-thinking-guide.md)，质量门禁见 [后端](../backend/quality-guidelines.md) 与 [前端](../frontend/quality-guidelines.md)。

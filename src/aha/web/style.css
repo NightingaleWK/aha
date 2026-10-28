@@ -106,8 +106,8 @@ main { padding: 30px 36px 40px; max-width: 1690px; margin: auto; outline: none; 
 .source-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 22px; min-width: 0; }
 .filter-panel { padding: 22px; }
-.filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 16px; align-items: end; }
-.source-select-field, .project-select-field { grid-column: span 2; }
+.filter-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr)) auto; gap: 18px 16px; align-items: end; }
+.project-select-field { grid-column: auto; }
 .field { display: flex; flex-direction: column; gap: 8px; font-size: var(--text-label); font-weight: 550; color: #35475c; min-width: 0; }
 input, select, textarea { background: #fff; border: 1px solid #cbd7e3; border-radius: 6px; color: var(--ink); font-size: var(--text-body); padding: 9px 12px; min-height: 44px; min-width: 0; width: 100%; }
 input::placeholder, textarea::placeholder { color: #65768b; font-weight: 400; opacity: 1; }
@@ -376,3 +376,13 @@ td .subline { display: block; font-size: var(--text-meta); color: var(--muted); 
 .claim-links { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 22px; }
 #usage-preview { scroll-margin-top: 20px; }
 @media (max-width: 600px) { #usage-preview { scroll-margin-top: 80px; } }
+
+.sync-error { color: var(--red); margin-top: 8px; font-size: var(--text-label); }
+.reconciliation-list { display: grid; gap: 18px; }
+.reconciliation-card { border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+.reconciliation-card h3 { margin-top: 0; }
+.reconciliation-card .field { margin-top: 12px; }
+.reconciliation-facts { margin: 10px 0; display: grid; gap: 6px; font-size: var(--text-table); }
+#reconciliation-note { margin-bottom: 18px; }
+.source-actions #reconciliation-count { font-variant-numeric: tabular-nums; }
+.status.pending { color: var(--amber); background: #fff4dc; }

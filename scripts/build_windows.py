@@ -11,10 +11,12 @@ from pathlib import Path
 from typing import Any
 
 RUNTIME_PROBE = """
-import json, platform, struct, sys
+import json, platform, sqlite3, struct, sys
 print(json.dumps({"windows": sys.platform == "win32", "bits": struct.calcsize("P") * 8,
                   "isolated": sys.prefix != sys.base_prefix,
-                  "python": list(sys.version_info[:2]), "machine": platform.machine()}))
+                  "python": list(sys.version_info[:2]), "machine": platform.machine(),
+                  "sqlite": list(sqlite3.sqlite_version_info),
+                  "sqlite_version": sqlite3.sqlite_version}))
 """
 
 
@@ -34,6 +36,23 @@ def inspect_runtime(python_exe: Path) -> dict[str, Any]:
     version = runtime.get("python", [])
     if not isinstance(version, list) or len(version) != 2 or version[0] != 3 or version[1] < 12:
         raise ValueError("Python 3.12 or newer is required.")
+    sqlite_version = runtime.get("sqlite", [])
+    if (
+        not isinstance(sqlite_version, list)
+        or len(sqlite_version) != 3
+        or any(isinstance(part, bool) or not isinstance(part, int) for part in sqlite_version)
+    ):
+        raise ValueError("Cannot inspect the selected SQLite runtime.")
+    release = tuple(sqlite_version)
+    fixed = (
+        release >= (3, 51, 3)
+        or release[:2] == (3, 50)
+        and release[2] >= 7
+        or release[:2] == (3, 44)
+        and release[2] >= 6
+    )
+    if not fixed:
+        raise ValueError("Use a task-isolated SQLite runtime with the WAL-reset fix (3.51.3+).")
     return runtime
 
 
@@ -43,7 +62,7 @@ def build(
     source_root: Path,
     stage: str,
 ) -> Path:
-    inspect_runtime(python_exe)
+    runtime = inspect_runtime(python_exe)
     script_dir = source_root / "scripts"
     requirements = script_dir / "requirements-build.txt"
     collector = script_dir / "collect_licenses.py"
@@ -55,6 +74,9 @@ def build(
     ):
         raise ValueError("SourceRoot must contain the aha sources and build helpers.")
     build_root.mkdir(parents=True, exist_ok=True)
+    (build_root / "runtime-versions.json").write_text(
+        json.dumps(runtime, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     subprocess.run(
         [
             str(python_exe),

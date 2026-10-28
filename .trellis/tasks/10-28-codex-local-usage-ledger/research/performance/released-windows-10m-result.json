@@ -1,0 +1,48 @@
+{
+  "scope": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-build\\20261028-local-ledger-01a18012\\benchmark\\10m",
+  "removed": true,
+  "marker": {
+    "format": 1,
+    "rows": 10000000,
+    "seed": 20261028,
+    "source_window": 10000,
+    "completed": true,
+    "incremental": {
+      "added": 10000,
+      "revised": 10000
+    },
+    "r4_prepared_projection_sha256": "b690e89c15ac59c8f73e423f306d087287524ae6707d5ff7a162254a23c7fc9f",
+    "post_baseline_incremental": {
+      "added": 10000,
+      "revised": 1000,
+      "source_rows": 30000,
+      "current_projection": "10m-r4-current-projection.json.gz",
+      "note": "10000 previous added keys retained; next 10000 added keys extend the same deterministic generator; first1000 live costs get a new value."
+    }
+  },
+  "files": {
+    ".aha-ledger-benchmark.json": 537,
+    "aha.sqlite3": 38691123200,
+    "aha.sqlite3-shm": 11665408,
+    "aha.sqlite3-wal": 5990772552,
+    "packages/2e8066770dfd4b53980d4b654038fb3d.zip": 133775889,
+    "packages/6b2545eba6ef4ddb8b7279a501de4b91.zip": 13122358,
+    "packages/7a0415dcdd034545846fc6b5d09541d1.zip": 13122354,
+    "temporary/billing-xicocs9m.sqlite3": 2246094848
+  },
+  "removed_logical_bytes": 47099677146,
+  "extra_removed": [
+    {
+      "name": "29f9ead1121f40a69e9465dc6f752804.zip",
+      "bytes": 133775890
+    }
+  ],
+  "sample_retained_bytes": 13122358,
+  "sample_sha256": "b5b0d47cc369090e6d8fb0284ed5fac192c295af4246ce7b3c4f231acdd2e8f1",
+  "c_free_before_bytes": 23668035584,
+  "c_free_after_bytes": 70901506048,
+  "c_released_bytes": 47233470464,
+  "seconds": 2.186999999998079,
+  "reason": "Explicit user cancellation and test-space cleanup",
+  "user_aha_and_ccs_untouched": true
+}

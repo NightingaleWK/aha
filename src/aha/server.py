@@ -9,7 +9,7 @@ import json
 import re
 import secrets
 import threading
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import CookieError, SimpleCookie
@@ -18,8 +18,8 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
-from . import __version__, analysis, session_meta, sources, sql_dump
-from .domain import AppError, content_hash, record_key
+from . import __version__
+from .domain import AppError, content_hash
 from .storage import Store
 
 SQL_LIMIT = 128 * 1024 * 1024
@@ -90,7 +90,7 @@ def default_sqlite_path() -> Path:
 
 
 class Application:
-    """Owns per-launch state; Store owns all persistent state and transactions."""
+    """Own per-launch previews and finite sync jobs; Store owns durable state."""
 
     def __init__(self, data_dir: Path) -> None:
         self.store = Store(data_dir)
@@ -98,114 +98,191 @@ class Application:
         self.bootstrap_token = secrets.token_urlsafe(32)
         self.session_token = secrets.token_urlsafe(32)
         self.csrf_token = secrets.token_urlsafe(32)
+        self.launch_id = secrets.token_hex(16)
         self.metadata_roots = [Path.home() / ".codex"]
-        self.current_capture_id: str | None = None
-        self.analyses: OrderedDict[str, tuple[int, dict[str, Any]]] = OrderedDict()
-        self.generation = 0
+        self.analyses: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self.jobs: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self.workers: dict[str, threading.Thread] = {}
+        self.cancel = threading.Event()
+        self.startup_job: str | None = None
+        self.closed = False
 
     def close(self) -> None:
-        self.analyses.clear()
+        self.cancel.set()
+        with self.lock:
+            self.closed = True
+            workers = list(self.workers.values())
+        for worker in workers:
+            worker.join(timeout=10)
+        with self.lock:
+            self.analyses.clear()
         self.store.close()
 
     def invalidate(self) -> None:
-        self.generation += 1
-        self.analyses.clear()
+        with self.lock:
+            self.analyses.clear()
 
     def status(self) -> dict[str, Any]:
+        with self.lock:
+            latest_job = max(self.jobs.values(), key=lambda job: job["started_at"], default=None)
+            current_sync = copy.deepcopy(latest_job)
         return {
             "version": __version__,
             "today": datetime.now(BEIJING).date().isoformat(),
             "timezone": "Asia/Shanghai",
             "csrf_token": self.csrf_token,
+            "launch_id": self.launch_id,
             "default_source": {
                 "name": "cc-switch.db",
                 "available": default_sqlite_path().is_file(),
             },
-            "current_capture_id": self.current_capture_id,
             "sql_limit_bytes": SQL_LIMIT,
+            "ledger": self.store.ledger_status(),
+            "startup_sync": self._job(self.startup_job) if self.startup_job else None,
+            "sync": current_sync,
         }
 
-    def capture_info(self, capture_id: str) -> dict[str, Any]:
-        capture = self.store.get_capture(capture_id)
-        info = {key: value for key, value in capture.items() if key not in {"data", "metadata"}}
-        metadata = capture["metadata"]
-        data = capture["data"]
-        sessions = metadata.get("sessions", {})
-        records = Counter(str(row.get("session_id", "")) for row in data["details"])
-        directories: dict[str, dict[str, Any]] = {}
-        missing = []
-        for session_id, session in sessions.items():
-            cwd = session.get("cwd")
-            if cwd and session.get("status") == "matched":
-                entry = directories.setdefault(
-                    cwd, {"path": cwd, "session_count": 0, "detail_count": 0}
+    def _job(self, job_id: str | None) -> dict[str, Any]:
+        with self.lock:
+            if job_id is None or job_id not in self.jobs:
+                raise AppError("sync_not_found", "未找到这次同步，请重新打开同步状态。", 404)
+            return copy.deepcopy(self.jobs[job_id])
+
+    def _sync_worker(self, job_id: str, kind: str, source: Any, name: str, trigger: str) -> None:
+        try:
+            if kind == "sqlite":
+                result = self.store.sync_sqlite(
+                    source,
+                    self.metadata_roots,
+                    trigger=trigger,
+                    startup_id=self.launch_id if trigger == "startup" else None,
+                    cancel=self.cancel,
                 )
-                entry["session_count"] += 1
-                entry["detail_count"] += records[session_id]
             else:
-                missing.append(
+                result = self.store.sync_sql(
+                    source, name, self.metadata_roots, trigger=trigger, cancel=self.cancel
+                )
+            run_state = result.get("state", result.get("status"))
+            failed = run_state in {"failed", "cancelled"}
+            needs_review = run_state == "needs_review"
+            public_status = "failed" if failed else "needs_review" if needs_review else "completed"
+            with self.lock:
+                self.jobs[job_id].update(
                     {
-                        "session_id": session_id,
-                        "status": session.get("status", "missing"),
-                        "detail_count": records[session_id],
+                        "status": public_status,
+                        "result": result,
+                        "finished_at": datetime.now(BEIJING).isoformat(),
                     }
                 )
-        info["directories"] = sorted(
-            directories.values(), key=lambda entry: entry["path"].casefold()
-        )
-        errors = metadata.get("errors", [])
-        error_count = (
-            sum(item.get("count", 0) for item in errors) if isinstance(errors, list) else 0
-        )
-        info["metadata_coverage"] = {
-            "matched_sessions": metadata.get("matched_sessions", 0),
-            "total_sessions": metadata.get("total_sessions", len(records)),
-            "error_count": error_count,
-        }
-        info["unresolved_sessions"] = missing
-        return info
-
-    def _retain_source(self, data: dict[str, Any]) -> dict[str, Any]:
-        session_ids = {str(row["session_id"]) for row in data["details"] if row.get("session_id")}
-        metadata = session_meta.scan_metadata(session_ids, self.metadata_roots)
-        capture = self.store.retain(data, metadata)
-        self.current_capture_id = capture["id"]
-        return self.capture_info(capture["id"])
-
-    def _analysis(
-        self, analysis_id: str, *, check_availability: bool = True
-    ) -> dict[str, Any]:
-        entry = self.analyses.get(analysis_id)
-        if entry is None or entry[0] != self.generation:
-            raise AppError("analysis_expired", "预览已过期，请更新预览后保存。", 409)
-        result = entry[1]
-        if result["classification_revision"] != self.store.config()["revision"]:
-            self.invalidate()
-            raise AppError("analysis_expired", "项目归属已变化，请更新预览后保存。", 409)
-        if check_availability:
-            if result["claim_revision"] != self.store.claim_revision():
-                raise AppError(
-                    "availability_changed", "可用用量已变化，请更新预览后重试。", 409
+                if failed:
+                    self.jobs[job_id]["message"] = result.get(
+                        "message", "同步未完成，原本地数据已保留。"
+                    )
+        except AppError as error:
+            with self.lock:
+                self.jobs[job_id].update(
+                    {
+                        "status": "failed",
+                        "code": error.code,
+                        "message": error.message,
+                        "finished_at": datetime.now(BEIJING).isoformat(),
+                    }
                 )
-            if target := result.get("target_batch_id"):
-                batch = self.store.batch_detail(target)
-                if (
-                    not batch["can_edit"]
-                    or batch["generation"] != result["expected_generation"]
-                    or batch["active_version"] != result["expected_active_version"]
-                ):
-                    raise AppError("stale_batch", "报销记录已变化，请刷新后重试。", 409)
+        except Exception:
+            with self.lock:
+                self.jobs[job_id].update(
+                    {
+                        "status": "failed",
+                        "code": "sync_failed",
+                        "message": "同步未完成，原本地数据已保留，请重试。",
+                        "finished_at": datetime.now(BEIJING).isoformat(),
+                    }
+                )
+        finally:
+            with self.lock:
+                self.workers.pop(job_id, None)
+
+    def _start_sync(self, body: dict[str, Any], *, sql: bool = False) -> dict[str, Any]:
+        trigger = _string(body, "trigger", "manual", 16)
+        if trigger not in {"startup", "manual"} or sql and trigger != "manual":
+            raise AppError("invalid_sync_trigger", "请选择打开时同步或手动同步。")
+        # Decode/validate an explicit import before allocating a worker.
+        source: Any
+        name = "cc-switch.db"
+        if sql:
+            encoded = _string(body, "content_base64", limit=UPLOAD_LIMIT)
+            if len(encoded) > ((SQL_LIMIT + 2) // 3) * 4:
+                raise AppError("file_too_large", "SQL 文件不能超过 128 MiB。", 413)
+            try:
+                source = base64.b64decode(encoded, validate=True)
+            except (ValueError, binascii.Error):
+                raise AppError("invalid_upload", "文件读取失败，请重新选择 SQL 备份。") from None
+            if len(source) > SQL_LIMIT:
+                raise AppError("file_too_large", "SQL 文件不能超过 128 MiB。", 413)
+            name = PureWindowsPath(_string(body, "name", "backup.sql", 255)).name
+        else:
+            file_path = _string(body, "path")
+            source = Path(file_path) if file_path else default_sqlite_path()
+        with self.lock:
+            if self.closed:
+                raise AppError("application_closed", "程序正在退出，请重新启动。", 409)
+            if trigger == "startup" and self.startup_job is not None:
+                return self._job(self.startup_job)
+            running = next((job for job in self.jobs.values() if job["status"] == "running"), None)
+            if running is not None:
+                raise AppError("sync_in_progress", "已有同步正在进行，请等待本次完成。", 409)
+            job_id = secrets.token_hex(16)
+            job = {
+                "id": job_id,
+                "status": "running",
+                "trigger": trigger,
+                "source_name": name,
+                "started_at": datetime.now(BEIJING).isoformat(),
+            }
+            self.jobs[job_id] = job
+            if trigger == "startup":
+                self.startup_job = job_id
+            while len(self.jobs) > 32:
+                first = next(iter(self.jobs))
+                if first == self.startup_job:
+                    self.jobs.move_to_end(first)
+                    continue
+                self.jobs.pop(first)
+            worker = threading.Thread(
+                target=self._sync_worker,
+                args=(job_id, "sql" if sql else "sqlite", source, name, trigger),
+                name="aha-explicit-sync",
+                daemon=True,
+            )
+            self.workers[job_id] = worker
+            worker.start()
+            return copy.deepcopy(job)
+
+    def _analysis(self, analysis_id: str, *, check_claims: bool = True) -> dict[str, Any]:
+        with self.lock:
+            result = self.analyses.get(analysis_id)
+        if result is None:
+            raise AppError("analysis_expired", "预览已过期，请更新预览后保存。", 409)
+        self.store.validate_analysis(result, check_claims=check_claims)
+        if check_claims and result.get("target_batch_id"):
+            batch = self.store.batch_detail(result["target_batch_id"])
+            if (
+                not batch["can_edit"]
+                or batch["generation"] != result["expected_generation"]
+                or batch["active_version"] != result["expected_active_version"]
+            ):
+                raise AppError("stale_batch", "报销记录已变化，请刷新后重试。", 409)
         return result
 
     def _editable_batch(self, body: dict[str, Any], batch_id: str) -> dict[str, Any]:
-        generation = _generation(body)
-        version = _version(body.get("base_version"))
         batch = self.store.batch_detail(batch_id)
         if batch["lifecycle"] == "voided":
             raise AppError("batch_voided", "这条报销记录已作废，请新建记录。", 409)
         if not batch["can_edit"]:
             raise AppError("inactive_revision", "当前记录不能修改，请先核对报销状态。", 409)
-        if batch["generation"] != generation or batch["active_version"] != version:
+        if batch["generation"] != _generation(body) or batch["active_version"] != _version(
+            body.get("base_version")
+        ):
             raise AppError("stale_batch", "报销记录已变化，请刷新后重试。", 409)
         return batch
 
@@ -214,16 +291,15 @@ class Application:
     ) -> dict[str, Any]:
         if body.get("analysis_id"):
             result = self._analysis(
-                _string(body, "analysis_id", limit=128), check_availability=not for_save
+                _string(body, "analysis_id", limit=128), check_claims=not for_save
             )
-            if result["target_batch_id"] != batch_id:
+            if result.get("target_batch_id") != batch_id:
                 raise AppError("analysis_target_mismatch", "请为这条报销记录重新预览用量。", 409)
-            if batch_id is not None:
-                if (
-                    result["expected_generation"] != _generation(body)
-                    or result["expected_active_version"] != _version(body.get("base_version"))
-                ):
-                    raise AppError("stale_batch", "报销记录已变化，请刷新后重试。", 409)
+            if batch_id is not None and (
+                result["expected_generation"] != _generation(body)
+                or result["expected_active_version"] != _version(body.get("base_version"))
+            ):
+                raise AppError("stale_batch", "报销记录已变化，请刷新后重试。", 409)
             return result
         if batch_id is None:
             raise AppError("analysis_required", "请先更新用量预览。")
@@ -232,69 +308,49 @@ class Application:
             item for item in batch["revisions"] if item["version"] == batch["active_version"]
         )
         result = copy.deepcopy(current["analysis"])
-        result.update({
-            "claim_revision": self.store.claim_revision(),
-            "availability_mode": "available",
-            "target_batch_id": batch_id,
-            "expected_generation": batch["generation"],
-            "expected_active_version": batch["active_version"],
-        })
-        result["availability"] = {
-            "mode": "available",
-            "claim_revision": result["claim_revision"],
-            "matched_summary": copy.deepcopy(result["summary"]),
-            "available_summary": copy.deepcopy(result["summary"]),
-            "excluded_summary": analysis.empty_summary(),
-            "excluded_groups": [],
-        }
+        result.update(
+            {
+                "frozen_basis": {"batch_id": batch_id, "version": batch["active_version"]},
+                "target_batch_id": batch_id,
+                "expected_generation": batch["generation"],
+                "expected_active_version": batch["active_version"],
+                "availability_mode": "available",
+            }
+        )
         return result
 
-    def _new_analysis(self, body: dict[str, Any], batch_id: str | None = None) -> Any:
+    def _new_analysis(self, body: dict[str, Any], batch_id: str | None = None) -> dict[str, Any]:
         if batch_id is None and any(
             key in body for key in ("target_batch_id", "exclude_batch_id", "batch_id")
         ):
             raise AppError("invalid_analysis_target", "请通过报销记录选择要修改的用量。")
-        batch = self._editable_batch(body, batch_id) if batch_id is not None else None
+        batch = self._editable_batch(body, batch_id) if batch_id else None
         mode = _string(body, "availability_mode", "available", 16)
-        if batch_id is not None and mode != "available":
-            raise AppError("read_only_analysis", "修改报销记录时请选择可用用量。")
-        capture_id = _string(body, "capture_id", limit=128)
-        capture = self.store.get_capture(capture_id)
-        config = self.store.config()
-        revision = body.get("classification_revision", config["revision"])
-        if isinstance(revision, bool) or not isinstance(revision, int):
-            raise AppError("classification_changed", "项目归属已变化，请更新预览。", 409)
-        if revision != config["revision"]:
-            raise AppError("classification_changed", "项目归属已变化，请更新预览。", 409)
-        result = analysis.analyze(
-            capture["data"], capture["metadata"], config,
+        if batch_id and mode != "available":
+            raise AppError("read_only_analysis", "修改报销记录时请选择可用用量。", 409)
+        result = self.store.analyze(
             _string(body, "start_date", limit=10),
             _string(body, "end_date", limit=10),
             _string(body, "project_id", "all", 128),
-            claim_snapshot=self.store.claim_snapshot(batch_id),
             availability_mode=mode,
             target_batch_id=batch_id,
             expected_generation=batch["generation"] if batch else None,
             expected_active_version=batch["active_version"] if batch else None,
         )
-        result["capture_id"] = capture_id
-        result["source"] = capture["source"]
-        for key in (
-            "usage_snapshot_id", "metadata_snapshot_id", "created_at", "counts", "coverage"
+        requested = body.get("classification_revision", result["classification_revision"])
+        if (
+            isinstance(requested, bool)
+            or not isinstance(requested, int)
+            or requested != result["classification_revision"]
         ):
-            if key in capture:
-                result[key] = capture[key]
+            raise AppError("classification_changed", "项目归属已变化，请更新预览。", 409)
         analysis_id = secrets.token_urlsafe(24)
         result["analysis_id"] = analysis_id
-        result["metadata_coverage"] = self.capture_info(capture_id)["metadata_coverage"]
-        result["unassigned_count"] = result["unassigned_record_count"]
-        self.analyses[analysis_id] = (self.generation, result)
-        while len(self.analyses) > 24:
-            self.analyses.popitem(last=False)
-        return {
-            key: value for key, value in result.items()
-            if key not in {"details", "rollups", "members"}
-        }
+        with self.lock:
+            self.analyses[analysis_id] = result
+            while len(self.analyses) > 24:
+                self.analyses.popitem(last=False)
+        return result
 
     def _claim(self, body: dict[str, Any]) -> dict[str, Any]:
         claim = body.get("claim", {})
@@ -313,10 +369,12 @@ class Application:
     def get(self, path: str, query: dict[str, list[str]]) -> Any:
         if path == "/api/status":
             return self.status()
-        if path == "/api/captures":
-            return {"captures": self.store.list_captures()}
-        if match := re.fullmatch(r"/api/captures/" + SAFE_ID, path):
-            return self.capture_info(match[1])
+        if path == "/api/ledger":
+            return self.store.ledger_status()
+        if match := re.fullmatch(r"/api/sync/" + SAFE_ID, path):
+            return self._job(match[1])
+        if path == "/api/reconciliations":
+            return {"cases": self.store.list_reconciliations()}
         if path == "/api/projects":
             return self.store.config()
         if path == "/api/batches":
@@ -326,58 +384,32 @@ class Application:
         if match := re.fullmatch(r"/api/analysis/" + SAFE_ID + r"/details", path):
             result = self._analysis(match[1])
             kind = query.get("kind", ["detail"])[0]
-            if kind not in {"detail", "rollup"}:
-                raise AppError("invalid_grain", "请选择明细或历史日汇总。")
+            if kind not in {"detail", "rollup", "daily", "models"}:
+                raise AppError("invalid_grain", "请选择明细、汇总或统计。")
             try:
-                page = int(query.get("page", ["1"])[0])
                 size = int(query.get("size", ["50"])[0])
             except ValueError:
                 raise AppError("invalid_page", "分页参数不正确。") from None
-            if page < 1 or size < 1 or size > 200:
+            if not 1 <= size <= 200:
                 raise AppError("invalid_page", "每页可查看 1 至 200 条记录。")
-            rows = result["details" if kind == "detail" else "rollups"]
-            start = (page - 1) * size
-            return {
-                "rows": rows[start : start + size],
-                "total": len(rows),
-                "page": page,
-                "size": size,
-                "kind": kind,
-            }
+            return self.store.analysis_details(
+                result, cursor=query.get("cursor", [None])[0], size=size, kind=kind
+            )
         raise AppError("not_found", "未找到此内容。", 404)
 
     def post(self, path: str, body: dict[str, Any]) -> Any:
-        if path in {"/api/source/sqlite", "/api/source/sql"}:
-            self.invalidate()
-            self.current_capture_id = None
-            if path.endswith("sqlite"):
-                file_path = _string(body, "path")
-                data = sources.load_sqlite(Path(file_path) if file_path else default_sqlite_path())
-            else:
-                encoded = _string(body, "content_base64", limit=UPLOAD_LIMIT)
-                if len(encoded) > ((SQL_LIMIT + 2) // 3) * 4:
-                    raise AppError("file_too_large", "SQL 文件不能超过 128 MiB。", 413)
-                try:
-                    raw = base64.b64decode(encoded, validate=True)
-                except (ValueError, binascii.Error):
-                    raise AppError(
-                        "invalid_upload", "文件读取失败，请重新选择 SQL 备份。"
-                    ) from None
-                if len(raw) > SQL_LIMIT:
-                    raise AppError("file_too_large", "SQL 文件不能超过 128 MiB。", 413)
-                name = PureWindowsPath(_string(body, "name", "backup.sql", 255)).name
-                data = sql_dump.load_sql_dump(raw, name)
-            return self._retain_source(data)
+        if path in {"/api/sync", "/api/source/sqlite"}:
+            return self._start_sync(body)
+        if path == "/api/source/sql":
+            return self._start_sync(body, sql=True)
         if path == "/api/session-metadata":
+            roots = _strings(body, "roots", 32)
+            self.metadata_roots = [Path(root).expanduser() for root in roots] or [
+                Path.home() / ".codex"
+            ]
+            result = self.store.refresh_metadata(self.metadata_roots)
             self.invalidate()
-            capture_id = _string(body, "capture_id", self.current_capture_id or "", 128)
-            capture = self.store.get_capture(capture_id)
-            if "roots" in body:
-                roots = _strings(body, "roots", 32)
-                self.metadata_roots = [Path(root).expanduser() for root in roots] or [
-                    Path.home() / ".codex"
-                ]
-            return self._retain_source(capture["data"])
+            return result
         if path == "/api/projects" or re.fullmatch(r"/api/projects/" + SAFE_ID, path):
             project_id = None if path == "/api/projects" else path.rsplit("/", 1)[1]
             result = self.store.save_project(
@@ -389,29 +421,25 @@ class Application:
             self.invalidate()
             return result
         if path == "/api/assignments":
-            capture = self.store.get_capture(_string(body, "capture_id", limit=128))
-            grain = _string(body, "kind", "detail", 16)
-            if grain not in {"detail", "rollup"}:
-                raise AppError("invalid_grain", "请选择明细或完整历史日汇总。")
-            keys = set(_strings(body, "keys"))
-            sessions = set(_strings(body, "session_ids"))
-            if not keys and not sessions:
-                raise AppError("selection_required", "请先选择需要修正归属的记录。")
-            if keys and sessions or grain == "rollup" and sessions:
-                raise AppError("invalid_selection", "一次只能按记录或会话选择。")
-            rows = capture["data"]["details" if grain == "detail" else "rollups"]
-            selected = [
-                row
-                for row in rows
-                if record_key(row, grain) in keys
-                or grain == "detail"
-                and str(row.get("session_id", "")) in sessions
-            ]
-            if keys and {record_key(row, grain) for row in selected} != keys:
-                raise AppError("selection_expired", "部分记录不属于所选留存，请刷新后重选。", 409)
-            if sessions and {str(row.get("session_id", "")) for row in selected} != sessions:
-                raise AppError("selection_expired", "部分会话不属于所选留存，请刷新后重选。", 409)
-            result = self.store.assign(selected, _project_id(body), grain)
+            keys, sessions = _strings(body, "keys"), _strings(body, "session_ids")
+            if bool(keys) == bool(sessions):
+                raise AppError("invalid_selection", "一次请按记录或会话选择。")
+            if keys:
+                result = self.store.assign_keys(keys, _project_id(body))
+            else:
+                result = self.store.assign_sessions(
+                    list(dict.fromkeys(sessions)), _project_id(body)
+                )
+            self.invalidate()
+            return result
+        if match := re.fullmatch(r"/api/reconciliations/" + SAFE_ID, path):
+            result = self.store.resolve_reconciliation(
+                match[1],
+                _string(body, "choice", limit=32),
+                _string(body, "reason", limit=4000),
+                expected_generation=_generation(body),
+                idempotency_key=_retry_key(body),
+            )
             self.invalidate()
             return result
         if path == "/api/analysis":
@@ -420,18 +448,16 @@ class Application:
             return self._new_analysis(body, match[1])
         if path == "/api/batches/preview":
             batch_id = (
-                None if body.get("batch_id") is None
-                else _string(body, "batch_id", limit=128)
+                None
+                if body.get("batch_id") is None
+                else _string(body, "batch_id", limit=128) or None
             )
-            batch_id = batch_id or None
             result = self._batch_analysis(body, batch_id)
             if result["availability_mode"] != "available":
                 raise AppError("read_only_analysis", "全部用量仅供查看，请切换到可用用量。", 409)
-            if not result["members"]:
+            if not result["summary"]["record_count"]:
                 raise AppError("empty_analysis", "当前没有可用用量，请调整项目或日期。", 409)
-            conflicts = analysis.selection_conflicts(
-                result, self.store.claim_snapshot(batch_id), batch_id
-            )
+            conflicts = self.store.overlaps(result, batch_id)
             return {"overlaps": conflicts, "conflicts": conflicts, "blocking": bool(conflicts)}
         if path == "/api/batches" or re.fullmatch(r"/api/batches/" + SAFE_ID + r"/revisions", path):
             batch_id = None if path == "/api/batches" else path.split("/")[3]
@@ -441,26 +467,25 @@ class Application:
                 return prior
             result = self._batch_analysis(body, batch_id, for_save=True)
             return self.store.create_batch(
-                result, self._claim(body), key, batch_id,
+                result,
+                self._claim(body),
+                key,
+                batch_id,
                 expected_generation=_generation(body) if batch_id else None,
                 expected_active_version=_version(body.get("base_version")) if batch_id else None,
                 request_signature=signature,
             )
-        if match := re.fullmatch(r"/api/batches/" + SAFE_ID + r"/(withdraw|void|resolve)", path):
-            batch_id, operation = match[1], match[2]
-            generation = _generation(body)
-            reason = _string(body, "reason", limit=4000)
-            key = _retry_key(body)
-            if operation == "withdraw":
-                return self.store.withdraw_batch(batch_id, generation, reason, key)
-            if operation == "void":
-                return self.store.void_batch(batch_id, generation, reason, key)
-            return self.store.resolve_legacy(
-                batch_id, _version(body.get("selected_version")), generation, reason, key
+        if match := re.fullmatch(r"/api/batches/" + SAFE_ID + r"/(withdraw|void)", path):
+            batch_id, action = match[1], match[2]
+            method = self.store.withdraw_batch if action == "withdraw" else self.store.void_batch
+            return method(
+                batch_id, _generation(body), _string(body, "reason", limit=4000), _retry_key(body)
             )
         if match := re.fullmatch(r"/api/batches/" + SAFE_ID + r"/revisions/([0-9]+)/status", path):
             return self.store.set_status(
-                match[1], _version(int(match[2])), _string(body, "status", limit=32),
+                match[1],
+                _version(int(match[2])),
+                _string(body, "status", limit=32),
                 expected_generation=_generation(body),
             )
         raise AppError("not_found", "未找到此操作。", 404)
@@ -499,12 +524,12 @@ class RequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:
         return
 
-    def _send(
-        self, status: int, payload: bytes, content_type: str, headers: dict[str, str] | None = None
+    def _response_headers(
+        self, status: int, length: int, content_type: str, headers: dict[str, str] | None = None
     ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Content-Length", str(length))
         self.send_header("Cache-Control", "no-store")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -518,8 +543,28 @@ class RequestHandler(BaseHTTPRequestHandler):
         for key, value in (headers or {}).items():
             self.send_header(key, value)
         self.end_headers()
+
+    def _send(
+        self, status: int, payload: bytes, content_type: str, headers: dict[str, str] | None = None
+    ) -> None:
+        self._response_headers(status, len(payload), content_type, headers)
         if self.command != "HEAD":
             self.wfile.write(payload)
+
+    def _send_file(self, path: Path, filename: str) -> None:
+        with path.open("rb") as source:
+            self._response_headers(
+                HTTPStatus.OK,
+                path.stat().st_size,
+                "application/zip",
+                {
+                    "Content-Disposition": "attachment; filename=aha-evidence.zip; "
+                    "filename*=UTF-8''" + quote(filename)
+                },
+            )
+            if self.command != "HEAD":
+                while chunk := source.read(1024 * 1024):
+                    self.wfile.write(chunk)
 
     def _json(self, status: int, payload: Any) -> None:
         self._send(
@@ -655,22 +700,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                 name, content_type = ASSETS[path]
                 self._send(HTTPStatus.OK, (WEB_DIR / name).read_bytes(), content_type)
                 return
-            with app.lock:
-                if match := re.fullmatch(
-                    r"/api/batches/" + SAFE_ID + r"/revisions/([0-9]+)/download", path
-                ):
-                    payload, filename = app.store.download(match[1], _version(int(match[2])))
-                    self._send(
-                        HTTPStatus.OK,
-                        payload,
-                        "application/zip",
-                        {
-                            "Content-Disposition": "attachment; filename=aha-evidence.zip; "
-                            "filename*=UTF-8''" + quote(filename),
-                        },
-                    )
-                else:
-                    self._json(HTTPStatus.OK, app.get(path, query))
+            if match := re.fullmatch(
+                r"/api/batches/" + SAFE_ID + r"/revisions/([0-9]+)/download", path
+            ):
+                file_path, filename = app.store.download(match[1], _version(int(match[2])))
+                self._send_file(file_path, filename)
+            else:
+                self._json(HTTPStatus.OK, app.get(path, query))
         except AppError as error:
             self._error(error)
         except (BrokenPipeError, ConnectionResetError, TimeoutError):
@@ -684,6 +720,9 @@ class RequestHandler(BaseHTTPRequestHandler):
                 },
             )
 
+    def do_HEAD(self) -> None:
+        self.do_GET()
+
     def do_POST(self) -> None:
         try:
             path, _ = self._boundary()
@@ -691,10 +730,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             body = self._body()
             if path == "/api/shutdown":
                 self._json(HTTPStatus.OK, {"message": "程序已退出，已保存资料会保留。"})
+                self.server.app.cancel.set()
                 threading.Thread(target=self.server.shutdown, daemon=True).start()
                 return
-            with self.server.app.lock:
-                self._json(HTTPStatus.OK, self.server.app.post(path, body))
+            self._json(HTTPStatus.OK, self.server.app.post(path, body))
         except AppError as error:
             self._error(error)
         except (BrokenPipeError, ConnectionResetError, TimeoutError):

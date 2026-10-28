@@ -15,7 +15,7 @@ rg -n 'invalidate|prepareBatch|function node' src/aha/web/app.js
 | 数值、日期、记录 key/指纹 | [domain.py](../../../src/aha/domain.py) |
 | 跨平台目录含义和归属 | [projects.py](../../../src/aha/projects.py) |
 | 可用成员和身份/覆盖 | [claims.py](../../../src/aha/claims.py) |
-| token、费用、每日/模型汇总 | [analysis.py](../../../src/aha/analysis.py) |
+| token、费用、每日/模型汇总 | [queries.py](../../../src/aha/queries.py) 与 [decimal_sql.py](../../../src/aha/decimal_sql.py) |
 | 持久化、版本与幂等 | [Store 门面](../../../src/aha/storage.py) 与 [batches.py](../../../src/aha/batches.py) |
 | 元素、请求、忙碌与失效 | [app.js](../../../src/aha/web/app.js) 的 node/api/run/invalidate |
 

@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "rows": 10000000,
+  "seed": 20261028,
+  "source_window": 10000,
+  "completed": true,
+  "machine": {
+    "os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "cpu": "Intel(R) Xeon(R) Silver 4210R CPU @ 2.40GHz",
+    "logical_cpu_count": 20,
+    "python": "3.14.4",
+    "sqlite": "3.53.4",
+    "application_version": "0.3.0",
+    "disk_type": "not_detected",
+    "filesystem_type": "ext4",
+    "disk_free_bytes": 967465762816,
+    "clock": "time.perf_counter",
+    "cold_definition": "new process: Store open + full-range analysis + first50 rows; interpreter import excluded; OS cache not flushed"
+  },
+  "distribution": {
+    "years": 5,
+    "projects": 100,
+    "models": 20,
+    "project_zero_fraction": 0.5,
+    "revisions_fraction": 0.01,
+    "claims_fraction": 0.3,
+    "pending_fraction": 0.0001,
+    "model_assignment": "project0 varies by index; other projects map to model modulo20"
+  },
+  "derived_projection_refresh_seconds": 3.5903617959993426,
+  "sample_verification": {
+    "checked_rows": 106,
+    "key_hash_project_cost_tokens": "passed",
+    "actual_store_sync_query_billing_download_void": "passed"
+  },
+  "queries": {},
+  "process_cold": {
+    "skipped": true
+  },
+  "exports": [],
+  "storage": {
+    "aha.sqlite3": 36449095680,
+    ".aha-ledger-benchmark.json": 92,
+    "aha.sqlite3-shm": 65536,
+    "aha.sqlite3-wal": 19697752
+  }
+}

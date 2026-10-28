@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "rows": 10000000,
+  "seed": 20261028,
+  "source_window": 10000,
+  "completed": true,
+  "machine": {
+    "os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "cpu": "Intel(R) Xeon(R) Silver 4210R CPU @ 2.40GHz",
+    "logical_cpu_count": 20,
+    "python": "3.14.4",
+    "sqlite": "3.53.4",
+    "application_version": "0.3.0",
+    "disk_type": "not_detected",
+    "filesystem_type": "ext4",
+    "disk_free_bytes": 1012056686592,
+    "clock": "time.perf_counter",
+    "cold_definition": "new process; OS disk cache is not flushed"
+  },
+  "distribution": {
+    "years": 5,
+    "projects": 100,
+    "models": 20,
+    "project_zero_fraction": 0.5,
+    "revisions_fraction": 0.01,
+    "claims_fraction": 0.3,
+    "pending_fraction": 0.0001,
+    "model_assignment": "project0 varies by index; other projects map to model modulo20"
+  },
+  "seed_run": {
+    "seconds": 4885.335645655001,
+    "detail_rows": 10000000,
+    "content_revisions": 100000,
+    "usage_claims": 3000000,
+    "pending_rows": 1000,
+    "synthetic_ownership_notice": "Ownership headers/members are controlled fixtures, not generated customer evidence; actual billing is verified separately.",
+    "claimed_summary_crosscheck": {
+      "record_count": 3000000,
+      "detail_count": 3000000,
+      "rollup_record_count": 0,
+      "rollup_count": 0,
+      "unpriced_count": 0,
+      "fresh_input_tokens": 183000000,
+      "output_tokens": 48000000,
+      "cache_read_tokens": 300000000,
+      "cache_creation_tokens": 15000000,
+      "total_tokens": 546000000,
+      "total_cost_usd": "3703.701"
+    },
+    "index_rebuild_seconds": 959.8256791370004,
+    "fast_seed": true,
+    "deferred_secondary_indexes": 19,
+    "seconds_including_index_rebuild": 5945.994045542
+  },
+  "seed_memory": {
+    "baseline_rss_bytes": 30691328,
+    "peak_rss_bytes": 427761664,
+    "extra_peak_rss_bytes": 397070336
+  },
+  "fatal_error": {
+    "type": "AttributeError",
+    "message": "'Store' object has no attribute '_staging_transaction'"
+  }
+}

@@ -1,23 +1,28 @@
-"""Four-file evidence packages built only from a frozen analysis result."""
+"""Bounded, deterministic four-file packages from an immutable ledger selection."""
 
 from __future__ import annotations
 
 import csv
 import hashlib
 import html
-import io
+import os
 import re
+import shutil
+import tempfile
 import unicodedata
 import zipfile
+from collections.abc import Callable, Iterable, Mapping
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from pathlib import Path
+from typing import Any, BinaryIO
 
 from . import __version__
-from .archive import safe_source
 from .domain import BEIJING, AppError, canonical_bytes, decimal_text
 
 UPSTREAM_COMMIT = "e55d8a21b3897b595b746e9f2139716b2931641d"
+MANIFEST_VERSION = 3
+COPY_BYTES = 1024 * 1024
 DETAIL_COLUMNS = (
     "project_id",
     "project_name",
@@ -66,6 +71,7 @@ MEMBER_FIELDS = (
     "kind",
     "key",
     "content_hash",
+    "version_id",
     "date",
     "model",
     "app_type",
@@ -79,7 +85,30 @@ MEMBER_FIELDS = (
     "cache_creation_tokens",
     "total_tokens",
     "request_count",
+    "request_model",
+    "pricing_model",
+    "project_id",
+    "project_name",
+    "assignment_origin",
+    "pricing_status",
 )
+SUMMARY_FIELDS = (
+    "record_count",
+    "detail_count",
+    "rollup_record_count",
+    "rollup_count",
+    "unpriced_count",
+    "fresh_input_tokens",
+    "output_tokens",
+    "cache_read_tokens",
+    "cache_creation_tokens",
+    "total_tokens",
+    "total_cost_usd",
+    "detail_cost_usd",
+    "rollup_cost_usd",
+    "source_grain",
+)
+RowFactory = Callable[[], Iterable[dict[str, Any]]]
 
 
 def validate_claim(claim: dict[str, Any]) -> dict[str, Any]:
@@ -139,13 +168,9 @@ def csv_cell(value: Any) -> str:
     return text
 
 
-def _csv(columns: tuple[str, ...], rows: list[dict[str, Any]]) -> bytes:
-    output = io.StringIO(newline="")
-    writer = csv.writer(output, lineterminator="\r\n")
-    writer.writerow(columns)
-    for row in rows:
-        writer.writerow(csv_cell(row.get(column)) for column in columns)
-    return output.getvalue().encode("utf-8-sig")
+def file_hash(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def _escape(value: Any) -> str:
@@ -164,85 +189,84 @@ def _display_time(value: Any) -> str:
         return value
 
 
+def _summary(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {key: value[key] for key in SUMMARY_FIELDS if key in value}
+
+
 def _availability_basis(analysis: dict[str, Any]) -> dict[str, Any] | None:
     original = analysis.get("availability")
     if not isinstance(original, dict):
         return None
-    summary_fields = (
-        "record_count", "detail_count", "rollup_record_count", "fresh_input_tokens",
-        "output_tokens", "cache_read_tokens", "cache_creation_tokens", "total_tokens",
-        "total_cost_usd", "detail_cost_usd", "rollup_cost_usd", "unpriced_count", "source_grain",
-    )
     result: dict[str, Any] = {
-        "mode": original.get("mode"), "claim_revision": original.get("claim_revision"),
+        "mode": original.get("mode"),
+        "claim_revision": original.get("claim_revision"),
     }
     for key in ("matched_summary", "available_summary", "excluded_summary"):
-        summary = original.get(key, {})
-        result[key] = {field: summary[field] for field in summary_fields if field in summary}
+        result[key] = _summary(original.get(key))
     groups = []
     for group in original.get("excluded_groups", []):
+        if not isinstance(group, dict):
+            continue
         projected = {
             key: group[key]
             for key in (
-                "reason", "row_count", "record_count", "detail_count", "rollup_record_count",
+                "reason",
+                "row_count",
+                "record_count",
+                "detail_count",
+                "rollup_record_count",
                 "total_cost_usd",
             )
             if key in group
         }
         projected["owners"] = [
-            {key: owner[key] for key in ("batch_id", "number", "version", "status", "lifecycle")
-             if key in owner}
+            {
+                key: owner[key]
+                for key in ("batch_id", "number", "version", "status", "lifecycle")
+                if key in owner
+            }
             for owner in group.get("owners", [])
+            if isinstance(owner, dict)
         ]
         groups.append(projected)
     result["excluded_groups"] = groups
     return result
 
 
-def _report(
-    analysis: dict[str, Any], claim: dict[str, Any], batch: dict[str, Any], capture: dict[str, Any]
-) -> bytes:
-    summary = analysis["summary"]
-    amount = "未填写" if claim["amount"] is None else f"{claim['amount']} {claim['currency']}"
-    grain_names = {"detail": "逐条明细", "daily_rollup": "历史日汇总", "mixed": "明细与汇总"}
-    daily_rows = "".join(
-        "<tr>"
-        + "".join(
-            "<td>"
-            + _escape(
-                grain_names.get(row.get(key), row.get(key))
-                if key == "source_grain" else row.get(key)
-            )
-            + "</td>"
-            for key in (
-                "project_name", "date", "model", "detail_count", "rollup_record_count",
-                "source_grain", "total_cost_usd",
-            )
-        )
-        + "</tr>"
-        for row in analysis["daily"]
-    )
-    note_items = [
-        "参考成本为 CC Switch 保存的模型用量估算；申请报销金额由申请人填写。",
-        "统计日期按北京时间计算，包含开始和结束日期。",
-    ]
-    if analysis.get("rollups"):
-        note_items.append("历史日汇总按来源完整记录纳入，没有补成逐条调用。")
-    if summary.get("unpriced_count", 0):
-        note_items.append(f"有 {summary['unpriced_count']} 条记录未计价，参考成本不完整。")
-    # The source's generic cost note is already explained once above.
-    generic_cost_notes = {
-        "参考成本沿用 CC Switch 保存值，是估算使用价值，不能单独证明实际扣款。",
-        "参考成本按 CC Switch 历史记录汇总，申请报销金额由你填写。",
-    }
+def _warnings(analysis: dict[str, Any]) -> list[str | dict[str, Any]]:
+    result: list[str | dict[str, Any]] = []
     for warning in analysis.get("warnings", []):
-        message = (
-            str(warning.get("message", warning)) if isinstance(warning, dict) else str(warning)
-        )
-        if message not in generic_cost_notes and message not in note_items:
-            note_items.append(message)
-    notes = "".join(f"<li>{_escape(item)}</li>" for item in note_items)
-    source = safe_source(capture.get("source", {}))
+        if isinstance(warning, str):
+            result.append(warning)
+        elif isinstance(warning, dict) and isinstance(warning.get("message"), str):
+            result.append(
+                {key: warning[key] for key in ("code", "message", "count") if key in warning}
+            )
+    return result
+
+
+def _write_csv(path: Path, columns: tuple[str, ...], rows: Iterable[dict[str, Any]]) -> int:
+    count = 0
+    with path.open("w", encoding="utf-8-sig", newline="") as output:
+        writer = csv.writer(output, lineterminator="\r\n")
+        writer.writerow(columns)
+        for row in rows:
+            writer.writerow(csv_cell(row.get(column)) for column in columns)
+            count += 1
+    return count
+
+
+def _write_report(
+    path: Path,
+    analysis: dict[str, Any],
+    claim: dict[str, Any],
+    batch: dict[str, Any],
+    daily_rows: Iterable[dict[str, Any]],
+) -> None:
+    summary = _summary(analysis["summary"])
+    amount = "未填写" if claim["amount"] is None else f"{claim['amount']} {claim['currency']}"
     information = [
         ("项目", analysis.get("project_name", "全部项目")),
         ("统计期间", f"{analysis['start_date']} 至 {analysis['end_date']}（北京时间）"),
@@ -257,100 +281,140 @@ def _report(
             f"总 Token {summary.get('total_tokens', 0)}",
         ),
     ]
-    availability = _availability_basis(analysis)
-    if availability:
-        excluded = availability["excluded_summary"]
+    basis = _availability_basis(analysis)
+    if basis:
+        excluded = basis["excluded_summary"]
         information.append(("用量范围", "本次可用用量"))
-        information.append((
-            "已排除用量",
-            f"{excluded.get('record_count', 0)} 条已占用或待核对记录，"
-            f"参考成本 {excluded.get('total_cost_usd', '0')} USD",
-        ))
-    information_html = "".join(
-        f"<dt>{_escape(label)}</dt><dd>{_escape(value)}</dd>" for label, value in information
-    )
-    source_information = [
-        ("数据文件", source.get("name")),
-        ("读取时间", _display_time(source.get("observed_at"))),
-        ("记录编号", f"{batch['number']} · v{batch['version']}"),
-        ("生成时间", _display_time(batch["created_at"])),
+        information.append(
+            (
+                "已排除用量",
+                f"{excluded.get('record_count', 0)} 条已占用或待核对记录，"
+                f"参考成本 {excluded.get('total_cost_usd', '0')} USD",
+            )
+        )
+    notes = [
+        "参考成本为 CC Switch 保存的模型用量估算；申请报销金额由申请人填写。",
+        "统计日期按北京时间计算，包含开始和结束日期。",
     ]
-    source_html = "".join(
-        f"<dt>{_escape(label)}</dt><dd>{_escape(value)}</dd>" for label, value in source_information
-    )
-    report = f"""<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>费用说明 · {_escape(batch["number"])} v{batch["version"]}</title>
-<style>
-body{{font:16px/1.65 'Segoe UI','Microsoft YaHei',sans-serif;color:#182638;
-max-width:1100px;margin:36px auto;padding:0 24px}}
-h1{{font-size:28px;line-height:1.4;margin:0 0 10px}}h2{{font-size:21px;margin:28px 0 14px}}
-dl{{display:grid;grid-template-columns:150px minmax(0,1fr);gap:10px 20px}}
-dt{{color:#526176}}dd{{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}}
-table{{border-collapse:collapse;width:100%;font-size:15px}}
-th,td{{border:1px solid #d1dbe6;padding:9px;text-align:left;overflow-wrap:anywhere}}
-th{{background:#f0f5f9;font-size:14px}}li{{margin:8px 0}}.hint{{color:#526176;font-size:14px}}
-thead{{display:table-header-group}}.table-wrap{{overflow-x:auto}}
-@media(max-width:600px){{body{{margin:24px auto;padding:0 18px}}
-dl{{grid-template-columns:1fr;gap:4px}}
-dd{{margin-bottom:12px}}h1{{font-size:24px}}}}
-@media print{{body{{font-size:14px;max-width:none;margin:0;padding:0}}
-@page{{size:A4;margin:16mm}}table{{font-size:12px}}th{{font-size:12px}}th,td{{padding:7px}}
-h1{{font-size:23px}}h2{{font-size:18px}}dl{{grid-template-columns:120px minmax(0,1fr);gap:8px 14px}}
-.table-wrap{{overflow:visible}}tr{{break-inside:avoid}}h2{{break-after:avoid}}}}
-</style></head><body>
-<h1>Codex 项目用量与费用说明</h1>
-<p class="hint">{_escape(batch["number"])} · v{batch["version"]}
-· {_escape(_display_time(batch["created_at"]))}</p>
-<dl>{information_html}</dl>
-<h2>每日用量与参考成本</h2><div class="table-wrap"><table><thead><tr>
-<th>项目</th><th>日期</th><th>模型</th><th>明细数</th>
-<th>汇总代表数</th><th>记录类型</th><th>参考成本 USD</th>
-</tr></thead><tbody>{daily_rows}</tbody></table></div>
-<h2>数据说明</h2><ul>{notes}</ul><dl>{source_html}</dl>
-<p class="hint">逐条明细见“使用明细.csv”，文件校验及来源信息见“导出信息.json”。</p>
-</body></html>"""
-    return report.encode("utf-8")
+    if summary.get("rollup_record_count"):
+        notes.append("历史日汇总按来源完整记录纳入，没有补成逐条调用。")
+    if summary.get("unpriced_count"):
+        notes.append(f"有 {summary['unpriced_count']} 条记录未计价，参考成本不完整。")
+    generic_notes = {
+        "参考成本沿用 CC Switch 保存值，是估算使用价值，不能单独证明实际扣款。",
+        "参考成本按 CC Switch 历史记录汇总，申请报销金额由你填写。",
+    }
+    for warning in _warnings(analysis):
+        message = warning if isinstance(warning, str) else warning["message"]
+        if message not in generic_notes and message not in notes:
+            notes.append(message)
+    with path.open("w", encoding="utf-8", newline="\n") as output:
+        output.write("""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>费用说明</title>
+<style>body{font:16px/1.65 'Segoe UI','Microsoft YaHei',sans-serif;color:#182638;
+max-width:1100px;margin:36px auto;padding:0 24px}h1{font-size:28px;line-height:1.4}
+h2{font-size:21px;margin-top:28px}dl{display:grid;grid-template-columns:150px minmax(0,1fr);
+gap:10px 20px}dt{color:#526176}dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}
+table{border-collapse:collapse;width:100%;font-size:15px}th,td{border:1px solid #d1dbe6;
+padding:9px;text-align:left;overflow-wrap:anywhere}th{background:#f0f5f9;font-size:14px}
+.hint{color:#526176;font-size:14px}.table-wrap{overflow-x:auto}
+@media(max-width:600px){body{margin:24px auto;padding:0 18px}dl{grid-template-columns:1fr}}
+@media print{@page{size:A4;margin:16mm}body{font-size:14px;margin:0;padding:0;max-width:none}
+table{font-size:12px}th{font-size:12px}th,td{padding:7px}h1{font-size:23px}
+dl{grid-template-columns:120px minmax(0,1fr)}.table-wrap{overflow:visible}
+thead{display:table-header-group}tr{break-inside:avoid}h2{break-after:avoid}}</style></head><body>
+<h1>Codex 项目用量与费用说明</h1>""")
+        output.write(
+            f'<p class="hint">{_escape(batch["number"])} · v{batch["version"]}'
+            f" · {_escape(_display_time(batch['created_at']))}</p><dl>"
+        )
+        for label, value in information:
+            output.write(f"<dt>{_escape(label)}</dt><dd>{_escape(value)}</dd>")
+        output.write(
+            '</dl><h2>每日用量与参考成本</h2><div class="table-wrap"><table><thead><tr>'
+            "<th>项目</th><th>日期</th><th>模型</th><th>明细数</th>"
+            "<th>汇总代表数</th><th>记录类型</th><th>参考成本 USD</th>"
+            "</tr></thead><tbody>"
+        )
+        grains = {"detail": "逐条明细", "daily_rollup": "历史日汇总", "mixed": "明细与汇总"}
+        for row in daily_rows:
+            output.write("<tr>")
+            for key in (
+                "project_name",
+                "date",
+                "model",
+                "detail_count",
+                "rollup_record_count",
+                "source_grain",
+                "total_cost_usd",
+            ):
+                value = row.get(key)
+                if key == "source_grain":
+                    value = grains.get(str(value), value)
+                output.write(f"<td>{_escape(value)}</td>")
+            output.write("</tr>")
+        output.write("</tbody></table></div><h2>数据说明</h2><ul>")
+        for note in notes:
+            output.write(f"<li>{_escape(note)}</li>")
+        output.write(
+            '</ul><p class="hint">数据来自 aha 本地保存的 CC Switch Codex 用量。'
+            "本材料保存生成时的用量与申请说明，后续本地状态变化不改本包。"
+            "逐条明细见“使用明细.csv”，文件校验和冻结依据见“导出信息.json”。</p>"
+            "</body></html>"
+        )
+
+
+def _write_manifest(
+    output: BinaryIO, metadata: dict[str, Any], members: Iterable[dict[str, Any]]
+) -> int:
+    """Write a deterministic JSON object without ever constructing its member array."""
+    output.write(b"{")
+    count = 0
+    for index, key in enumerate(sorted((*metadata.keys(), "members"))):
+        if index:
+            output.write(b",")
+        output.write(canonical_bytes(key) + b":")
+        if key != "members":
+            output.write(canonical_bytes(metadata[key]))
+            continue
+        output.write(b"[")
+        for member in members:
+            if count:
+                output.write(b",")
+            output.write(
+                canonical_bytes(
+                    {field: member[field] for field in MEMBER_FIELDS if field in member}
+                )
+            )
+            count += 1
+        output.write(b"]")
+    output.write(b"}")
+    return count
 
 
 def build_evidence(
-    analysis: dict[str, Any], claim: dict[str, Any], batch: dict[str, Any], capture: dict[str, Any]
-) -> tuple[bytes, str, dict[str, Any]]:
-    """Generate once; callers must retain and redeliver the resulting bytes."""
-    detail_rows = []
-    for row in analysis["details"]:
-        projected = {field: row.get(field) for field in DETAIL_COLUMNS}
-        projected["time"] = row["time"]
-        detail_rows.append(projected)
-    files = {
-        "使用明细.csv": _csv(DETAIL_COLUMNS, detail_rows),
-        "每日汇总.csv": _csv(DAILY_COLUMNS, analysis["daily"]),
-        "费用说明.html": _report(analysis, claim, batch, capture),
-    }
-    metadata = capture.get("metadata", {})
-    unassigned = sum(1 for row in analysis["details"] if row.get("project_id") is None)
-    unassigned += sum(
-        int(row.get("request_count", 0))
-        for row in analysis["rollups"]
-        if row.get("project_id") is None
-    )
-    assignments = {
-        row["record_key"]: {
-            key: row.get(key)
-            for key in ("project_id", "project_name", "assignment_origin", "pricing_status")
-        }
-        for row in analysis["details"] + analysis["rollups"]
-    }
-    manifest = {
-        "manifest_version": 2,
+    destination: Path,
+    analysis: dict[str, Any],
+    claim: dict[str, Any],
+    batch: dict[str, Any],
+    *,
+    rows: RowFactory,
+    daily_rows: RowFactory,
+    members: RowFactory,
+) -> tuple[Path, str, dict[str, Any]]:
+    """Build into a private path; caller atomically publishes it with billing metadata."""
+    claim = validate_claim(claim)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    metadata: dict[str, Any] = {
+        "manifest_version": MANIFEST_VERSION,
         "application": {"name": "aha", "version": __version__},
         "batch": {key: batch[key] for key in ("id", "number", "version", "created_at")},
-        "capture_id": capture["id"],
-        "source": safe_source(capture.get("source", {})),
-        "usage_snapshot_id": capture["usage_snapshot_id"],
-        "metadata_snapshot_id": capture["metadata_snapshot_id"],
-        "schema_version": capture.get("data", {}).get("schema_version", 23),
+        "source_schema_version": 23,
+        "ledger": {
+            key: analysis[key]
+            for key in ("data_revision", "classification_revision", "claim_revision")
+            if key in analysis
+        },
         "selection": {
             "start_date": analysis["start_date"],
             "end_date": analysis["end_date"],
@@ -359,51 +423,80 @@ def build_evidence(
             "project_id": analysis.get("project_id", "all"),
             "project_name": analysis.get("project_name", "全部项目"),
         },
-        "classification_revision": analysis["classification_revision"],
+        "selection_hash": analysis.get("selection_hash"),
         "effective_basis": {
-            "batch_id": batch["id"], "version": batch["version"],
-            "effective_when_saved": True, "status_when_saved": "draft",
+            "batch_id": batch["id"],
+            "version": batch["version"],
+            "effective_when_saved": True,
+            "status_when_saved": "draft",
         },
-        "summary": analysis["summary"],
+        "summary": _summary(analysis["summary"]),
         "claim": claim,
-        "members": [
-            {
-                **{key: member[key] for key in MEMBER_FIELDS if key in member},
-                **assignments[member["key"]],
-            }
-            for member in analysis["members"]
-        ],
-        "selection_coverage": analysis.get("selection_coverage", {}),
-        "coverage": capture.get("coverage", {}),
-        "metadata_coverage": {
-            "matched_sessions": metadata.get("matched_sessions", 0),
-            "total_sessions": metadata.get("total_sessions", 0),
-        },
-        "unassigned_record_count": unassigned,
-        "warnings": analysis.get("warnings", []),
+        "warnings": _warnings(analysis),
         "upstream_reference_commit": UPSTREAM_COMMIT,
-        "cost_basis": ("CCS 保存的历史参考成本；未按当前价格重新计算；不代表官方账单或实际支付。"),
+        "cost_basis": "CCS 保存的历史参考成本；未按当前价格重新计算；不代表官方账单或实际支付。",
         "rollup_timezone_assumption": "历史日汇总缺少原始时区，以 Asia/Shanghai 整日解释。",
-        "status_basis": "生成时为草稿；后续本地人工状态变化不改本包，不构成付款确认。",
-        "files": {
-            name: {"sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
-            for name, raw in files.items()
-        },
+        "status_basis": "生成时为草稿；后续本地人工状态变化不改本包，不构成支付确认。",
     }
-    availability = _availability_basis(analysis)
-    if availability is not None:
-        manifest["availability"] = availability
-    files["导出信息.json"] = canonical_bytes(manifest)
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as package:
-        for name, raw in files.items():
-            info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o600 << 16
-            package.writestr(info, raw)
+    basis = _availability_basis(analysis)
+    if basis is not None:
+        metadata["availability"] = basis
+    try:
+        with tempfile.TemporaryDirectory(prefix=".evidence-", dir=destination.parent) as workspace:
+            directory = Path(workspace)
+            files = {
+                name: directory / name
+                for name in ("使用明细.csv", "每日汇总.csv", "费用说明.html", "导出信息.json")
+            }
+            detail_count = _write_csv(
+                files["使用明细.csv"],
+                DETAIL_COLUMNS,
+                (row for row in rows() if row["kind"] == "detail"),
+            )
+            _write_csv(files["每日汇总.csv"], DAILY_COLUMNS, daily_rows())
+            _write_report(files["费用说明.html"], analysis, claim, batch, daily_rows())
+            metadata["files"] = {
+                name: {"sha256": file_hash(path), "bytes": path.stat().st_size}
+                for name, path in files.items()
+                if name != "导出信息.json"
+            }
+            with files["导出信息.json"].open("wb") as output:
+                count = _write_manifest(output, metadata, members())
+            if (
+                detail_count != analysis["summary"]["detail_count"]
+                or count != analysis["member_count"]
+            ):
+                raise AppError("selection_changed", "冻结材料与用量选择不一致，请重新预览。", 409)
+            with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as package:
+                for name, path in files.items():
+                    info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    info.external_attr = 0o600 << 16
+                    with (
+                        path.open("rb") as source,
+                        package.open(info, "w", force_zip64=True) as target,
+                    ):
+                        shutil.copyfileobj(source, target, COPY_BYTES)
+            with destination.open("r+b") as output:
+                output.flush()
+                os.fsync(output.fileno())
+    except AppError:
+        destination.unlink(missing_ok=True)
+        raise
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
+        destination.unlink(missing_ok=True)
+        raise AppError("package_write_failed", "材料生成失败，请检查本地空间后重试。", 500) from exc
     project = safe_filename_component(str(analysis.get("project_name", "全部项目")))
     filename = (
         f"{project}_{analysis['start_date']}_{analysis['end_date']}_"
         f"{batch['number']}_v{batch['version']}.zip"
     )
-    return output.getvalue(), filename, manifest
+    return (
+        destination,
+        filename,
+        {
+            "sha256": file_hash(destination),
+            "member_count": count,
+            "manifest_version": MANIFEST_VERSION,
+        },
+    )

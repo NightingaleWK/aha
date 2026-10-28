@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import sqlite3
 from collections import defaultdict
 from datetime import datetime
 from typing import Any
@@ -126,7 +128,9 @@ def validate_members(value: Any) -> list[dict[str, Any]]:
                 raise ValueError
             parse_date(member["date"])
             for key in TOKEN_FIELDS:
-                member[key] = integer_value(member[key])
+                member[key] = integer_value(
+                    member[key], maximum=(2**63 - 1) * (4 if key == "total_tokens" else 1)
+                )
             if member["total_tokens"] != sum(member[key] for key in TOKEN_FIELDS[:-1]):
                 raise ValueError
             if kind == "detail":
@@ -190,19 +194,18 @@ def evaluate(
     rollup_scopes: dict[str, list[dict[str, Any]]] = defaultdict(list)
     detail_scopes: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_semantic: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for field in ("claims", "legacy_holds"):
-        for entry in snapshot.get(field, []):
-            if entry["owner"]["batch_id"] == exclude_batch_id:
-                continue
-            saved = entry["member"]
-            item = {"member": saved, "owner": entry["owner"], "hold": field == "legacy_holds"}
-            by_key[saved["key"]].append(item)
-            (rollup_scopes if saved["kind"] == "rollup" else detail_scopes)[
-                scope_key(saved)
-            ].append(item)
-            semantic = semantic_key(saved)
-            if semantic:
-                by_semantic[semantic].append(item)
+    for entry in snapshot.get("claims", []):
+        if entry["owner"]["batch_id"] == exclude_batch_id:
+            continue
+        saved = entry["member"]
+        item = {"member": saved, "owner": entry["owner"]}
+        by_key[saved["key"]].append(item)
+        (rollup_scopes if saved["kind"] == "rollup" else detail_scopes)[scope_key(saved)].append(
+            item
+        )
+        semantic = semantic_key(saved)
+        if semantic:
+            by_semantic[semantic].append(item)
     available: list[str] = []
     excluded: list[dict[str, Any]] = []
     for member in members:
@@ -235,14 +238,13 @@ def evaluate(
                 if item["member"]["key"] != member["key"]
             )
         for reason, item in related:
-            reasons.add("legacy_hold" if item["hold"] else reason)
+            reasons.add(reason)
             owner = item["owner"]
             owners[(owner["batch_id"], owner["version"])] = dict(owner)
         if not reasons:
             available.append(member["key"])
         else:
             precedence = (
-                "legacy_hold",
                 "internal_overlap",
                 "identity",
                 "cross_grain",
@@ -263,4 +265,82 @@ def evaluate(
         "claim_revision": snapshot.get("claim_revision", 0),
         "available_keys": available,
         "excluded": excluded,
+    }
+
+
+def indexed_exclusion(
+    connection: sqlite3.Connection,
+    member: dict[str, Any],
+    exclude_batch_id: str | None = None,
+    *,
+    owner_limit: int = 32,
+) -> dict[str, Any] | None:
+    """Explain one page member using only related key/scope/semantic index ranges."""
+    member = validate_members([member])[0]
+    limit = min(max(owner_limit, 1), 100)
+    reasons: set[str] = set()
+    owners: dict[tuple[str, int], dict[str, Any]] = {}
+    truncated = False
+    selections: list[tuple[str, tuple[Any, ...], str]] = [
+        ("u.record_key=?", (member["key"],), "identity")
+    ]
+    if member["kind"] == "detail":
+        selections.append(
+            (
+                "u.scope_key=? AND u.kind='rollup' AND u.record_key<>?",
+                (scope_key(member), member["key"]),
+                "cross_grain",
+            )
+        )
+    else:
+        selections.append(
+            ("u.scope_key=? AND u.record_key<>?", (scope_key(member), member["key"]), "scope")
+        )
+    semantic = semantic_key(member)
+    if semantic is not None:
+        selections.append(
+            ("u.semantic_key=? AND u.record_key<>?", (semantic, member["key"]), "suspected_rebuild")
+        )
+    for predicate, values, reason in selections:
+        rows = connection.execute(
+            "SELECT u.*,b.number,b.lifecycle,r.status FROM usage_claims u "
+            "JOIN batches b ON b.id=u.batch_id JOIN revisions r "
+            "ON r.batch_id=u.batch_id AND r.version=u.owner_version WHERE "
+            + predicate
+            + " AND (? IS NULL OR u.batch_id<>?) ORDER BY b.number,u.owner_version LIMIT ?",
+            (*values, exclude_batch_id, exclude_batch_id, limit + 1),
+        ).fetchall()
+        truncated = truncated or len(rows) > limit
+        for row in rows[:limit]:
+            try:
+                saved = validate_members([json.loads(row["member_json"])])[0]
+                if saved["key"] != row["record_key"] or scope_key(saved) != row["scope_key"]:
+                    raise ValueError
+            except (ValueError, TypeError, AppError) as exc:
+                raise AppError(
+                    "storage_damaged", "占用资料校验失败，请保留本地资料。", 409
+                ) from exc
+            actual_reason = (
+                ("rollup_scope" if row["kind"] == "rollup" else "cross_grain")
+                if reason == "scope"
+                else reason
+            )
+            reasons.add(actual_reason)
+            owner = {
+                "batch_id": row["batch_id"],
+                "version": row["owner_version"],
+                "number": f"AHA-{row['number']:06d}",
+                "status": row["status"],
+                "lifecycle": row["lifecycle"],
+            }
+            owners[(owner["batch_id"], owner["version"])] = owner
+    if not reasons:
+        return None
+    precedence = ("identity", "cross_grain", "rollup_scope", "suspected_rebuild")
+    return {
+        "key": member["key"],
+        "reason": next(item for item in precedence if item in reasons),
+        "reasons": sorted(reasons),
+        "owners": sorted(owners.values(), key=lambda item: (item["number"], item["version"])),
+        "owners_truncated": truncated,
     }

@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "vm": [
+    {
+      "test": "test_availability_scaling.DenseAvailabilityTests.test_refresh_density_doubles_work_linearly_and_preserves_reference_decisions",
+      "relation": "less",
+      "actual": 90100,
+      "bound": 114000.0,
+      "message": "dense peer claims/cases caused quadratic refresh: [45600, 90100]"
+    },
+    {
+      "test": "test_availability_scaling.DenseAvailabilityTests.test_refresh_density_doubles_work_linearly_and_preserves_reference_decisions",
+      "relation": "less",
+      "actual": 103400,
+      "bound": 130750.0,
+      "message": "dense peer claims/cases caused quadratic refresh: [52300, 103400]"
+    },
+    {
+      "test": "test_availability_scaling.DenseAvailabilityTests.test_target_and_fifty_owner_explanations_do_not_scan_peer_detail_claims",
+      "relation": "less",
+      "actual": 18300,
+      "bound": 23000.0,
+      "message": [
+        9200,
+        18300
+      ]
+    },
+    {
+      "test": "test_availability_scaling.DenseAvailabilityTests.test_target_and_fifty_owner_explanations_do_not_scan_peer_detail_claims",
+      "relation": "le",
+      "actual": 2600,
+      "bound": 3100,
+      "message": [
+        2600,
+        2600
+      ]
+    }
+  ],
+  "failures": 0,
+  "errors": 0
+}
