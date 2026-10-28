@@ -1,0 +1,31 @@
+{
+  "id": "00-bootstrap-guidelines",
+  "name": "00-bootstrap-guidelines",
+  "title": "项目开发规范初始化",
+  "description": "依据 aha v0.2.0 的真实源码与测试完善项目开发规范，并核对示例、引用及验收。",
+  "status": "completed",
+  "dev_type": "docs",
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "NightingaleWK",
+  "assignee": "NightingaleWK",
+  "createdAt": "2026-10-27",
+  "completedAt": "2026-10-28",
+  "branch": null,
+  "base_branch": null,
+  "worktree_path": null,
+  "commit": "5690e0b50cf7e73b12fdffb83a74867092fc3d7d",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/spec/backend/",
+    ".trellis/spec/frontend/",
+    ".trellis/spec/guides/",
+    "README.md"
+  ],
+  "notes": "First-time setup task created by trellis init (fullstack project)；2026-10-27由10-27-spec-current-state-alignment补齐实际规范与验收映射，保留初始化身份及in_progress状态，待用户审阅后决定归档。；2026-10-28用户已审阅并明确授权提交、推送origin/main及归档本任务与本轮关联任务，包含必要的引用修复和会话日志。；2026-10-28已按授权由Trellis归档为completed，工作提交5690e0b50cf7e73b12fdffb83a74867092fc3d7d，真实分支元数据保留；会话日志与远端推送按收尾顺序执行。",
+  "meta": {}
+}

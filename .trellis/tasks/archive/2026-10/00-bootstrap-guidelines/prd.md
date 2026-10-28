@@ -6,7 +6,7 @@
 
 ## 背景与来源
 
-- 本任务由首次 `trellis init` 创建，稳定身份和目录为 `00-bootstrap-guidelines`，创建日期为 2026-10-27，状态为 `in_progress`。
+- 本任务由首次 `trellis init` 创建，稳定身份和目录为 `00-bootstrap-guidelines`，创建日期为 2026-10-27，文档验收时状态为 `in_progress`。
 - 前两项产品任务已补充 backend 用量证据契约与 frontend 本机页面契约，但其余分题仍为模板，因此此前未将初始化工作标为完成。
 - aha 当前采用 Python 3.12+、原生 sqlite3、本机 HTTP 和原生 HTML/CSS/JavaScript。代码入口分别在 `src/aha/__main__.py`、`src/aha/storage.py`、`src/aha/server.py` 与 `src/aha/web/`。
 - 本次补齐由[现状校准任务](../10-27-spec-current-state-alignment/prd.md)承担，实施与检查记录归入该任务；本任务保留初始化工作的身份、来源和验收映射。
@@ -15,10 +15,10 @@
 
 | 入口 | 实际内容 |
 | --- | --- |
-| [后端规范](../../spec/backend/index.md) | 目录、SQLite、AppError、运行输出与审计历史、质量检查，以及现有用量证据契约 |
-| [前端规范](../../spec/frontend/index.md) | 资源组织、DOM 组件、状态与请求、JavaScript 数据边界、质量检查，以及现有本机页面契约 |
-| [思考指南](../../spec/guides/index.md) | aha 的复用入口与跨层检查，区分输入解析和写事务内重检 |
-| [README](../../../README.md) | 可找到规范入口，源码检查和 Windows 构建说明与项目实情一致 |
+| [后端规范](../../../../spec/backend/index.md) | 目录、SQLite、AppError、运行输出与审计历史、质量检查，以及现有用量证据契约 |
+| [前端规范](../../../../spec/frontend/index.md) | 资源组织、DOM 组件、状态与请求、JavaScript 数据边界、质量检查，以及现有本机页面契约 |
+| [思考指南](../../../../spec/guides/index.md) | aha 的复用入口与跨层检查，区分输入解析和写事务内重检 |
+| [README](../../../../../README.md) | 可找到规范入口，源码检查和 Windows 构建说明与项目实情一致 |
 
 不适用的 React hooks 独立模板移除，实际请求、事件和异步操作归并到组件与状态规范。既有路径 `frontend/type-safety.md` 讲解 JavaScript 数据边界，不构成引入 TypeScript 的计划。
 
@@ -43,7 +43,7 @@
 
 ## 收尾条件
 
-规范验收齐备后，记录本任务已满足的交付项并供用户审阅。当前任务仍保留 `in_progress`，不自动归档；待用户明确决定后，才执行相应收尾动作。规范完成不代表产品已进行新的业务验收，也不涉及正式资料迁移、程序发布或 Git 提交/推送。
+规范验收已齐备。2026-10-28用户审阅后明确授权提交、推送和归档，本任务与现状校准任务已由Trellis归档为completed；具体完成日期和工作提交见task.json。文档完成不代表新的产品业务验收，也不涉及正式资料迁移或程序发布。
 
 ## 收尾授权（2026-10-28）
 
