@@ -64,3 +64,40 @@
 ### Next Steps
 
 - 完成本日志提交后按授权推送origin/main；v0.2.0进入用户试用，后续按实际反馈处理。Bootstrap Guidelines任务保持原状态。
+
+
+## Session 3: 完成项目规范校准与双任务归档
+<!-- trellis-session: v=2 fp=a8002f6c85355208 -->
+
+**Date**: 2026-10-28
+**Task**: 完成项目规范校准与双任务归档
+**Branch**: `main`
+
+### Summary
+
+按aha v0.2.0当前源码校准17份中文spec、README导航与初始化任务记录。文档自检和独立全范围/增量复核通过。用户于2026-10-28明确授权提交、推送和归档；工作提交及两项任务归档已完成，引用迁移校验通过。本日志提交后按授权推送origin/main并核对远端，产品与正式资料未改。
+
+### Main Changes
+
+- 填齐适用规范、归并hooks模板、保留两份核心契约并补全真实路由；指南以aha源码实例说明输入解析和事务内重检。
+- 归档00-bootstrap-guidelines和10-27-spec-current-state-alignment，完成日期2026-10-28；修复18处Markdown链接、6条JSONL路径和1处任务引用。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5690e0b50cf7e73b12fdffb83a74867092fc3d7d` | docs: 校准项目规范与初始化工作 |
+
+### Testing
+
+- [OK] 2026-10-27源码基线：124项unittest、Ruff、strict mypy15文件、compileall与JS语法通过；本次只改文档，未重复产品测试。
+- [OK] 归档后27份Markdown、17份spec、168处本地链接含1处锚点、3+3上下文和三个索引检查通过；git diff --check通过。
+- [OK] 独立复核发现的翻页选择P2已修正并增量复核通过，无剩余发现；源码、旧产品归档、依赖、构建脚本与434c785一致。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 本日志提交后按已授权范围正常推送origin/main并核对远端HEAD；后续按用户实际试用反馈处理。
