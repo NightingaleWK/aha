@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/frontend/local-web-contract.md", "reason": "页面、HTTP、失效、冻结和本机运行合同"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "共享 DOM 控件、动态渲染、可访问性与事件"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "预览、游标、修订主体与失效状态"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "请求/返回字段与金额展示边界"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "真实页面、布局、离线资源和原生验收"}
+{"file": ".trellis/spec/backend/usage-evidence-contract.md", "reason": "时间粒度、覆盖、精确核算、占用与冻结不变量"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite、索引、JSON 与保留原始资料"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "跨层回归、性能证据和 Windows 门禁"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "筛选、统计、保存和导出范围的一致性"}
+{"file": ".trellis/tasks/10-29-form-time-filter/research/current-state.md", "reason": "真实代码入口、清爽表单方向及用户已确认的 A 方案；交互稿只作参考"}
+{"file": ".trellis/tasks/10-29-form-time-filter/research/compatibility-findings.md", "reason": "新旧时间入口、成员/查询/业务身份、旧冻结完整性与材料版本兼容依据"}
+{"file": ".trellis/spec/backend/time-range-contract.md", "reason": "已实施的精确时间范围、A政策及manifest兼容合同"}

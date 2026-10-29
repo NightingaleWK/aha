@@ -19,7 +19,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
-from . import __version__
+from . import __version__, time_ranges
 from .domain import AppError, content_hash
 from .instance import PROTOCOL_VERSION, profile_id
 from .storage import Store
@@ -33,6 +33,8 @@ WEB_DIR = Path(__file__).with_name("web")
 ASSETS = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/form-controls.js": ("form-controls.js", "text/javascript; charset=utf-8"),
+    "/time-range-picker.js": ("time-range-picker.js", "text/javascript; charset=utf-8"),
     "/style.css": ("style.css", "text/css; charset=utf-8"),
     "/mark.svg": ("mark.svg", "image/svg+xml"),
 }
@@ -128,9 +130,11 @@ class Application:
         with self.lock:
             latest_job = max(self.jobs.values(), key=lambda job: job["started_at"], default=None)
             current_sync = copy.deepcopy(latest_job)
+        captured = time_ranges.current_time()
         return {
             "version": __version__,
-            "today": datetime.now(BEIJING).date().isoformat(),
+            "today": captured.date().isoformat(),
+            "now": captured.isoformat(timespec="seconds"),
             "timezone": "Asia/Shanghai",
             "csrf_token": self.csrf_token,
             "launch_id": self.launch_id,
@@ -330,15 +334,22 @@ class Application:
         mode = _string(body, "availability_mode", "available", 16)
         if batch_id and mode != "available":
             raise AppError("read_only_analysis", "修改报销记录时请选择可用用量。", 409)
-        result = self.store.analyze(
-            _string(body, "start_date", limit=10),
-            _string(body, "end_date", limit=10),
-            _string(body, "project_id", "all", 128),
-            availability_mode=mode,
-            target_batch_id=batch_id,
-            expected_generation=batch["generation"] if batch else None,
-            expected_active_version=batch["active_version"] if batch else None,
-        )
+        options = {
+            "availability_mode": mode,
+            "target_batch_id": batch_id,
+            "expected_generation": batch["generation"] if batch else None,
+            "expected_active_version": batch["active_version"] if batch else None,
+        }
+        project = _string(body, "project_id", "all", 128)
+        if "time_range" in body:
+            if "start_date" in body or "end_date" in body:
+                raise AppError("invalid_time_range", "请只选择一种时间范围格式。")
+            result = self.store.analyze_time_range(body["time_range"], project, **options)
+        else:
+            result = self.store.analyze(
+                _string(body, "start_date", limit=10),
+                _string(body, "end_date", limit=10), project, **options,
+            )
         requested = body.get("classification_revision", result["classification_revision"])
         if (
             isinstance(requested, bool)

@@ -7,10 +7,11 @@ import json
 import sqlite3
 from calendar import monthrange
 from collections.abc import Iterator
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
-from .domain import BEIJING, AppError, canonical_bytes, content_hash, parse_date
+from . import time_ranges
+from .domain import BEIJING, AppError, canonical_bytes, content_hash
 
 if TYPE_CHECKING:
     from .storage import Store
@@ -49,15 +50,18 @@ def _filters(
     period_column: str = "day",
 ) -> tuple[str, list[Any]]:
     if rows:
-        start = datetime.combine(parse_date(analysis["start_date"]), time.min, BEIJING)
-        try:
-            end = datetime.combine(
-                parse_date(analysis["end_date"]) + timedelta(days=1), time.min, BEIJING
-            )
-        except OverflowError as exc:
-            raise AppError("invalid_date_range", "结束日期超出支持范围。") from exc
+        interval = time_ranges.from_analysis(analysis)
+        if "time_range" not in analysis and interval.end_date == date.max:
+            raise AppError("invalid_date_range", "结束日期超出支持范围。")
         where = f"{alias}.event_time>=? AND {alias}.event_time<?"
-        parameters: list[Any] = [int(start.timestamp()), int(end.timestamp())]
+        parameters: list[Any] = [interval.start_epoch, interval.end_exclusive_epoch]
+        if interval.partial_days():
+            full_days = interval.full_days()
+            if full_days is None:
+                where += f" AND {alias}.kind='detail'"
+            else:
+                where += f" AND ({alias}.kind='detail' OR ({alias}.day>=? AND {alias}.day<=?))"
+                parameters.extend(day.isoformat() for day in full_days)
     else:
         where = f"{alias}.{period_column}>=? AND {alias}.{period_column}<=?"
         parameters = [analysis["start_date"], analysis["end_date"]]
@@ -112,15 +116,28 @@ def _summary(connection: sqlite3.Connection, analysis: dict[str, Any], mode: str
     return _finish_summary(dict(row))
 
 
-def _statistics_source(analysis: dict[str, Any]) -> tuple[str, list[Any]]:
-    """Partition the inclusive interval into full months and at most two day edges."""
-    start, end = parse_date(analysis["start_date"]), parse_date(analysis["end_date"])
+def _statistics_source(
+    analysis: dict[str, Any], *, daily: bool = False
+) -> tuple[str, list[Any]]:
+    """Disjoint full-month/day projections plus at most two indexed detail edges."""
+    interval = time_ranges.from_analysis(analysis)
+    full_days = interval.full_days()
+    ranges: list[tuple[str, str, date, date]] = []
+    if full_days is not None:
+        start, end = full_days
+        ranges = ([('daily_usage_stats', 'day', start, end)] if daily else
+                  _month_day_ranges(start, end))
+    source, parameters = _statistics_ranges(analysis, ranges, interval.partial_days())
+    return source, parameters
+
+
+def _month_day_ranges(start: date, end: date) -> list[tuple[str, str, date, date]]:
     ranges: list[tuple[str, str, date, date]] = []
     if start.day != 1:
         edge_end = min(end, date(start.year, start.month, monthrange(start.year, start.month)[1]))
         ranges.append(("daily_usage_stats", "day", start, edge_end))
         if edge_end == end:
-            return _statistics_ranges(analysis, ranges)
+            return ranges
         start = edge_end + timedelta(days=1)
     full_end: date | None
     if end.day == monthrange(end.year, end.month)[1]:
@@ -132,11 +149,12 @@ def _statistics_source(analysis: dict[str, Any]) -> tuple[str, list[Any]]:
         ranges.append(("monthly_usage_stats", "month", start, full_end))
     if full_end != end:
         ranges.append(("daily_usage_stats", "day", max(start, end.replace(day=1)), end))
-    return _statistics_ranges(analysis, ranges)
+    return ranges
 
 
 def _statistics_ranges(
-    analysis: dict[str, Any], ranges: list[tuple[str, str, date, date]]
+    analysis: dict[str, Any], ranges: list[tuple[str, str, date, date]],
+    partials: list[tuple[int, int, date]],
 ) -> tuple[str, list[Any]]:
     from .decimal_sql import USAGE_TOTAL_FIELDS
 
@@ -150,7 +168,25 @@ def _statistics_ranges(
             "end_date": last.isoformat()[:7] if period == "month" else last.isoformat(),
         }
         where, values = _filters(bounds, "s", rows=False, period_column=period)
-        pieces.append(f"SELECT {columns} FROM {table} s WHERE {where}")
+        day = "day" if period == "day" else "month||'-01' AS day"
+        pieces.append(f"SELECT {day},{columns} FROM {table} s WHERE {where}")
+        parameters.extend(values)
+    for first_second, end_second, _day in partials:
+        where = "r.event_time>=? AND r.event_time<? AND r.kind='detail' AND r.suppressed=0"
+        values = [first_second, end_second]
+        project = analysis.get("project_id", "all")
+        if project != "all":
+            where += " AND r.project_id=?"
+            values.append("" if project == "unassigned" else project)
+        aggregates = ",".join(f"integer_sum(r.{key}) AS {key}"
+                              for key in TOKENS)
+        pieces.append(f"""SELECT r.day,r.project_id,r.model,r.kind,
+            r.availability_state AS state,COUNT(*) AS row_count,
+            integer_sum(r.request_count) AS record_count,
+            integer_sum(CASE WHEN r.pricing_status='unpriced' THEN r.request_count ELSE '0' END)
+              AS unpriced_count,{aggregates},decimal_sum(r.total_cost_usd) AS total_cost_usd
+            FROM usage_records r WHERE {where}
+            GROUP BY r.day,r.project_id,r.model,r.kind,r.availability_state""")
         parameters.extend(values)
     return "(" + " UNION ALL ".join(pieces) + ") s", parameters
 
@@ -276,6 +312,36 @@ def _excluded_groups(
         integer_sum(record_count) AS record_count FROM daily_usage_stats s
         WHERE {where} AND state!='available' GROUP BY day,model,state
         ORDER BY day,model,state LIMIT 100"""
+    interval = time_ranges.from_analysis(analysis)
+    if interval.partial_days() and not analysis.get("target_batch_id"):
+        pieces = []
+        parameters = []
+        full_days = interval.full_days()
+        if full_days:
+            bounds = {**analysis, "start_date": full_days[0].isoformat(),
+                      "end_date": full_days[1].isoformat()}
+            where, values = _filters(bounds, "s", rows=False)
+            pieces.append(f"""SELECT * FROM (SELECT state,day,model,SUM(row_count) AS row_count,
+                integer_sum(record_count) AS record_count FROM daily_usage_stats s
+                WHERE {where} AND state!='available' GROUP BY day,model,state
+                ORDER BY day,model,state LIMIT 100)""")
+            parameters.extend(values)
+        for start, end, _day in interval.partial_days():
+            where = "r.event_time>=? AND r.event_time<? AND r.kind='detail' AND r.suppressed=0"
+            values = [start, end]
+            if analysis.get("project_id", "all") != "all":
+                where += " AND r.project_id=?"
+                values.append(
+                    "" if analysis["project_id"] == "unassigned" else analysis["project_id"]
+                )
+            pieces.append(f"""SELECT * FROM (SELECT r.availability_state AS state,r.day,r.model,
+                COUNT(*) AS row_count,integer_sum(r.request_count) AS record_count
+                FROM usage_records r WHERE {where} AND r.availability_state!='available'
+                GROUP BY r.day,r.model,r.availability_state
+                ORDER BY r.day,r.model,r.availability_state LIMIT 100)""")
+            parameters.extend(values)
+        group_sql = ("SELECT * FROM (" + " UNION ALL ".join(pieces)
+                     + ") ORDER BY day,model,state LIMIT 100")
     if analysis.get("target_batch_id"):
         all_where, all_parameters = _filters({**analysis, "availability_mode": "all"}, "r")
         eligible_where, eligible_parameters = _filters(
@@ -304,6 +370,28 @@ def _excluded_groups(
     return groups
 
 
+def _time_coverage(connection: sqlite3.Connection, analysis: dict[str, Any]) -> dict[str, Any]:
+    omitted_days = []
+    omitted = 0
+    for _start, _end, day in time_ranges.from_analysis(analysis).partial_days():
+        where, parameters = _filters(
+            {**analysis, "start_date": day.isoformat(), "end_date": day.isoformat()},
+            "s", rows=False,
+        )
+        # The projection already omits suppressed alternatives, and is scoped
+        # to the same project as the analysis. Never attach whole-day amounts.
+        count = int(connection.execute(
+            f"SELECT COALESCE(SUM(row_count),0) FROM daily_usage_stats s "
+            f"WHERE {where} AND kind='rollup'", parameters,
+        ).fetchone()[0])
+        if count:
+            omitted += count
+            omitted_days.append(day.isoformat())
+    return {"complete": omitted == 0, "omitted_rollup_count": omitted,
+            "omitted_days": omitted_days,
+            "reason": "daily_rollup_has_no_event_time" if omitted else None}
+
+
 def analyze(
     store: Store,
     start_date: str,
@@ -315,125 +403,176 @@ def analyze(
     expected_generation: int | None = None,
     expected_active_version: int | None = None,
 ) -> dict[str, Any]:
-    start, end = parse_date(start_date), parse_date(end_date)
-    if start > end:
-        raise AppError("invalid_date_range", "开始日期不能晚于结束日期。")
+    captured = time_ranges.current_time()
+    interval = time_ranges.legacy_dates(
+        start_date, end_date, resolved_at=captured.isoformat(timespec="seconds")
+    )
+    with store.read_connection() as connection:
+        return _analyze(store, connection, interval, project_id, availability_mode,
+                        target_batch_id, expected_generation, expected_active_version)
+
+
+def analyze_time_range(
+    store: Store,
+    time_range: Any,
+    project_id: str = "all",
+    *,
+    availability_mode: str = "available",
+    target_batch_id: str | None = None,
+    expected_generation: int | None = None,
+    expected_active_version: int | None = None,
+) -> dict[str, Any]:
+    captured = time_ranges.current_time()
+    with store.read_connection() as connection:
+        coverage = None
+        if isinstance(time_range, dict) and time_range.get("preset") == "all":
+            first = connection.execute(
+                "SELECT day FROM daily_usage_stats ORDER BY day LIMIT 1"
+            ).fetchone()
+            last = connection.execute(
+                "SELECT day FROM daily_usage_stats ORDER BY day DESC LIMIT 1"
+            ).fetchone()
+            if first and last:
+                coverage = (first[0], last[0])
+        interval = time_ranges.resolve(time_range, now=captured, coverage=coverage)
+        return _analyze(store, connection, interval, project_id, availability_mode,
+                        target_batch_id, expected_generation, expected_active_version)
+
+
+def _analyze(
+    store: Store, connection: sqlite3.Connection, interval: time_ranges.TimeRange,
+    project_id: str, availability_mode: str, target_batch_id: str | None,
+    expected_generation: int | None, expected_active_version: int | None,
+) -> dict[str, Any]:
     if availability_mode not in {"available", "all"}:
         raise AppError("invalid_availability_mode", "请选择可用用量或全部用量。")
-    with store.read_connection() as connection:
-        project = connection.execute(
-            "SELECT name FROM projects WHERE id=?", (project_id,)
-        ).fetchone()
-        if project_id not in {"all", "unassigned"} and project is None:
-            raise AppError("project_not_found", "所选项目不存在。", 404)
-        result: dict[str, Any] = {
-            "start_date": start_date,
-            "end_date": end_date,
-            "project_id": project_id,
-            "project_name": "全部项目"
-            if project_id == "all"
-            else "未归属"
-            if project_id == "unassigned"
-            else project[0],
-            "availability_mode": availability_mode,
-            "target_batch_id": target_batch_id,
-            "expected_generation": expected_generation,
-            "expected_active_version": expected_active_version,
-            "timezone": "Asia/Shanghai",
-            "schema_version": 23,
-            "ledger_schema_version": 3,
-            "source": {"kind": "ledger", "name": "本地台账"},
-            **store.revisions(connection),
-        }
-        grouped = _summary_groups(connection, result)
-        matched = _combine_groups(grouped, {"available", "claimed"})
-        available = (
-            _row_summary(connection, {**result, "availability_mode": "available"})
-            if target_batch_id
-            else _combine_groups(grouped, {"available"})
-        )
-        if target_batch_id and any(row["state"] == "pending" for row in grouped):
-            # Own-claim exemption may make a globally ambiguous overlap usable
-            # in this target context. Include exactly those eligible rows in its
-            # matched basis too, so subtraction cannot invent negative exclusions.
-            matched = _combine_summaries(
-                matched, _row_summary(
-                    connection, {**result, "availability_mode": "available"}, state="pending"
-                )
+    project = connection.execute(
+        "SELECT name FROM projects WHERE id=?", (project_id,)
+    ).fetchone()
+    if project_id not in {"all", "unassigned"} and project is None:
+        raise AppError("project_not_found", "所选项目不存在。", 404)
+    result: dict[str, Any] = {
+        "start_date": interval.start_date.isoformat(),
+        "end_date": interval.end_date.isoformat(),
+        "project_id": project_id,
+        "project_name": "全部项目"
+        if project_id == "all"
+        else "未归属"
+        if project_id == "unassigned"
+        else project[0],
+        "availability_mode": availability_mode,
+        "target_batch_id": target_batch_id,
+        "expected_generation": expected_generation,
+        "expected_active_version": expected_active_version,
+        "timezone": "Asia/Shanghai",
+        "schema_version": 23,
+        "ledger_schema_version": 3,
+        "source": {"kind": "ledger", "name": "本地台账"},
+        **store.revisions(connection),
+    }
+    try:
+        result["time_range"] = interval.as_dict()
+    except OverflowError:
+        pass  # Preserve only the legacy max-date summary path.
+    grouped = _summary_groups(connection, result)
+    matched = _combine_groups(grouped, {"available", "claimed"})
+    available = (
+        _row_summary(connection, {**result, "availability_mode": "available"})
+        if target_batch_id
+        else _combine_groups(grouped, {"available"})
+    )
+    if target_batch_id and any(row["state"] == "pending" for row in grouped):
+        # Own-claim exemption may make a globally ambiguous overlap usable
+        # in this target context. Include exactly those eligible rows in its
+        # matched basis too, so subtraction cannot invent negative exclusions.
+        matched = _combine_summaries(
+            matched, _row_summary(
+                connection, {**result, "availability_mode": "available"}, state="pending"
             )
-        excluded = (
-            _combine_summaries(matched, available, subtract=True)
-            if target_batch_id
-            else _combine_groups(grouped, {"claimed"})
         )
+    excluded = (
+        _combine_summaries(matched, available, subtract=True)
+        if target_batch_id
+        else _combine_groups(grouped, {"claimed"})
+    )
+    result["row_counts"] = {
+        kind: sum(
+            int(row["row_count"])
+            for row in grouped
+            if row["kind"] == kind
+            and (availability_mode == "all" or row["state"] == "available")
+        )
+        for kind in ("detail", "rollup")
+    }
+    result["summary"] = available if availability_mode == "available" else matched
+    if target_batch_id and availability_mode == "available":
         result["row_counts"] = {
-            kind: sum(
-                int(row["row_count"])
-                for row in grouped
-                if row["kind"] == kind
-                and (availability_mode == "all" or row["state"] == "available")
-            )
-            for kind in ("detail", "rollup")
+            "detail": available["detail_count"],
+            "rollup": available["rollup_count"],
         }
-        result["summary"] = available if availability_mode == "available" else matched
-        if target_batch_id and availability_mode == "available":
-            result["row_counts"] = {
-                "detail": available["detail_count"],
-                "rollup": available["rollup_count"],
-            }
-        statistics_source, statistics_parameters = _statistics_source(result)
-        pending = connection.execute(
-            f"SELECT COALESCE(SUM(row_count),0) FROM {statistics_source} WHERE state='pending'",
-            statistics_parameters,
-        ).fetchone()[0]
-        result["pending_count"] = pending
-        result["summary_complete"] = not pending
-        result["availability"] = {
-            "mode": availability_mode,
-            "claim_revision": result["claim_revision"],
-            "matched_summary": matched,
-            "available_summary": available,
-            "excluded_summary": excluded,
-            "excluded_groups": _excluded_groups(connection, result),
-        }
-        unassigned = {**result, "project_id": "unassigned"}
-        unassigned_source, unassigned_parameters = _statistics_source(unassigned)
-        unassigned_where = (
-            "s.state='available'"
-            if availability_mode == "available"
-            else "s.state!='pending'"
+    pending = sum(int(row["row_count"]) for row in grouped if row["state"] == "pending")
+    result["pending_count"] = pending
+    result["time_coverage"] = _time_coverage(connection, result)
+    result["summary_complete"] = not pending and result["time_coverage"]["complete"]
+    result["availability"] = {
+        "mode": availability_mode,
+        "claim_revision": result["claim_revision"],
+        "matched_summary": matched,
+        "available_summary": available,
+        "excluded_summary": excluded,
+        "excluded_groups": _excluded_groups(connection, result),
+    }
+    unassigned = {**result, "project_id": "unassigned"}
+    unassigned_source, unassigned_parameters = _statistics_source(unassigned)
+    unassigned_where = (
+        "s.state='available'"
+        if availability_mode == "available"
+        else "s.state!='pending'"
+    )
+    result["unassigned_count"] = int(connection.execute(
+        f"SELECT integer_sum(record_count) FROM {unassigned_source} WHERE " + unassigned_where,
+        unassigned_parameters,
+    ).fetchone()[0] or 0)
+    if target_batch_id:
+        own_unassigned = {**unassigned, "availability_mode": "available"}
+        if availability_mode == "available":
+            result["unassigned_count"] = _row_summary(connection, own_unassigned)["record_count"]
+        else:
+            result["unassigned_count"] += _row_summary(
+                connection, own_unassigned, state="pending"
+            )["record_count"]
+    result["unassigned_record_count"] = result["unassigned_count"]
+    result["warnings"] = ["参考成本沿用来源保存金额，申请报销金额另填。"]
+    if pending:
+        result["warnings"].append("部分用量待核对，合计仅含已核实部分；不同粒度依据不可相加。")
+    if not result["time_coverage"]["complete"]:
+        result["warnings"].append(
+            "统计不完整：部分日期的历史日汇总没有逐笔时间，未计入当前时间范围；"
+            "可主动改查整天。略过日期：" + "、".join(result["time_coverage"]["omitted_days"])
         )
-        result["unassigned_count"] = int(connection.execute(
-            f"SELECT integer_sum(record_count) FROM {unassigned_source} WHERE " + unassigned_where,
-            unassigned_parameters,
-        ).fetchone()[0] or 0)
-        result["unassigned_record_count"] = result["unassigned_count"]
-        result["warnings"] = ["参考成本沿用来源保存金额，申请报销金额另填。"]
-        if pending:
-            result["warnings"].append("部分用量待核对，合计仅含已核实部分；不同粒度依据不可相加。")
-        if not result["summary"]["record_count"]:
-            result["warnings"].append("当前条件没有可统计用量，无记录不能证明零消耗。")
-        result["selection_hash"] = content_hash(
-            {
-                key: result[key]
-                for key in (
-                    "start_date",
-                    "end_date",
-                    "project_id",
-                    "availability_mode",
-                    "target_batch_id",
-                    "data_revision",
-                    "classification_revision",
-                    "claim_revision",
-                )
-            }
-        )
-        result["counts"] = {
-            "detail_count": result["summary"]["detail_count"],
-            "rollup_count": result["summary"]["rollup_count"],
+    if not result["summary"]["record_count"]:
+        result["warnings"].append("当前条件没有可统计用量，无记录不能证明零消耗。")
+    result["selection_hash"] = content_hash(
+        {
+            "time_range": interval.identity(),
+            **{key: result[key]
+            for key in (
+                "project_id",
+                "availability_mode",
+                "target_batch_id",
+                "expected_generation",
+                "expected_active_version",
+                "data_revision",
+                "classification_revision",
+                "claim_revision",
+            )},
         }
-        return result
-
+    )
+    result["counts"] = {
+        "detail_count": result["summary"]["detail_count"],
+        "rollup_count": result["summary"]["rollup_count"],
+    }
+    return result
 
 def _enrich_row(
     store: Store, connection: sqlite3.Connection, row: sqlite3.Row, *, owners: bool = False
@@ -621,8 +760,8 @@ def _aggregate_sql(
     analysis: dict[str, Any], kind: str, state: dict[str, Any] | None = None
 ) -> tuple[str, list[Any], list[str]]:
     raw = bool(analysis.get("target_batch_id"))
-    if not raw and kind == "models":
-        source, parameters = _statistics_source(analysis)
+    if not raw and (kind == "models" or time_ranges.from_analysis(analysis).partial_days()):
+        source, parameters = _statistics_source(analysis, daily=kind == "daily")
         where = "state='available'" if analysis["availability_mode"] == "available" else (
             "state!='pending'"
         )
@@ -631,6 +770,12 @@ def _aggregate_sql(
         if not raw:
             where += (" AND state='available'" if analysis["availability_mode"] == "available"
                       else " AND state!='pending'")
+        elif analysis["availability_mode"] == "all":
+            eligible, eligible_parameters = _filters(
+                {**analysis, "availability_mode": "available"}, "s"
+            )
+            where += f" AND (s.availability_state!='pending' OR ({eligible}))"
+            parameters.extend(eligible_parameters)
         source = ("usage_records" if raw else "daily_usage_stats") + " s"
     represented = "request_count" if raw else "record_count"
     count = "1" if raw else "row_count"
@@ -645,6 +790,8 @@ def _aggregate_sql(
         where += (f" AND ({fields}){operator}(" + ",".join("?" for _ in columns) + ")")
         parameters.extend(values)
     aggregates = ",".join(f"integer_sum({key}) AS {key}" for key in TOKENS)
+    unpriced = ("CASE WHEN pricing_status='unpriced' THEN request_count ELSE '0' END"
+                if raw else "unpriced_count")
     sql = f"""SELECT {fields},integer_sum({represented}) AS record_count,
         SUM(CASE WHEN kind='detail' THEN {count} ELSE 0 END) AS detail_count,
         integer_sum(CASE WHEN kind='rollup' THEN {represented} ELSE '0' END)
@@ -654,7 +801,8 @@ def _aggregate_sql(
           AS detail_cost_usd,
         decimal_sum(CASE WHEN kind='rollup' THEN total_cost_usd ELSE '0' END)
           AS rollup_cost_usd,
-        decimal_sum(total_cost_usd) AS total_cost_usd,{aggregates}
+        decimal_sum(total_cost_usd) AS total_cost_usd,
+        integer_sum({unpriced}) AS unpriced_count,{aggregates}
         FROM {source} WHERE {where} GROUP BY {fields} ORDER BY """
     order = " DESC" if state and state.get("direction") == "previous" else " ASC"
     sql += ",".join(column + order for column in columns)

@@ -6,12 +6,14 @@
 | --- | --- |
 | `src/aha/web/index.html` | 三个业务页面、表单、筛选、预览区和原生 dialog 的静态结构 |
 | `src/aha/web/app.js` | DOM 渲染、事件、临时状态、API、预览、批次和下载 |
+| `src/aha/web/form-controls.js` | 基于原生 select 的搜索下拉、简单下拉与分段选择，共享键盘/禁用/销毁 |
+| `src/aha/web/time-range-picker.js` | 北京时间意图、日历、分钟草稿、确认/取消与规范化范围展示 |
 | `src/aha/web/style.css` | 颜色/字号变量、导航/面板/表格/弹窗、响应式布局和可访问焦点 |
 | `src/aha/web/mark.svg` | 本机内置品牌图形 |
 | `src/aha/server.py` | 资源白名单、Content-Type、认证和安全响应头 |
 | `pyproject.toml` | web 的 HTML/CSS/JS/SVG package-data |
 
-页面没有独立包管理器、构建产物目录或组件框架。浏览器通过 `<script src="/app.js" defer>` 启动，资源全部来自本机服务；不要凭目录模板增加远程字体/CDN 或前端打包链。
+页面没有独立包管理器、构建产物目录或组件框架。页面按 `form-controls.js`、`time-range-picker.js`、`app.js` 顺序 defer 加载，资源全部来自本机服务；不要凭目录模板增加远程字体/CDN 或前端打包链。
 
 ## 服务与打包边界
 
@@ -19,6 +21,8 @@
 
 ```python
 "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+"/form-controls.js": ("form-controls.js", "text/javascript; charset=utf-8"),
+"/time-range-picker.js": ("time-range-picker.js", "text/javascript; charset=utf-8"),
 "/style.css": ("style.css", "text/css; charset=utf-8"),
 "/mark.svg": ("mark.svg", "image/svg+xml"),
 ```

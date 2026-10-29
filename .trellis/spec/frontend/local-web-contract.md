@@ -10,7 +10,7 @@
 
 | 接口 | 契约摘要 |
 | --- | --- |
-| `GET /api/status` | 本次启动凭证、日期、默认来源、启动与最近同步任务 |
+| `GET /api/status` | 本次启动凭证、日期、北京时间秒级 now、默认来源、启动与最近同步任务 |
 | `GET /api/instance` | 认证后的轻量实例身份/状态，供启动器复用，不读台账、不返回业务信息 |
 | `GET /api/ledger` | 本地记录数、覆盖、成功同步时间、最近尝试和目录依据 |
 | `POST /api/sync` | `{path?}`，空路径使用当前系统用户默认 CCS 库，返回异步 job |
@@ -23,7 +23,7 @@
 | `POST /api/assignments` | `project_id` 加 keys 或 session_ids；rollup 按整条记录处理 |
 | `GET /api/reconciliations` | `{cases}`，来源重建、版本或覆盖的待核对事项 |
 | `POST /api/reconciliations/{id}` | `choice/reason/expected_generation/idempotency_key`，按实际候选确认 |
-| `POST /api/analysis` | project、起止日期、`availability_mode=available|all`；只查本地库 |
+| `POST /api/analysis` | project、time_range意图或旧起止日期（二者互斥）、`availability_mode=available|all`；只查本地库 |
 | `GET /api/analysis/{id}/details` | `kind=detail|rollup|daily|models`、cursor、size1–200 |
 | `POST /api/batches/{id}/analysis` | base_version、expected_generation 与当前筛选，绑定目标修订主体 |
 | `POST /api/batches/preview` | analysis 或有效冻结版本加 claim，返回阻断与占用信息 |
@@ -46,6 +46,8 @@
 明细、历史汇总、每日和模型使用游标，固定每页50条；游标绑定分析 revision 与筛选。total 可能为 null，此时显示本页数量并依据 next_cursor 导航，不猜总页数。切换标签、筛选或重新分析清选择；同标签翻页允许跨页勾选。导出使用完整分析范围，不只导出可见页。
 
 来源、目录规则、人工归属、筛选、占用或数据 revision 改变后清当前预览、选择和保存身份。服务端返回 analysis_expired/data_changed/classification_changed/availability_changed/usage_claimed 等权威失效时，也须清打开的 current 修订分析并禁保存。frozen 修订仍以原冻结依据为准。
+
+时间面板支持快捷范围、日历和分钟输入；取消保留原预览，确认直接更新。页面范围、报销列表/详情和材料展示服务端实际解析结果。部分日历史汇总单独提示“统计不完整”，不伪造小时排除费用，不等同“待核对”；提供“改查整天”，有合法确定成员仍可保存。旧冻结完整性缺失显示未知，不能标为完整。精确合同见 [时间范围](../backend/time-range-contract.md)。
 
 ## 4. 保存、冻结与生命周期
 

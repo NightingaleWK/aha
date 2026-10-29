@@ -5,7 +5,7 @@
 ```text
 只读CCS SQLite/受限SQL → staging → 身份/版本/覆盖核对 → 本地SQLite事实与精确日聚合
 页面筛选 → HTTP边界 → 本地分析/游标 → 保存事务重检 → 冻结版本/占用/事件/原包
-冻结行 → 流式CSV/HTML/manifest3/ZIP → 指定版本下载
+冻结行 → 流式CSV/HTML/manifest4/ZIP → 指定版本下载（旧manifest3包保留原字节）
 ```
 
 入口是 sources/sql_dump、sync/ledger、queries/storage、claims/batches/evidence、server 和 web/app.js。查询不重新读取CCS、不解压历史capture。
@@ -13,7 +13,7 @@
 ## 检查边界
 
 - 字段、默认值、空值、错误码及所有者在 [后端](../backend/usage-evidence-contract.md) 和 [页面](../frontend/local-web-contract.md) 对齐。
-- 身份与内容hash分离；金额精确字符串，北京时间整日；detail与rollup覆盖只计一次，未知需核对。
+- 身份与内容hash分离；金额精确字符串，北京时间实际区间；完整日才计入rollup，部分日遗漏独立提示，不能冒充待核对消费。时间规则见 [范围合同](../backend/time-range-contract.md)。
 - 变更是否影响 data/classification/claim revision、分页、别名、冻结成员或分享投影？打开的current修订如何失效？
 - 读取失败/取消/源缩水待核对后，旧事实、聚合和成功时间是否保留？新epoch是否经过明确核对？
 - 写事务内重检当前版本、generation、主体、占用与幂等；预览不是占用证明。

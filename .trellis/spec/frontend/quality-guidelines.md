@@ -4,6 +4,8 @@
 
 从仓库根用可用的本地 Node 运行 `node --check src/aha/web/app.js`。若开发环境通过 Windows Node 读取 WSL UNC 路径时发生 package config 错误，可在 Windows 文件系统工作目录以 `node --input-type=commonjs --check` 从标准输入送入同一脚本检查；记录调用方式，不把个人运行时路径固化为项目要求。
 
+`form-controls.js/time-range-picker.js` 同样检查语法。`node --test tests/web_state.test.cjs` 用真实 app.js 和可控 fetch 验证过时成功/409/断连不污染新预览、当前权威409清理、报销列表准确时间/旧日期显示，以及仅遗漏汇总时修订预览不能冒称零且禁保存；它不代替真实组件和浏览器检查。
+
 后端请求形状使用隔离 Python 环境运行：
 
 ```bash
@@ -32,6 +34,7 @@ for index, server in enumerate((self.server, other)):
 - 旧创建/作废请求重放、重启后原包、原生退出和端口关闭；来源重建/覆盖/版本候选的明确核对。
 - **保持修订弹窗打开**时改变占用/权限，确认旧 analysis 清除且禁保存，重新预览后才能继续。
 - 保存成功后下载失败能从记录重下；历史与作废版本仍可下载，不能误显示修改动作。
+- 搜索/无结果/键盘、选项同名替换、value回填、disabled/destroy；时间草稿取消、各快捷范围、跟随/固定、分钟边界、dialog嵌套Escape与窄屏内部滚动。浏览器使用其他时区时仍须显示正确北京时间。
 
 ## 视觉、文案与导出
 

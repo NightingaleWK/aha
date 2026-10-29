@@ -7,6 +7,8 @@
   <title>aha · 用量与费用</title>
   <link rel="icon" href="/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
+  <script src="/form-controls.js" defer></script>
+  <script src="/time-range-picker.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -27,7 +29,7 @@
     <main id="main" tabindex="-1">
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
       <section id="page-usage" class="page">
-        <div class="page-heading"><div><h1>用量与费用</h1><p>选择项目和日期，查看可用用量。</p></div><button id="source-options" class="button">数据来源 <span aria-hidden="true">↗</span></button></div>
+        <div class="page-heading"><div><h1>用量与费用</h1><p>选择项目和时间，查看可用用量。</p></div><button id="source-options" class="button">数据来源 <span aria-hidden="true">↗</span></button></div>
         <section class="source-card" aria-label="当前数据来源">
           <div class="source-icon" aria-hidden="true">▤</div>
           <div class="source-description"><div class="source-title"><strong id="source-name">本地用量台账</strong><span id="source-mode" class="tag">尚未同步</span></div><p id="source-description">正在读取本地资料。</p><p id="sync-error" class="sync-error" role="alert" hidden></p></div>
@@ -35,13 +37,12 @@
         </section>
         <section class="panel filter-panel" aria-label="筛选条件">
           <div class="filter-grid">
-            <label class="field project-select-field">项目<select id="project-select"><option value="all">全部项目（含未归属）</option><option value="unassigned">未归属</option></select></label>
-            <label class="field">开始日期<input type="date" id="start-date" required></label>
-            <label class="field">结束日期<input type="date" id="end-date" required></label>
-            <label class="field">用量范围<select id="availability-mode"><option value="available">可用用量</option><option value="all">全部用量（查看）</option></select></label>
+            <label class="field project-select-field">项目<select id="project-select" data-searchable="true"><option value="all">全部项目（含未归属）</option><option value="unassigned">未归属</option></select></label>
+            <div class="field time-range-field"><span id="time-range-label">时间范围</span><div id="time-range-control" class="time-range-control" aria-labelledby="time-range-label"></div></div>
+            <label class="field availability-field">用量范围<select id="availability-mode" data-control="segmented"><option value="available">可用用量</option><option value="all">全部用量</option></select></label>
             <button id="analyze" class="button primary filter-submit" disabled>更新预览 <span aria-hidden="true">→</span></button>
           </div>
-          <div class="filter-footer"><div class="date-shortcuts"><span>北京时间 · 包含起止日</span><button data-range="today" class="chip active">今天</button><button data-range="week" class="chip">近 7 天</button><button data-range="month" class="chip">本月</button><button id="range-all" class="chip">全部日期</button></div><span id="filter-status" class="muted">查询本地台账</span></div>
+          <div class="filter-footer"><span>北京时间 · 手动设置包含结束分钟 · 全部用量仅供查看</span><span id="filter-status" class="muted" role="status">查询本地台账</span></div>
         </section>
         <div class="metric-grid" aria-label="期间汇总">
           <section class="metric metric-main"><div class="metric-label"><span id="metric-cost-label">可用参考成本</span> <span class="tag">USD</span></div><strong id="metric-cost">—</strong><p>按 CC Switch 历史金额汇总</p></section>
@@ -49,6 +50,7 @@
           <section class="metric"><div id="metric-token-label" class="metric-label">可用 Token</div><strong id="metric-tokens">—</strong><p>含输入、输出与缓存</p></section>
           <section class="metric"><div class="metric-label">未归属项目</div><strong id="metric-unassigned">—</strong><p>可在明细中分配项目</p></section>
         </div>
+        <section id="time-coverage-note" class="warning time-coverage-note" role="status" aria-label="时间范围完整性" hidden></section>
         <section id="availability-panel" class="panel availability-panel" aria-label="可用用量说明" hidden>
           <div class="availability-heading"><h2 id="availability-title">可用用量</h2><button id="refresh-availability" class="text-button">更新预览</button></div>
           <p id="availability-summary" class="availability-summary"></p>
@@ -67,7 +69,7 @@
         </section>
         <section id="usage-preview" class="panel preview-panel">
           <div class="panel-heading"><div><h2>用量预览</h2><p id="preview-caption">选择条件后更新预览。</p></div><div class="tabs" role="tablist" aria-label="预览粒度"><button class="tab active" data-tab="daily" role="tab" aria-selected="true">每日</button><button class="tab" data-tab="models" role="tab" aria-selected="false">模型</button><button class="tab" data-tab="details" role="tab" aria-selected="false">明细</button><button class="tab" data-tab="rollups" role="tab" aria-selected="false">历史日汇总</button></div></div>
-          <div id="assignment-bar" class="assignment-bar" hidden><span id="selection-count">已选 0 条</span><label class="field inline-field"><span class="sr-only">分配项目</span><select id="assignment-project"><option value="">清除人工指定</option></select></label><label id="session-scope-label" class="checkbox-label"><input type="checkbox" id="session-scope">包括这些会话的全部明细</label><button id="assign" class="button small">分配项目</button><button id="clear-selection" class="text-button">取消选择</button></div>
+          <div id="assignment-bar" class="assignment-bar" hidden><span id="selection-count">已选 0 条</span><label class="field inline-field"><span class="sr-only">分配项目</span><select id="assignment-project" data-searchable="true"><option value="">清除人工指定</option></select></label><label id="session-scope-label" class="checkbox-label"><input type="checkbox" id="session-scope">包括这些会话的全部明细</label><button id="assign" class="button small">分配项目</button><button id="clear-selection" class="text-button">取消选择</button></div>
           <div id="preview-table" class="table-wrap"><div class="empty-state"><span class="empty-icon" aria-hidden="true">▤</span><h3>本地台账暂无用量</h3><p>同步 CC Switch 数据，或导入备份。</p></div></div>
           <div id="pagination" class="pagination" hidden><span id="page-label"></span><div><button id="prev-page" class="button small">上一页</button><button id="next-page" class="button small">下一页</button></div></div>
         </section>
@@ -97,7 +99,21 @@
     <div class="dialog-heading"><h2>用量已变化</h2><button class="icon-button" data-close="overlap-dialog" aria-label="关闭">×</button></div><p class="dialog-intro">部分用量已被其他报销记录占用，请更新预览。</p><div id="overlap-list" class="overlap-list"></div><div class="dialog-actions"><button class="button" data-close="overlap-dialog">返回</button><button id="confirm-batch" class="button primary">更新预览</button></div>
   </dialog>
   <dialog id="revision-dialog" class="dialog">
-    <form id="revision-form"><div class="dialog-heading"><h2>修改报销记录</h2><button type="button" class="icon-button" data-close="revision-dialog" aria-label="关闭">×</button></div><p id="revision-caption" class="dialog-intro"></p><label class="field">用量依据<select id="revision-basis"><option value="frozen">保留当前记录的用量</option><option value="current">重新选择用量</option></select></label><div id="revision-filters" class="revision-filters" hidden><div class="two-column"><label class="field">项目<select id="revision-project"></select></label><label class="field">开始日期<input id="revision-start-date" type="date"></label><label class="field">结束日期<input id="revision-end-date" type="date"></label></div><button id="revision-analyze" type="button" class="button">更新用量</button></div><div id="revision-preview" class="revision-preview"></div><label class="field">用途说明<textarea id="revision-purpose" rows="3" maxlength="4000"></textarea></label><div class="two-column"><label class="field">申请报销金额（选填）<input id="revision-amount" inputmode="decimal" maxlength="128"></label><label class="field">币种<select id="revision-currency"><option value="CNY">CNY</option><option value="USD">USD</option></select></label></div><label class="field">金额依据<textarea id="revision-note" rows="3" maxlength="4000"></textarea></label><p class="field-help">保存后生成新版本，旧版材料仍可下载。</p><div class="dialog-actions"><button type="button" class="button" data-close="revision-dialog">取消</button><button type="submit" id="save-revision" class="button primary">保存修改并下载</button></div></form>
+    <form id="revision-form">
+      <div class="dialog-heading"><h2>修改报销记录</h2><button type="button" class="icon-button" data-close="revision-dialog" aria-label="关闭">×</button></div>
+      <p id="revision-caption" class="dialog-intro"></p>
+      <label class="field">用量依据<select id="revision-basis"><option value="frozen">保留当前记录的用量</option><option value="current">重新选择用量</option></select></label>
+      <div id="revision-filters" class="revision-filters" hidden>
+        <label class="field">项目<select id="revision-project" data-searchable="true"></select></label>
+        <div class="field"><span id="revision-range-label">时间范围</span><div id="revision-range-control" class="time-range-control" aria-labelledby="revision-range-label"></div></div>
+        <button id="revision-analyze" type="button" class="button">更新用量</button>
+      </div>
+      <div id="revision-preview" class="revision-preview"></div>
+      <label class="field">用途说明<textarea id="revision-purpose" rows="3" maxlength="4000"></textarea></label>
+      <div class="two-column"><label class="field">申请报销金额（选填）<input id="revision-amount" inputmode="decimal" maxlength="128"></label><label class="field">币种<select id="revision-currency"><option value="CNY">CNY</option><option value="USD">USD</option></select></label></div>
+      <label class="field">金额依据<textarea id="revision-note" rows="3" maxlength="4000"></textarea></label><p class="field-help">保存后生成新版本，旧版材料仍可下载。</p>
+      <div class="dialog-actions"><button type="button" class="button" data-close="revision-dialog">取消</button><button type="submit" id="save-revision" class="button primary">保存修改并下载</button></div>
+    </form>
   </dialog>
   <dialog id="lifecycle-dialog" class="dialog">
     <form id="lifecycle-form"><div class="dialog-heading"><h2 id="lifecycle-title">作废记录</h2><button type="button" class="icon-button" data-close="lifecycle-dialog" aria-label="关闭">×</button></div><div id="lifecycle-summary" class="lifecycle-summary"></div><p id="lifecycle-description" class="dialog-intro"></p><label class="field"><span id="lifecycle-reason-label">作废原因</span><textarea id="lifecycle-reason" rows="3" maxlength="4000" required placeholder="请说明原因"></textarea></label><div class="dialog-actions"><button type="button" class="button" data-close="lifecycle-dialog">取消</button><button id="lifecycle-submit" type="submit" class="button primary">确认作废</button></div></form>

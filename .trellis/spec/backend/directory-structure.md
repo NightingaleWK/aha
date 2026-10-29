@@ -15,8 +15,9 @@
 | sync.py | run/staging、来源/修订核对、差异写与成功进度 |
 | ledger.py / projects.py | 当前事实、覆盖/核对、派生可用性/日统计、目录规则与人工归属 |
 | queries.py / analysis.py | SQL筛选、摘要、游标、冻结迭代；analysis仅再导出新查询入口 |
+| time_ranges.py | 北京时间意图解析、半开秒边界、完整/部分日分段与旧冻结元数据兼容 |
 | claims.py / batches.py | 索引冲突、行式冻结、单有效版/占用/状态/幂等/事件 |
-| evidence.py | 流式CSV/HTML/manifest3/ZIP，精确金额与分享投影 |
+| evidence.py | 流式CSV/HTML/manifest4/ZIP，精确金额、时间完整性与分享投影；历史原包不重建 |
 | server.py / web/ | 本机HTTP边界、有限同步worker、原生HTML/JS/CSS |
 | tests/ | 合成来源、隔离存储/请求/进程与重建安全回归 |
 | scripts/ | 构建/许可证/启动，受控试用重建与独立规模基准 |

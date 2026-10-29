@@ -17,11 +17,11 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from . import __version__
+from . import __version__, time_ranges
 from .domain import BEIJING, AppError, canonical_bytes, decimal_text
 
 UPSTREAM_COMMIT = "e55d8a21b3897b595b746e9f2139716b2931641d"
-MANIFEST_VERSION = 3
+MANIFEST_VERSION = 4
 COPY_BYTES = 1024 * 1024
 DETAIL_COLUMNS = (
     "project_id",
@@ -266,10 +266,15 @@ def _write_report(
     daily_rows: Iterable[dict[str, Any]],
 ) -> None:
     summary = _summary(analysis["summary"])
+    interval = time_ranges.from_analysis(analysis)
+    first = time_ranges.at_epoch(interval.start_epoch).isoformat(sep=" ", timespec="seconds")[:-6]
+    last = time_ranges.at_epoch(interval.end_exclusive_epoch - 1).isoformat(
+        sep=" ", timespec="seconds"
+    )[:-6]
     amount = "未填写" if claim["amount"] is None else f"{claim['amount']} {claim['currency']}"
     information = [
         ("项目", analysis.get("project_name", "全部项目")),
-        ("统计期间", f"{analysis['start_date']} 至 {analysis['end_date']}（北京时间）"),
+        ("统计期间", f"{first} 至 {last}（北京时间，含起止时刻）"),
         ("用途说明", claim["purpose"] or "未填写"),
         ("参考成本", f"{summary['total_cost_usd']} USD"),
         ("申请报销金额", amount),
@@ -292,10 +297,20 @@ def _write_report(
                 f"参考成本 {excluded.get('total_cost_usd', '0')} USD",
             )
         )
+    if analysis.get("pending_count"):
+        information.append(("待核对依据", f"{analysis['pending_count']} 条，未计入已核实合计"))
     notes = [
         "参考成本为 CC Switch 保存的模型用量估算；申请报销金额由申请人填写。",
-        "统计日期按北京时间计算，包含开始和结束日期。",
+        "统计时间按北京时间计算；明细按实际发生秒纳入，手动结束分钟完整包含。",
+        "历史日汇总仅在完整自然日被所选范围覆盖时纳入，不按小时拆分。",
     ]
+    coverage = analysis.get("time_coverage")
+    if analysis.get("summary_complete") is None or coverage is None:
+        notes.append("沿用旧记录的冻结用量与说明，未重新判断历史资料完整性。")
+    elif not coverage["complete"]:
+        days = "、".join(coverage["omitted_days"])
+        notes.append(f"统计不完整：{days} 的 {coverage['omitted_rollup_count']} 条历史日汇总"
+                     "没有逐笔时间，未计入当前时间范围；其全天金额不代表本范围内费用。")
     if summary.get("rollup_record_count"):
         notes.append("历史日汇总按来源完整记录纳入，没有补成逐条调用。")
     if summary.get("unpriced_count"):
@@ -404,6 +419,7 @@ def build_evidence(
 ) -> tuple[Path, str, dict[str, Any]]:
     """Build into a private path; caller atomically publishes it with billing metadata."""
     claim = validate_claim(claim)
+    analysis = time_ranges.frozen_metadata(analysis)
     destination.parent.mkdir(parents=True, exist_ok=True)
     metadata: dict[str, Any] = {
         "manifest_version": MANIFEST_VERSION,
@@ -422,6 +438,7 @@ def build_evidence(
             "utc_offset": "+08:00",
             "project_id": analysis.get("project_id", "all"),
             "project_name": analysis.get("project_name", "全部项目"),
+            "time_range": analysis.get("time_range"),
         },
         "selection_hash": analysis.get("selection_hash"),
         "effective_basis": {
@@ -431,6 +448,9 @@ def build_evidence(
             "status_when_saved": "draft",
         },
         "summary": _summary(analysis["summary"]),
+        "time_coverage": analysis.get("time_coverage"),
+        "summary_complete": analysis.get("summary_complete"),
+        "pending_count": analysis.get("pending_count"),
         "claim": claim,
         "warnings": _warnings(analysis),
         "upstream_reference_commit": UPSTREAM_COMMIT,

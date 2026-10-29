@@ -22,7 +22,7 @@ from unittest.mock import patch
 from urllib.parse import urlsplit
 from urllib.request import HTTPCookieProcessor, build_opener
 
-from test_sources import database, detail, dump, price
+from test_sources import database, detail, dump, price, rollup
 
 from aha.server import JSON_LIMIT, create_server
 
@@ -391,6 +391,106 @@ class HTTPTests(unittest.TestCase):
             other.server_close()
             thread.join(timeout=3)
             other.app.close()
+
+    def test_time_range_status_assets_and_invalid_requests_do_not_create_previews(self) -> None:
+        with patch("aha.time_ranges.current_time", return_value=datetime.fromisoformat(
+            "2026-10-26T08:00:59+08:00"
+        )):
+            status = self.json("GET", "/api/status")
+        self.assertEqual(status["now"], "2026-10-26T08:00:59+08:00")
+        self.assertEqual(status["today"], "2026-10-26")
+        for asset in ("/form-controls.js", "/time-range-picker.js"):
+            status_code, headers, body = self.request("GET", asset)
+            self.assertEqual(status_code, 200)
+            self.assertEqual(headers["Content-Type"], "text/javascript; charset=utf-8")
+            self.assertTrue(body)
+        valid = {"kind": "custom", "start": "2026-10-26T08:00",
+                 "end": "2026-10-26T08:00", "follow_now": False}
+        before = len(self.server.app.analyses)
+        for body in (
+            {"time_range": None},
+            {"time_range": valid, "start_date": "2026-10-26"},
+            {"time_range": valid, "end_date": "2026-10-26"},
+            {"time_range": {**valid, "start": "2026-10-26T08:00Z"}},
+            {"time_range": {**valid, "rollup_policy": "all"}},
+            {"time_range": {"kind": "preset", "preset": "all", "follow_now": False}},
+        ):
+            with self.subTest(body=body):
+                code, _, raw = self.request("POST", "/api/analysis", body)
+                self.assertEqual(code, 400, raw)
+                self.assertEqual(json.loads(raw)["code"], "invalid_time_range")
+                self.assertEqual(len(self.server.app.analyses), before)
+
+    def test_exact_time_analysis_both_routes_save_and_old_download(self) -> None:
+        self.load_usage(55)
+        selected = {"kind": "preset", "preset": "last_24h", "follow_now": False,
+                    "end_before": "2026-10-26T08:00:10+08:00"}
+        analysis = self.json("POST", "/api/analysis", {"time_range": selected})
+        self.assertEqual(analysis["summary"]["record_count"], 10)
+        self.assertEqual(analysis["time_range"]["start_at"], "2026-10-25T08:00:10+08:00")
+        self.assertTrue(analysis["summary_complete"])
+        for kind in ("detail", "daily", "models"):
+            page = self.json("GET", f"/api/analysis/{analysis['analysis_id']}/details?kind={kind}")
+            represented = len(page["rows"]) if kind == "detail" else sum(
+                row["record_count"] for row in page["rows"])
+            self.assertEqual(represented, 10)
+        with patch("aha.time_ranges.current_time", side_effect=AssertionError("save read clock")):
+            saved = self.save(analysis, "precise-http-create")
+        batch_id = saved["id"]
+        old_url = f"/api/batches/{batch_id}/revisions/1/download"
+        original = self.request("GET", old_url)[2]
+        with zipfile.ZipFile(io.BytesIO(original)) as package:
+            manifest = json.loads(package.read("导出信息.json"))
+            self.assertEqual(manifest["manifest_version"], 4)
+            self.assertEqual(manifest["selection"]["time_range"], analysis["time_range"])
+            self.assertEqual(len(manifest["members"]), 10)
+        own = self.json("POST", f"/api/batches/{batch_id}/analysis", {
+            "time_range": selected, "base_version": 1, "expected_generation": saved["generation"],
+        })
+        self.assertEqual(own["summary"], analysis["summary"])
+        self.assertEqual(own["availability"]["excluded_summary"]["record_count"], 0)
+        status_code, _, raw = self.request("POST", "/api/batches", {
+            "analysis_id": own["analysis_id"], "claim": self.claim(),
+            "idempotency_key": "cannot-reuse-target",
+        })
+        self.assertEqual(status_code, 409, raw)
+        self.assertEqual(json.loads(raw)["code"], "analysis_target_mismatch")
+        revision = self.json("POST", f"/api/batches/{batch_id}/revisions", {
+            "analysis_id": own["analysis_id"], "claim": self.claim("补充用途"),
+            "base_version": 1, "expected_generation": saved["generation"],
+            "idempotency_key": "precise-current-revision",
+        })
+        self.assertEqual(revision["version"], 2)
+        self.assertEqual(revision["time_range"], own["time_range"])
+        self.assertEqual(self.request("GET", old_url)[2], original)
+
+    def test_partial_day_rollup_http_saves_certain_members_and_keeps_incompleteness(self) -> None:
+        event = int(datetime.fromisoformat("2026-10-26T08:00:00+08:00").timestamp())
+        raw = dump([detail(created_at=event)],
+                   [rollup(date="2026-10-26", model="rollup-only-model")], [price()])
+        job = self.json("POST", "/api/source/sql", {
+            "name": "synthetic-range.sql", "content_base64": base64.b64encode(raw).decode(),
+        })
+        self.assertEqual(self.wait_sync(job)["status"], "completed")
+        analysis = self.json("POST", "/api/analysis", {"time_range": {
+            "kind": "custom", "start": "2026-10-26T08:00", "end": "2026-10-26T08:00",
+            "follow_now": False,
+        }})
+        self.assertFalse(analysis["summary_complete"])
+        self.assertEqual(analysis["pending_count"], 0)
+        self.assertEqual(analysis["summary"]["record_count"], 1)
+        self.assertEqual(analysis["availability"]["excluded_summary"]["total_cost_usd"], "0")
+        self.assertEqual(analysis["time_coverage"]["omitted_days"], ["2026-10-26"])
+        self.assertFalse(self.json("POST", "/api/batches/preview", {
+            "analysis_id": analysis["analysis_id"], "claim": self.claim(),
+        })["blocking"])
+        saved = self.save(analysis, "http-incomplete-save")
+        package_url = f"/api/batches/{saved['id']}/revisions/1/download"
+        with zipfile.ZipFile(io.BytesIO(self.request("GET", package_url)[2])) as package:
+            manifest = json.loads(package.read("导出信息.json"))
+            self.assertEqual(manifest["summary"]["record_count"], 1)
+            self.assertFalse(manifest["summary_complete"])
+            self.assertEqual(manifest["time_coverage"], analysis["time_coverage"])
 
 
 if __name__ == "__main__":

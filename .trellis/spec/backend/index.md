@@ -15,6 +15,7 @@ aha v0.3.0 是 Python 3.12+ 本机 Codex 台账与费用证据工具。产品实
 | 文档 | 解决的问题 |
 | --- | --- |
 | [用量证据与本机运行契约](./usage-evidence-contract.md) | 来源、核算、独占、版本、迁移、HTTP 与交付的不变量 |
+| [北京时间范围与冻结材料](./time-range-contract.md) | 分钟/秒边界、快捷意图、部分日汇总、manifest4 和旧材料兼容 |
 | [实例与生命周期契约](./runtime-lifecycle-contract.md) | 按资料目录互斥、认证重开、Windows 托盘与完整退出 |
 | [目录与模块职责](./directory-structure.md) | 功能放在哪里、如何通过 Store 门面复用领域模块 |
 | [SQLite 与持久化](./database-guidelines.md) | 只读来源、事务、备份、迁移及不可变文件 |

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
-from . import decimal_sql
+from . import decimal_sql, time_ranges
 from .claims import member_from_row, scope_key, semantic_key, validate_members
 from .domain import (
     DETAIL_FIELDS,
@@ -188,7 +188,8 @@ def _revision_result(
     include_analysis: bool = False,
 ) -> dict[str, Any]:
     batch = _batch(connection, row["batch_id"])
-    analysis, claim = _decoded_object(row["analysis_json"]), _decoded_object(row["claim_json"])
+    analysis = time_ranges.frozen_metadata(_decoded_object(row["analysis_json"]))
+    claim = _decoded_object(row["claim_json"])
     effective = batch["lifecycle"] == "active" and batch["active_version"] == row["version"]
     draft = effective and row["status"] == "draft"
     number = f"AHA-{batch['number']:06d}"
@@ -210,6 +211,11 @@ def _revision_result(
         "summary": analysis["summary"],
         "start_date": analysis["start_date"],
         "end_date": analysis["end_date"],
+        "time_range": analysis.get("time_range"),
+        "time_coverage": analysis.get("time_coverage"),
+        "summary_complete": analysis.get("summary_complete"),
+        "pending_count": analysis.get("pending_count"),
+        "warnings": analysis.get("warnings", []),
         "project_id": analysis.get("project_id", "all"),
         "project_name": analysis.get("project_name", "全部项目"),
         "classification_revision": analysis.get("classification_revision", 0),
@@ -293,6 +299,7 @@ def _validate_preview(analysis: dict[str, Any], batch_id: str | None) -> None:
         start, end = parse_date(analysis["start_date"]), parse_date(analysis["end_date"])
         if start > end:
             raise ValueError
+        time_ranges.from_analysis(analysis)
     except (KeyError, TypeError, ValueError) as exc:
         raise AppError("invalid_analysis", "用量预览无效，请更新预览。") from exc
     if analysis.get("availability_mode", "available") != "available":
@@ -425,12 +432,24 @@ def _prepare_selection(
                     or saved["status"] != "draft"
                 ):
                     raise AppError("batch_not_editable", "请先撤回已提交记录，再修改。", 409)
-                saved_analysis = _decoded_object(saved["analysis_json"])
-                for key in ("start_date", "end_date", "project_id", "project_name", "summary"):
+                saved_analysis = time_ranges.frozen_metadata(
+                    _decoded_object(saved["analysis_json"])
+                )
+                analysis = time_ranges.frozen_metadata(analysis)
+                if time_ranges.from_analysis(analysis).identity() != (
+                    time_ranges.from_analysis(saved_analysis).identity()
+                ):
+                    raise AppError(
+                        "invalid_analysis", "冻结时间范围已变化，请重新打开报销记录。", 409
+                    )
+                for key in ("start_date", "end_date", "project_id", "project_name", "summary",
+                            "time_coverage", "summary_complete", "pending_count", "warnings"):
                     if analysis.get(key) != saved_analysis.get(key):
                         raise AppError(
                             "invalid_analysis", "冻结依据已变化，请重新打开报销记录。", 409
                         )
+                if "time_range" in saved_analysis:
+                    analysis["time_range"] = saved_analysis["time_range"]
                 rows = _frozen_rows(reader, *basis)
             pending: list[tuple[Any, ...]] = []
             for original in rows:
@@ -552,6 +571,10 @@ def _prepare_selection(
             fields = (
                 "start_date",
                 "end_date",
+                "time_range",
+                "time_coverage",
+                "summary_complete",
+                "pending_count",
                 "project_id",
                 "project_name",
                 "timezone",
@@ -741,6 +764,7 @@ def create_batch(
                     key: selection.analysis.get(key)
                     for key in ("start_date", "end_date", "project_id", "project_name")
                 },
+                "time_range": time_ranges.from_analysis(selection.analysis).identity(),
                 "summary": selection.analysis["summary"],
             }
         )

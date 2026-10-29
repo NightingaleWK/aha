@@ -332,6 +332,13 @@ class Store:
 
         return analyze(self, start_date, end_date, project_id, **kwargs)
 
+    def analyze_time_range(
+        self, time_range: Any, project_id: str = "all", **kwargs: Any
+    ) -> dict[str, Any]:
+        from .queries import analyze_time_range
+
+        return analyze_time_range(self, time_range, project_id, **kwargs)
+
     def analysis_details(self, analysis: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         from .queries import analysis_details
 

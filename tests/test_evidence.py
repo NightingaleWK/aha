@@ -51,7 +51,7 @@ class EvidenceTests(unittest.TestCase):
                 {"使用明细.csv", "每日汇总.csv", "费用说明.html", "导出信息.json"},
             )
             manifest = json.loads(package.read("导出信息.json"))
-            self.assertEqual(manifest["manifest_version"], 3)
+            self.assertEqual(manifest["manifest_version"], 4)
             self.assertNotIn("capture_id", manifest)
             self.assertEqual(len(manifest["members"]), 3)
             self.assertEqual(manifest["summary"]["record_count"], 9)

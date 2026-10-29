@@ -28,6 +28,24 @@ if (text !== undefined && text !== null) item.textContent = String(text);
 
 保留 label、按钮可访问名称、aria-current/aria-selected、notice 的 status/live region、弹窗错误的 alert 和 focus-visible。隐藏元素用现有 hidden 规则，表格的选择和分页应保留可操作提示。
 
+## 共享表单和时间面板
+
+`AhaForms.mount(root)` 增强原生 select；原 select 的 value/options/disabled 仍是业务唯一来源，不能另建隐藏的项目状态。`data-searchable="true"` 提供项目搜索，`data-control="segmented"` 提供可用/全部并排选择。业务代码直接回填 value 后调用 `AhaForms.sync(root)`；动态 option 变更同样同步。移除动态核对卡片前调用 `AhaForms.destroy(root)`，终止事件和观察器。
+
+```javascript
+select.replaceChildren(...options);
+select.value = projectId;
+AhaForms.sync(select.parentElement);
+```
+
+下拉通过有名称的 combobox/listbox，分段通过 radiogroup/radio 提供键盘访问。方向键跳过 disabled/hidden 选项，Enter 确认，Escape 关闭并还原焦点；禁用原 select 必须同步到代理。动态替换同名同值 options 后，事件不能闭包引用已移除的 HTMLOptionElement，应按当前数字索引选择。
+
+`AhaTimeRange.create(root,{id,label,context,onApply})` 持有已应用意图、服务端已解析结果与弹层草稿。打开/编辑/取消不清原预览；确认才将意图交给业务回调并重新分析。首页与 current 修订各有实例；frozen 不重新解析范围。具体请求与边界见 [时间合同](../backend/time-range-contract.md)。
+
+日历随选中日期渲染，分钟输入和显示按北京时间，不依赖宿主浏览器时区；非法/不可表示端点及固定端点倒置预先在面板内提示并禁确认。跟随范围由本次服务端now权威校验，失败后面板保留草稿、显示错误并禁确认，编辑后可修正。Escape 先关闭时间面板，保留外层 dialog；焦点回到对应触发器。弹层使用 top layer 并在窄窗口内部滚动，Tab/Shift+Tab 能滚动至取消和确认。自定义结束包含结束分钟，快捷跟随范围显示已解析秒，不用草稿时间冒充实际范围。
+
+控件保留16px输入、15px按钮、44–48px高度和10px圆角。项目长名称换行，金额/币种完整显示；不能通过缩字弥补布局。
+
 ## 常见错误与验证
 
 不要把金额转成 Number、通过前端可见页重算导出、让历史版本显示修改动作，或给冲突弹窗增加绕过操作。不要将目录线索覆盖描述成业务归属已确认。

@@ -7,6 +7,9 @@ from .queries import (
     analyze as analyze,
 )
 from .queries import (
+    analyze_time_range as analyze_time_range,
+)
+from .queries import (
     iter_analysis_daily as iter_analysis_daily,
 )
 from .queries import (

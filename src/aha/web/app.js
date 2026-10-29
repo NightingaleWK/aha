@@ -2,16 +2,24 @@
 
 const $ = (id) => document.getElementById(id);
 const state = {
-  csrf: "", today: "", ledger: null, sync: null, syncBusy: false, reconciliations: [],
+  csrf: "", today: "", now: "", ledger: null, sync: null, syncBusy: false, reconciliations: [],
   config: {revision: 0, projects: []}, analysis: null, tab: "daily", page: 1,
   rows: [], total: 0, cursor: null, nextCursor: null, cursors: [null], selected: new Map(), batches: [], batch: null,
   busy: false, pendingBatch: null, revision: null, lifecycle: null, noticeTimer: null, stopped: false,
+  filterGeneration: 0, analysisRequest: 0,
 };
 const labels = {draft: "草稿", submitted: "已提交", reimbursed: "已报销", voided: "已作废"};
 const origins = {manual: "手动分配", directory_rule: "目录匹配", unassigned: "未归属"};
 const counts = (value) => new Intl.NumberFormat("zh-CN").format(value ?? 0);
 const money = (value) => String(value ?? "0").replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
 const lines = (value) => value.split(/\r?\n/).map((part) => part.trim()).filter(Boolean);
+const timeContext = () => ({now: state.now, coverage: state.ledger?.coverage});
+const timeRange = AhaTimeRange.create($("time-range-control"), {
+  id: "usage-range", context: timeContext, onApply: applyTimeRange,
+});
+const revisionTimeRange = AhaTimeRange.create($("revision-range-control"), {
+  id: "revision-range", label: "修订时间范围", context: timeContext, onApply: applyRevisionTimeRange,
+});
 
 function node(tag, className, text) {
   const item = document.createElement(tag);
@@ -56,7 +64,7 @@ function notify(message, kind = "success") {
   notice.hidden = false;
   if (kind === "success") state.noticeTimer = setTimeout(() => { notice.hidden = true; }, 4500);
 }
-async function api(path, body) {
+async function api(path, body, isCurrent = () => true) {
   const options = {credentials: "same-origin", cache: "no-store", headers: {}};
   if (body !== undefined) {
     options.method = "POST";
@@ -73,39 +81,42 @@ async function api(path, body) {
   if (!response.ok) {
     const error = new Error(result.message || "操作未完成，请重试。");
     error.code = result.code;
-    if (["analysis_expired", "classification_changed", "availability_changed", "usage_claimed", "data_changed", "stale_analysis", "ledger_changed"].includes(error.code)) {
+    if (isCurrent() && ["analysis_expired", "classification_changed", "availability_changed", "usage_claimed", "data_changed", "stale_analysis", "ledger_changed"].includes(error.code)) {
       invalidate("用量已变化，请更新预览");
-      if (state.revision && $("revision-basis").value === "current") {
-        state.revision.analysis = null;
-        $("revision-preview").replaceChildren(node("p", "", "用量已变化，请点击“更新用量”。"));
-        syncActions();
-      }
+      error.invalidated = true;
     }
     throw error;
   }
   return result;
 }
-async function run(label, action) {
-  if (state.busy) return;
+async function run(label, action, {rethrow = false} = {}) {
+  if (state.busy || state.stopped) return;
   clearFeedback();
   state.busy = true;
   $("busy-label").textContent = label;
   $("busy").hidden = false;
+  const focused = document.activeElement;
   const controls = [...document.querySelectorAll("button:not([data-sync-control]),input,textarea,select")];
   const previous = controls.map((control) => control.disabled);
   controls.forEach((control) => { control.disabled = true; });
-  try { await action(); }
-  catch (error) { notify(error.message || "操作未完成，请重试。", "error"); }
+  AhaForms.closeAll(); AhaForms.sync();
+  try { return await action(); }
+  catch (error) {
+    notify(error.message || "操作未完成，请重试。", "error");
+    if (rethrow) throw error;
+  }
   finally {
     controls.forEach((control, index) => { control.disabled = previous[index]; });
     state.busy = false;
     $("busy").hidden = true;
     syncActions();
+    if (document.activeElement === document.body && focused?.isConnected && !focused.disabled && focused.getClientRects().length) focused.focus({preventScroll: true});
   }
 }
 function syncActions() {
   if (state.stopped) {
     document.querySelectorAll("button,input,textarea,select").forEach((control) => { control.disabled = true; });
+    AhaForms.sync(); timeRange.setDisabled(true); revisionTimeRange.setDisabled(true);
     return;
   }
   document.querySelectorAll("[data-sync-control]").forEach((control) => { control.disabled = state.syncBusy; });
@@ -119,6 +130,10 @@ function syncActions() {
   $("assign").disabled = state.busy || state.selected.size === 0;
   $("prev-page").disabled = state.busy || state.page <= 1;
   $("next-page").disabled = state.busy || !state.nextCursor;
+  $("revision-analyze").disabled = state.busy || !state.revision || !state.ledger;
+  timeRange.setDisabled(state.busy || !state.now);
+  revisionTimeRange.setDisabled(state.busy || !state.now || !state.revision || $("revision-basis").value !== "current");
+  AhaForms.sync();
 }
 function page(name) {
   const titles = {usage: "用量与费用", projects: "项目管理", batches: "报销记录"};
@@ -136,6 +151,7 @@ function empty(target, title, description) {
   target.replaceChildren(wrap);
 }
 function invalidate(message = "条件已更改，请更新预览") {
+  state.filterGeneration += 1;
   if (state.analysis && ["claim-purpose", "claim-amount", "claim-note"].some((id) => $(id).value.trim())) {
     $("claim-explanation").textContent = "用量范围已变化，请核对用途和金额后保存。";
   }
@@ -144,11 +160,10 @@ function invalidate(message = "条件已更改，请更新预览") {
   state.selected.clear();
   state.rows = [];
   state.page = 1; state.cursor = null; state.nextCursor = null; state.cursors = [null];
-  if (state.revision && $("revision-basis").value === "current") {
-    state.revision.analysis = null;
-    $("revision-preview").replaceChildren(node("p", "", "用量已变化，请点击“更新用量”。"));
-  }
+  invalidateRevision();
+  timeRange.markPending();
   $("reconciliation-note").hidden = true;
+  $("time-coverage-note").hidden = true;
   ["metric-cost", "metric-count", "metric-tokens", "metric-unassigned"].forEach((id) => { $(id).textContent = "—"; });
   $("availability-panel").hidden = true;
   $("token-strip").hidden = true;
@@ -159,23 +174,39 @@ function invalidate(message = "条件已更改，请更新预览") {
   $("filter-status").textContent = message;
   $("preview-caption").textContent = "选择条件后更新预览。";
   empty($("preview-table"), state.ledger ? "请更新预览" : "正在读取本地资料",
-    state.ledger ? "按所选项目和日期查看本地台账。" : "本地资料加载后即可查询。");
+    state.ledger ? "按所选项目和时间查看本地台账。" : "本地资料加载后即可查询。");
   syncActions();
 }
-function range(name) {
-  const today = state.today;
-  if (!today) return;
-  $("end-date").value = today;
-  if (name === "today") $("start-date").value = today;
-  if (name === "month") $("start-date").value = `${today.slice(0, 7)}-01`;
-  if (name === "week") {
-    const date = new Date(`${today}T12:00:00+08:00`);
-    date.setUTCDate(date.getUTCDate() - 6);
-    $("start-date").value = date.toISOString().slice(0, 10);
-  }
-  document.querySelectorAll("[data-range]").forEach((item) => { item.classList.toggle("active", item.dataset.range === name); });
-  $("range-all").classList.remove("active");
-  invalidate();
+function invalidateRevision(message = "用量已变化，请点击“更新用量”。") {
+  if (!state.revision || $("revision-basis").value !== "current") return;
+  state.revision.analysis = null;
+  state.revision.filterGeneration += 1;
+  if (state.pendingBatch?.batchId === state.revision.batchId) state.pendingBatch = null;
+  revisionTimeRange.markPending();
+  $("revision-preview").replaceChildren(node("p", "", message));
+}
+async function applyTimeRange(intent) {
+  if (state.busy || state.stopped) throw new Error("请等待当前操作完成后重试。");
+  timeRange.setIntent(intent);
+  await run("正在更新预览…", analyze, {rethrow: true});
+}
+async function applyRevisionTimeRange(intent) {
+  if (state.busy || !state.revision || $("revision-basis").value !== "current") throw new Error("请重新打开当前报销记录后选择用量。");
+  revisionTimeRange.setIntent(intent);
+  await run("正在更新用量…", prepareRevisionPreview, {rethrow: true});
+}
+function rangeDescription(result) {
+  return AhaTimeRange.describe(AhaTimeRange.fromAnalysis(result)) || `${result.start_date} 至 ${result.end_date}`;
+}
+function renderTimeCoverage(target, result, onWholeDays = null, frozen = false) {
+  target.replaceChildren();
+  const coverage = result.time_coverage;
+  target.hidden = coverage?.complete !== false;
+  if (target.hidden) return;
+  const days = (coverage.omitted_days || []).join("、");
+  target.append(node("strong", "", "统计不完整"), node("p", "", `${days ? `${days} 的` : "部分日期的"}${counts(coverage.omitted_rollup_count)} 条历史日汇总没有发生时间，无法按此时间范围拆分，未计入当前统计。`),
+    node("p", "field-help", frozen ? "此记录沿用已确定的冻结用量，材料保留此说明。" : "当前合计仅含已确定的用量；有可用用量时仍可保存，材料将保留此说明。"));
+  if (onWholeDays) target.append(actionButton("改查整天", onWholeDays, "button small"));
 }
 async function refreshLedger() {
   state.ledger = await api("/api/ledger");
@@ -268,6 +299,13 @@ async function refreshProjects() {
   }
   select.value = previous;
   if (select.selectedIndex < 0) select.value = "all";
+  if (state.revision && $("revision-dialog").open) {
+    const revisionProject = $("revision-project"); const selectedProject = revisionProject.value;
+    revisionProject.replaceChildren(...[...select.options].map((option) => option.cloneNode(true)));
+    revisionProject.value = selectedProject;
+    if (revisionProject.selectedIndex < 0) revisionProject.value = "all";
+  }
+  AhaForms.sync();
   $("project-nav-count").textContent = counts(state.config.projects.length);
   renderProjects();
 }
@@ -342,13 +380,22 @@ async function saveProject() {
 }
 async function analyze() {
   if (!state.ledger) throw new Error("请先加载本地资料。");
-  const result = await api("/api/analysis", {
-    classification_revision: state.config.revision,
-    start_date: $("start-date").value, end_date: $("end-date").value,
-    project_id: $("project-select").value, availability_mode: $("availability-mode").value,
-  });
+  invalidate("正在更新预览…");
+  const generation = state.filterGeneration; const request = ++state.analysisRequest;
+  const isCurrent = () => generation === state.filterGeneration && request === state.analysisRequest && !state.stopped;
+  let result;
+  try {
+    result = await api("/api/analysis", {
+      classification_revision: state.config.revision, time_range: timeRange.getIntent(),
+      project_id: $("project-select").value, availability_mode: $("availability-mode").value,
+    }, isCurrent);
+  } catch (error) { if (!isCurrent() && !error.invalidated) return; throw error; }
+  if (!isCurrent()) return;
   state.analysis = result; state.page = 1; state.cursor = null; state.nextCursor = null; state.cursors = [null]; state.selected.clear();
+  if (result.time_range?.resolved_at) state.now = result.time_range.resolved_at;
+  timeRange.setResolved(AhaTimeRange.fromAnalysis(result));
   renderAvailability(result);
+  renderTimeCoverage($("time-coverage-note"), result, () => { void applyTimeRange(AhaTimeRange.wholeDays(result)).catch(() => {}); });
   const summary = result.summary;
   const availableOnly = result.availability_mode === "available";
   const pending = result.pending_count || 0;
@@ -357,16 +404,17 @@ async function analyze() {
   $("metric-cost-label").textContent = availableOnly ? "可用参考成本" : "期间参考成本";
   $("metric-count-label").textContent = availableOnly ? "可用用量" : "用量记录数";
   $("metric-token-label").textContent = availableOnly ? "可用 Token" : "总 Token";
-  $("metric-cost").textContent = money(summary.total_cost_usd);
-  $("metric-count").textContent = counts(summary.record_count);
-  $("metric-count-note").textContent = `${counts(summary.detail_count)} 条明细 + ${counts(summary.rollup_record_count)} 条历史代表记录`;
-  $("metric-tokens").textContent = counts(summary.total_tokens);
+  const omittedOnly = result.time_coverage?.complete === false && !hasUsage(summary);
+  $("metric-cost").textContent = omittedOnly ? "—" : money(summary.total_cost_usd);
+  $("metric-count").textContent = omittedOnly ? "—" : counts(summary.record_count);
+  $("metric-count-note").textContent = omittedOnly ? "所选时段缺少可确定的用量，请查看完整性说明" : `${counts(summary.detail_count)} 条明细 + ${counts(summary.rollup_record_count)} 条历史代表记录`;
+  $("metric-tokens").textContent = omittedOnly ? "—" : counts(summary.total_tokens);
   $("metric-unassigned").textContent = counts(result.unassigned_count);
   $("token-input").textContent = counts(summary.fresh_input_tokens);
   $("token-output").textContent = counts(summary.output_tokens);
   $("token-read").textContent = counts(summary.cache_read_tokens);
   $("token-write").textContent = counts(summary.cache_creation_tokens);
-  $("token-strip").hidden = false;
+  $("token-strip").hidden = omittedOnly;
   const coverage = result.metadata_coverage || state.ledger.metadata_coverage || {matched_sessions: 0, total_sessions: 0};
   $("coverage-note").textContent = `已识别 ${counts(coverage.matched_sessions)} / ${counts(coverage.total_sessions)} 个会话的工作目录。项目按目录设置或手动分配。`;
   $("coverage-note").hidden = false;
@@ -375,7 +423,7 @@ async function analyze() {
     $("analysis-warnings").append(node("div", "warning", typeof warning === "string" ? warning : warning.message || warning.code));
   }
   $("filter-status").textContent = "预览已更新";
-  $("preview-caption").textContent = `${result.project_name} · ${result.start_date} 至 ${result.end_date}`;
+  $("preview-caption").textContent = `${result.project_name} · ${rangeDescription(result)}（北京时间）`;
   await renderPreview(); syncActions();
 }
 function table(columns, rows, selectable = false) {
@@ -464,10 +512,17 @@ async function renderPreview() {
   const params = new URLSearchParams({kind, size: "50"});
   if (state.cursor) params.set("cursor", state.cursor);
   const currentId = state.analysis.analysis_id;
-  const result = await api(`/api/analysis/${encodeURIComponent(currentId)}/details?${params}`);
-  if (state.analysis?.analysis_id !== currentId) return;
+  const tab = state.tab; const cursor = state.cursor; const generation = state.filterGeneration;
+  const isCurrent = () => state.analysis?.analysis_id === currentId && state.tab === tab
+    && state.cursor === cursor && state.filterGeneration === generation && !state.stopped;
+  let result;
+  try {
+    result = await api(`/api/analysis/${encodeURIComponent(currentId)}/details?${params}`, undefined, isCurrent);
+  } catch (error) { if (!isCurrent() && !error.invalidated) return; throw error; }
+  if (!isCurrent()) return;
   state.rows = result.rows; state.total = result.total; state.nextCursor = result.next_cursor || null;
-  if (!state.rows.length) empty($("preview-table"), "当前筛选没有用量", "调整项目、日期或查看待核对依据。");
+  if (!state.rows.length) empty($("preview-table"), state.analysis.time_coverage?.complete === false ? "当前时段没有可确定的用量" : "当前筛选没有用量",
+    state.analysis.time_coverage?.complete === false ? "历史日汇总无法按此时段拆分，可在上方选择“改查整天”。" : "调整项目、时间或查看待核对依据。");
   else if (["daily", "models"].includes(state.tab)) $("preview-table").replaceChildren(table(aggregateColumns(state.tab), state.rows));
   else renderRowTable();
   $("page-label").textContent = result.total === null || result.total === undefined
@@ -514,7 +569,7 @@ function renderAvailability(result) {
   const available = availability.available_summary;
   const excluded = availability.excluded_summary;
   $("availability-title").textContent = availability.mode === "all" ? "全部用量，仅供查看" : "可用用量";
-  $("availability-summary").textContent = `当前范围共 ${counts(matched.record_count)} 条用量，已排除 ${counts(excluded.record_count)} 条，剩余 ${counts(available.record_count)} 条可用。`;
+  $("availability-summary").textContent = `${result.time_coverage?.complete === false ? "当前范围内已确定的" : "当前范围共"}${counts(matched.record_count)} 条用量，已排除 ${counts(excluded.record_count)} 条，剩余 ${counts(available.record_count)} 条可用。`;
   for (const group of availability.excluded_groups || []) {
     const item = node("div", "availability-group");
     const quantities = [];
@@ -628,7 +683,7 @@ function renderBatches() {
     }},
     {title: "项目 / 期间", wrap: true, value: (row) => {
       const text = node("span", "", row.project_name);
-      text.append(node("span", "subline", `${row.start_date} 至 ${row.end_date}`)); return text;
+      text.append(node("span", "subline", `${rangeDescription(row)}（北京时间）`)); return text;
     }},
     {title: "当前版本", value: (row) => row.active_version ? `v${row.active_version}` : "—"},
     {title: "参考成本 USD", numeric: true, value: (row) => money(row.total_cost_usd)},
@@ -673,10 +728,13 @@ function renderBatchDetail() {
     title.append(node("span", `status ${revision.is_effective ? "effective" : "historical"}`, revision.is_effective ? "当前记录" : "历史版本"));
     title.append(node("span", `status ${batchStatus(revision)}`, labels[batchStatus(revision)] || revision.status), node("span", "muted", dateTime(revision.created_at)));
     const meta = node("div", "revision-meta");
-    meta.append(node("span", "", result.project_name), node("span", "", `${result.start_date} 至 ${result.end_date}`),
+    meta.append(node("span", "", result.project_name), node("span", "", `${rangeDescription(result)}（北京时间）`),
       node("span", "", `参考成本 ${money(result.summary.total_cost_usd)} USD`),
       node("span", "", value.amount === null || value.amount === "" ? "申请金额未填写" : `申请 ${money(value.amount)} ${value.currency}`));
     item.append(title, meta);
+    const coverage = node("div", "warning time-coverage-note"); renderTimeCoverage(coverage, result, null, true);
+    if (!coverage.hidden) item.append(coverage);
+    if (result.summary_complete == null && result.time_coverage == null) item.append(node("p", "field-help frozen-note", "沿用旧记录的冻结用量与说明，未重新判断历史资料完整性。"));
     if (value.purpose) item.append(node("p", "revision-purpose", value.purpose));
     if (value.amount_note) item.append(node("p", "revision-purpose", `金额依据：${value.amount_note}`));
     const actions = node("div", "revision-actions");
@@ -708,48 +766,71 @@ function renderBatchDetail() {
 function openRevision(batch, revision) {
   if (state.busy) return;
   clearFeedback();
-  state.revision = {batchId: batch.id || batch.batch_id, version: revision.version, generation: batch.generation, analysis: null, summary: revision.analysis.summary};
+  state.revision = {batchId: batch.id || batch.batch_id, version: revision.version, generation: batch.generation,
+    analysis: null, frozen: revision.analysis, filterGeneration: 0, request: 0};
   $("revision-caption").textContent = `${batch.number} · 修改当前记录`;
   $("revision-basis").value = "frozen";
   $("revision-basis").options[1].disabled = !state.ledger;
   $("revision-filters").hidden = true;
   for (const [target, source] of [["revision-project", "project-select"]]) {
     $(target).replaceChildren(...[...$(source).options].map((option) => option.cloneNode(true)));
-    $(target).value = $(source).value;
+    $(target).value = revision.analysis.project_id || $(source).value;
+    if ($(target).selectedIndex < 0) $(target).value = "all";
   }
-  $("revision-start-date").value = $("start-date").value;
-  $("revision-end-date").value = $("end-date").value;
+  revisionTimeRange.setIntent(AhaTimeRange.editableIntent(revision.analysis), AhaTimeRange.fromAnalysis(revision.analysis));
   $("revision-purpose").value = revision.claim.purpose || "";
   $("revision-amount").value = revision.claim.amount ?? "";
   $("revision-currency").value = revision.claim.currency;
   $("revision-note").value = revision.claim.amount_note || "";
-  renderRevisionPreview(revision.analysis);
+  AhaForms.sync($("revision-dialog"));
+  renderRevisionPreview(revision.analysis, true);
   $("revision-dialog").showModal(); syncActions();
 }
-function renderRevisionPreview(result) {
+function renderRevisionPreview(result, frozen = false) {
   const summary = result.summary;
+  const omittedOnly = result.time_coverage?.complete === false && !hasUsage(summary);
   $("revision-preview").replaceChildren(
-    node("strong", "", `${counts(summary.record_count)} 条用量 · 参考成本 ${money(summary.total_cost_usd)} USD`),
-    node("p", "field-help", `${result.project_name || "当前项目"} · ${result.start_date || ""} 至 ${result.end_date || ""}`),
+    node("strong", "", omittedOnly ? "当前时段没有可确定的用量" : `${counts(summary.record_count)} 条用量 · 参考成本 ${money(summary.total_cost_usd)} USD`),
+    node("p", "field-help", `${result.project_name || "当前项目"} · ${rangeDescription(result)}（北京时间）`),
   );
+  if (frozen) $("revision-preview").append(node("p", "field-help", result.summary_complete == null && result.time_coverage == null
+    ? "沿用旧记录的冻结用量与说明，未重新判断历史资料完整性。" : "保留原记录的时间范围与冻结用量；保存时不会延长范围。"));
+  const coverage = node("div", "warning time-coverage-note");
+  renderTimeCoverage(coverage, result, frozen ? null : () => { void applyRevisionTimeRange(AhaTimeRange.wholeDays(result)).catch(() => {}); }, frozen);
+  if (!coverage.hidden) $("revision-preview").append(coverage);
+  if (result.pending_count) $("revision-preview").append(node("p", "field-help", `有 ${counts(result.pending_count)} 项用量待核对，合计仅含已核实部分。`));
   const excluded = result.availability?.excluded_summary?.record_count;
   if (excluded) $("revision-preview").append(node("p", "field-help", `已排除其他记录占用或待核对的 ${counts(excluded)} 条用量。`));
 }
 async function prepareRevisionPreview() {
   if (!state.revision) return;
-  state.revision.analysis = null;
+  const revision = state.revision;
+  state.pendingBatch = null;
+  revision.analysis = null; revision.filterGeneration += 1;
   $("revision-filters").hidden = $("revision-basis").value === "frozen";
   if ($("revision-basis").value === "frozen") {
-    const revision = state.batch.revisions.find((entry) => entry.version === state.revision.version);
-    renderRevisionPreview(revision.analysis); syncActions(); return;
+    renderRevisionPreview(revision.frozen, true); syncActions(); return;
   }
-  const result = await api(`/api/batches/${encodeURIComponent(state.revision.batchId)}/analysis`, {
-    classification_revision: state.config.revision,
-    start_date: $("revision-start-date").value, end_date: $("revision-end-date").value,
-    project_id: $("revision-project").value, base_version: state.revision.version,
-    expected_generation: state.revision.generation,
-  });
-  state.revision.analysis = result;
+  revisionTimeRange.markPending();
+  $("revision-preview").replaceChildren(node("p", "", "正在更新用量…"));
+  const generation = revision.filterGeneration; const request = ++revision.request;
+  const isCurrent = () => state.revision === revision && $("revision-dialog").open && $("revision-basis").value === "current"
+    && generation === revision.filterGeneration && request === revision.request && !state.stopped;
+  let result;
+  try {
+    result = await api(`/api/batches/${encodeURIComponent(revision.batchId)}/analysis`, {
+      classification_revision: state.config.revision, time_range: revisionTimeRange.getIntent(),
+      project_id: $("revision-project").value, base_version: revision.version, expected_generation: revision.generation,
+    }, isCurrent);
+  } catch (error) {
+    if (!isCurrent() && !error.invalidated) return;
+    if (isCurrent()) $("revision-preview").replaceChildren(node("p", "", "预览未完成，请调整条件后更新用量。"));
+    throw error;
+  }
+  if (!isCurrent()) return;
+  revision.analysis = result;
+  if (result.time_range?.resolved_at) state.now = result.time_range.resolved_at;
+  revisionTimeRange.setResolved(AhaTimeRange.fromAnalysis(result));
   renderRevisionPreview(result); syncActions();
 }
 function openLifecycle(action, batch, revision = null) {
@@ -794,9 +875,9 @@ async function scanMetadata() {
 }
 async function initialize() {
   const status = await api("/api/status");
-  state.csrf = status.csrf_token; state.today = status.today; state.ledger = status.ledger;
+  state.csrf = status.csrf_token; state.today = status.today; state.now = status.now; state.ledger = status.ledger;
   $("app-version").textContent = `v${status.version}`;
-  range("today"); renderSource();
+  renderSource();
   await Promise.all([refreshProjects(), refreshReconciliations(), refreshBatches()]);
   await analyze();
   const currentSync = status.sync || status.startup_sync;
@@ -811,7 +892,7 @@ async function openReconciliations() {
   await refreshReconciliations(); renderReconciliations(); $("reconciliation-dialog").showModal();
 }
 function renderReconciliations() {
-  const target = $("reconciliation-list"); target.replaceChildren();
+  const target = $("reconciliation-list"); AhaForms.destroy(target); target.replaceChildren();
   if (!state.reconciliations.length) { empty(target, "暂无待核对用量", "已保存来源的核对结果可继续用于本地查询。"); return; }
   const choiceLabels = {detail: "采用已存明细", rollup: "采用完整日汇总", current: "保留当前值", candidate: "采用候选修订", same: "确认为同一消费", independent: "确认为独立消费"};
   for (const entry of state.reconciliations) {
@@ -856,25 +937,12 @@ function renderReconciliations() {
       await Promise.all([refreshLedger(), refreshReconciliations()]); invalidate("核对结果已更新，请重新预览"); renderReconciliations();
     }); });
     card.append(form); target.append(card);
+    AhaForms.mount(card);
   }
 }
 document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => page(button.dataset.page)));
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
-document.querySelectorAll("[data-range]").forEach((button) => button.addEventListener("click", () => range(button.dataset.range)));
-$("range-all").addEventListener("click", () => {
-  const coverage = state.ledger?.coverage;
-  if (!coverage?.start_date) { notify("本地台账暂无可查询的日期。", "info"); return; }
-  $("start-date").value = coverage.start_date; $("end-date").value = coverage.end_date;
-  document.querySelectorAll("[data-range]").forEach((button) => button.classList.remove("active"));
-  $("range-all").classList.add("active"); invalidate();
-});
-for (const id of ["start-date", "end-date", "project-select", "availability-mode"]) $(id).addEventListener("change", () => {
-  if (id === "start-date" || id === "end-date") {
-    document.querySelectorAll("[data-range]").forEach((button) => button.classList.remove("active"));
-    $("range-all").classList.remove("active");
-  }
-  invalidate();
-});
+for (const id of ["project-select", "availability-mode"]) $(id).addEventListener("change", () => invalidate());
 $("source-options").addEventListener("click", () => { clearFeedback(); $("source-dialog").showModal(); });
 $("load-default").addEventListener("click", () => { void loadSource(); });
 $("review-data").addEventListener("click", () => run("正在加载核对依据…", openReconciliations));
@@ -918,11 +986,11 @@ $("confirm-batch").addEventListener("click", () => run("正在更新预览…", 
 $("refresh-batches").addEventListener("click", () => run("正在刷新报销记录…", refreshBatches));
 $("revision-basis").addEventListener("change", () => run("正在重新选择用量…", prepareRevisionPreview));
 $("revision-analyze").addEventListener("click", () => run("正在更新用量…", prepareRevisionPreview));
-for (const id of ["revision-project", "revision-start-date", "revision-end-date"]) $(id).addEventListener("change", () => {
-  if (state.revision) state.revision.analysis = null;
-  $("revision-preview").replaceChildren(node("p", "", "条件已更改，请点击“更新用量”。"));
+$("revision-project").addEventListener("change", () => {
+  invalidateRevision("条件已更改，请点击“更新用量”。");
   syncActions();
 });
+$("revision-dialog").addEventListener("close", () => { state.revision = null; syncActions(); });
 $("revision-form").addEventListener("submit", (event) => {
   event.preventDefault(); run("正在保存修改…", () => {
     if (!state.revision) throw new Error("请重新打开报销记录。");
@@ -944,4 +1012,5 @@ const shutdown = () => run("正在退出…", async () => {
 });
 $("shutdown").addEventListener("click", shutdown);
 $("shutdown-compact").addEventListener("click", shutdown);
+AhaForms.mount();
 run("正在加载…", initialize);
