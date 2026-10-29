@@ -8,6 +8,7 @@ aha 的页面是由本机 Python 服务提供的原生 HTML/CSS/JavaScript，资
 - 修改页面结构读组件规范，修改选择/预览/保存读状态规范，修改载荷读数据边界规范。
 - 复核 [server.py](../../../src/aha/server.py) 的真实请求边界；保留简体中文产品文案、内置资源和实际字号。
 - 使用独立 data-dir，个人来源、材料、浏览器凭证和截图不进入 Git。
+- 可见功能实施还需执行 [成品交付与清理](../backend/delivery-and-cleanup.md)：完成桌面程序验收及临时文件收尾；WSL 交互预览采用当次本机 HTTP 链接。
 
 ## 规范索引
 

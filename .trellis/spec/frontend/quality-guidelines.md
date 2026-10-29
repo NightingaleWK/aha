@@ -43,3 +43,5 @@ for index, server in enumerate((self.server, other)):
 正文/输入 16px、表格/按钮 15px、标签/表头 14px、次要至少 13px；更多产品顺序与文案要求见 [页面契约](./local-web-contract.md)。用量/金额显示、CSV、每日汇总、HTML/JSON 要取同一实际成员与精确金额，不受分页影响。
 
 发布阶段分别记录目录包和 OneFile 的真实 EXE/浏览器运行，CSV 在目标 Excel 打开，HTML 打印逐页检查。已有归档验收只是相应版本和时间的历史证据；只改文档不会生成新的 Windows/Excel/业务验收。个人截图、ZIP、打印文件留在 Git 外。
+
+用户可见功能的交付和临时文件收尾按 [成品交付与清理](../backend/delivery-and-cleanup.md) 执行。WSL 预览通过当次本机 HTTP 和应用内浏览器呈现；确认当前链接可用，queued 只表示已排队。页面验收结束后清理自己创建且不再使用的临时环境，保留仍需查看的预览最小资源、必要证据和最终成品。

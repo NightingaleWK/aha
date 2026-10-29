@@ -35,3 +35,9 @@ Linux 与 Windows 并行运行 mypy 时使用各自的 `--cache-dir`，避免共
 性能用 [benchmark_ledger.py](../../../scripts/benchmark_ledger.py) 的固定seed百万/千万样本，记录机器、物理存储、预热/样本、P95、进程冷启动定义、RSS、固定来源窗口和真实导出校验。fast-seed仅用于建夹具，恢复生产索引/参数并抽样全projection验证后再查询；不能将 tmpfs预跑当物理盘结果，不能清全机缓存模拟冷启动。
 
 Windows先目录包真实EXE/浏览器、CSV Excel、HTML A4打印，再构建并验收OneFile。脚本的 --directory-verified 不能代替已执行的目录包验证。重建演练、成品验收、实际试用清理和正式报销各自记录，不把一种证据冒充另一种。完整断言见 [主契约](./usage-evidence-contract.md)。
+
+## 交付与临时文件收尾
+
+按 [成品交付与清理](./delivery-and-cleanup.md) 核对：本机功能实施默认包含与最终源码一致的桌面 OneFile，实际交付文件的 SHA 与原生启动验证通过后才完成交付。提交/归档不能代替这一步；用户明确限定交付范围时遵守其限制。
+
+验证结束后主动清理有明确归属且不再使用的合成大库、额外任务环境、中间物与缓存，保留真实资料、主环境、必要报告和成品。核对清理前后 Git 状态与成品 SHA，避免留下数 GB 临时文件或误删用户资料。
