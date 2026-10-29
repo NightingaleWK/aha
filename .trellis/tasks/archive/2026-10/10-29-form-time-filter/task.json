@@ -3,7 +3,7 @@
   "name": "form-time-filter",
   "title": "清爽表单与便捷时间筛选",
   "description": "统一首页及相关页面的清爽表单交互，设计含快捷范围、日历、精确时间和跟随当前时刻的时间筛选，并保持统计、占用和导出范围一致。",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": "fullstack",
   "scope": "usage",
   "package": null,
@@ -11,11 +11,11 @@
   "creator": "NightingaleWK",
   "assignee": "NightingaleWK",
   "createdAt": "2026-10-29",
-  "completedAt": null,
+  "completedAt": "2026-10-29",
   "branch": "codex/form-time-filter",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
+  "commit": "884862927c16ba81a6596c2263f26f4200c55718",
   "pr_url": null,
   "subtasks": [],
   "children": [],
@@ -41,6 +41,6 @@
     "tests/test_time_ranges.py",
     "tests/web_state.test.cjs"
   ],
-  "notes": "2026-10-29 用户已批准A并明确“进入实施”。产品实施与范围内验收完成，最终目录EXE、真实UI、Excel/A4通过。用户已明确回复“确认提交并归档（建议）”，批准research/commit-plan.md；执行功能提交、归档与会话记录，不推送、不发布或替换用户程序。",
+  "notes": "2026-10-29 用户已批准A及实施，并明确确认具体提交计划、归档和会话记录。范围内实施与验收通过，功能工作提交8848629；按Trellis收尾。未推送、未发布或替换用户程序。",
   "meta": {}
 }
