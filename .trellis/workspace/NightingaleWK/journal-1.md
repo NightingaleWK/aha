@@ -161,3 +161,42 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 6: 清爽表单与北京时间筛选实施收尾
+<!-- trellis-session: v=2 fp=44e08244c31c231e -->
+
+**Date**: 2026-10-29
+**Task**: 清爽表单与北京时间筛选实施收尾
+**Branch**: `codex/form-time-filter`
+
+### Summary
+
+完成共享表单与精确时间筛选，落实部分日汇总A方案、冻结及manifest4兼容；用户确认后提交并归档，未推送。
+
+### Main Changes
+
+- 项目搜索、统一下拉和并排用量切换；日历、快捷范围、分钟输入与草稿取消。
+- 北京时间半开区间贯通统计、四视图、保存、修订和材料；旧manifest3原包与未知完整性保留。
+- 修复迟到请求、动态选项、超限端点、列表时间与修订未知态；同步README和Trellis规范。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8848629` | feat: 统一清爽表单与北京时间范围筛选 |
+
+### Testing
+
+- [OK] Linux与Windows各203项unittest回归完成，分别2/1个平台跳过；Ruff、strict mypy22模块、compileall和3份JS语法通过。
+- [OK] Node状态回归6/6；最终Windows Directory EXE真实浏览器13项及动态项目、错误恢复、修订未知态补充验证通过，5个资源SHA与源码一致。
+- [OK] 实际Excel16.0核对157明细/15.700000157USD/20410Token；A4 PDF两页逐页检查；百万合成查询及8组精确范围SQL/分页一致性回归通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 验收记录位于.trellis/tasks/archive/2026-10/10-29-form-time-filter/research/verification.md；仅本地提交，未发布OneFile或替换用户资料。
+- 既有超过2^53的JSON Token页面精度问题已记录，需独立确定跨层大整数合同；本任务材料仍保留精确值。
