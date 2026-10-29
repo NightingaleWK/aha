@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import sys
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
@@ -226,7 +227,7 @@ class Store:
                 temporary_path.unlink()
                 return
             os.replace(temporary_path, target)
-            if os.name == "posix":
+            if sys.platform != "win32" and os.name == "posix":
                 fd = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
                 try:
                     os.fsync(fd)

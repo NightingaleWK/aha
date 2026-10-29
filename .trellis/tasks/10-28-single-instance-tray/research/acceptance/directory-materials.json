@@ -1,0 +1,34 @@
+{
+  "materials-check": {
+    "csv_rows": [
+      2,
+      13
+    ],
+    "expected_files": true
+  },
+  "excel-check": {
+    "excel_version": "16.0",
+    "sheets": [
+      {
+        "readonly": true,
+        "columns": 23,
+        "rows": 13
+      },
+      {
+        "readonly": true,
+        "columns": 17,
+        "rows": 2
+      }
+    ],
+    "passed": true
+  },
+  "print-check": {
+    "passed": true,
+    "pages": 1,
+    "width_pt": 595.91998,
+    "height_pt": 842.88,
+    "purpose_text_present": true
+  },
+  "print_render_visually_checked": true,
+  "excel_harness_note": "CSV只读数据检查完成；PowerShell COM回收阶段超时，随后核对无Excel进程残留。"
+}

@@ -108,6 +108,8 @@ def build(
             "--onedir" if stage == "Directory" else "--onefile",
             "--name",
             "aha",
+            "--icon",
+            str(web_dir / "mark.ico"),
             "--paths",
             str(source_root / "src"),
             "--collect-all",

@@ -10,6 +10,7 @@ import re
 import secrets
 import threading
 from collections import OrderedDict
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import CookieError, SimpleCookie
@@ -20,6 +21,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from . import __version__
 from .domain import AppError, content_hash
+from .instance import PROTOCOL_VERSION, profile_id
 from .storage import Store
 
 SQL_LIMIT = 128 * 1024 * 1024
@@ -113,7 +115,7 @@ class Application:
             self.closed = True
             workers = list(self.workers.values())
         for worker in workers:
-            worker.join(timeout=10)
+            worker.join()
         with self.lock:
             self.analyses.clear()
         self.store.close()
@@ -499,6 +501,13 @@ class LocalHTTPServer(ThreadingHTTPServer):
 
     def __init__(self, app: Application, port: int = 0) -> None:
         self.app = app
+        self.on_shutdown: Callable[[], None] | None = None
+        self.stopping = threading.Event()
+        self._state = "ready"
+        self._state_lock = threading.Lock()
+        self._requests = threading.Condition()
+        self._request_count = 0
+        self.profile_id = profile_id(app.store.data_dir)
         super().__init__(("127.0.0.1", port), RequestHandler)
         self.origin = f"http://127.0.0.1:{self.server_port}"
         self.session_cookie_name = f"aha_session_{self.server_port}"
@@ -506,6 +515,69 @@ class LocalHTTPServer(ThreadingHTTPServer):
     @property
     def bootstrap_url(self) -> str:
         return f"{self.origin}/?token={self.app.bootstrap_token}"
+
+    def mark_starting(self) -> None:
+        with self._state_lock:
+            self._state = "starting"
+
+    def mark_ready(self) -> None:
+        with self._state_lock:
+            if not self.stopping.is_set():
+                self._state = "ready"
+
+    def mark_stopping(self) -> None:
+        with self._state_lock:
+            self.stopping.set()
+            self._state = "stopping"
+        self.app.cancel.set()
+        with self.app.lock:
+            self.app.closed = True
+
+    def instance_identity(self) -> dict[str, Any]:
+        with self._state_lock:
+            return {
+                "application": "aha",
+                "protocol_version": PROTOCOL_VERSION,
+                "run_id": self.app.launch_id,
+                "profile_id": self.profile_id,
+                "state": self._state,
+            }
+
+    def request_shutdown(self) -> None:
+        self.mark_stopping()
+        if self.on_shutdown is not None:
+            self.on_shutdown()
+        else:
+            threading.Thread(target=self.shutdown, name="aha-shutdown", daemon=True).start()
+
+    def ensure_active(self) -> None:
+        if self.stopping.is_set():
+            raise AppError("application_closed", "程序正在退出，请稍后重新打开。", 409)
+
+    def process_request(self, request: Any, client_address: Any) -> None:
+        # Reserve before starting a worker so shutdown cannot miss an accepted request.
+        with self._requests:
+            self._request_count += 1
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._request_finished()
+            raise
+
+    def process_request_thread(self, request: Any, client_address: Any) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._request_finished()
+
+    def _request_finished(self) -> None:
+        with self._requests:
+            self._request_count -= 1
+            self._requests.notify_all()
+
+    def wait_for_requests(self) -> None:
+        with self._requests:
+            self._requests.wait_for(lambda: self._request_count == 0)
 
     def handle_error(self, request: Any, client_address: Any) -> None:
         # The base class prints tracebacks and paths. User-facing errors use JSON instead.
@@ -662,6 +734,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             path, query = self._boundary()
             app = self.server.app
             if path == "/" and "token" in query:
+                self.server.ensure_active()
                 tokens = query["token"]
                 if len(tokens) != 1 or not _equal(tokens[0], app.bootstrap_token):
                     raise AppError(
@@ -681,6 +754,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 )
                 return
             self._authenticated()
+            if path == "/api/instance":
+                self._json(HTTPStatus.OK, self.server.instance_identity())
+                return
+            self.server.ensure_active()
             if path == "/licenses":
                 notices = Path(__file__).with_name("licenses") / "THIRD_PARTY_NOTICES.txt"
                 payload = (
@@ -729,10 +806,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._authenticated()
             body = self._body()
             if path == "/api/shutdown":
-                self._json(HTTPStatus.OK, {"message": "程序已退出，已保存资料会保留。"})
-                self.server.app.cancel.set()
-                threading.Thread(target=self.server.shutdown, daemon=True).start()
+                self.server.request_shutdown()
+                self._json(HTTPStatus.OK, {"message": "正在退出程序，已保存资料会保留。"})
                 return
+            self.server.ensure_active()
             self._json(HTTPStatus.OK, self.server.app.post(path, body))
         except AppError as error:
             self._error(error)

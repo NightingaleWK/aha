@@ -14,6 +14,8 @@ node --check src/aha/web/app.js
 
 SQLite 必须通过 [运行时门禁](./database-guidelines.md)；版本不满足时在任务环境准备修复版本，不全局替换库。Windows 使用 Scripts/python.exe；Node UNC 检查方式见 [前端质量](../frontend/quality-guidelines.md)。
 
+Linux 与 Windows 并行运行 mypy 时使用各自的 `--cache-dir`，避免共用仓库缓存。平台限定的标准库属性使用可被类型检查识别的 `sys.platform` 分支；运行时 `os.name` 判断未必能让 Windows 类型检查排除 Unix 属性。
+
 ## 按修改选择验证
 
 | 范围 | 测试与断言 |
@@ -24,7 +26,7 @@ SQLite 必须通过 [运行时门禁](./database-guidelines.md)；版本不满�
 | 占用/报销 | test_claims、test_batches、test_claim_concurrency；跨连接/进程竞争、冻结成员、换版回滚、别名修订、防重复报销、原包SHA |
 | 新库/重建 | test_migrations、test_rebuild_trial_data；拒绝旧库、保全/回滚、受保护源与未知文件阻断、历史精确提取 |
 | 材料 | test_evidence；全范围流式输出、BOM、公式/HTML保护、manifest3、隐私、空/零/非法金额 |
-| 运行/HTTP | test_http、test_http_cli；启动只同步一次、job真实终态、Cookie/Origin/CSRF、旧预览409、退出和重启 |
+| 运行/HTTP | test_instance、test_http、test_http_cli、test_tray_windows；跨进程运行权、启动同步去重、job真实终态、Cookie/Origin/CSRF、旧预览409、请求/同步清理、退出重启和原生托盘 |
 
 失败测试必须检查持久状态、旧成功时间和文件，不能只看返回值。并发不能只用一个线程内的锁代替独立连接/进程。复用合成夹具，资源显式关闭，私有源/包/截图留 Git 外。
 

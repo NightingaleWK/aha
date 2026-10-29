@@ -1,0 +1,6 @@
+{
+  "csv_bytes_equal_to_native_excel_verified_directory": {
+    "使用明细.csv": true,
+    "每日汇总.csv": true
+  }
+}

@@ -5,6 +5,7 @@ aha v0.3.0 是 Python 3.12+ 本机 Codex 台账与费用证据工具。产品实
 ## 开发前检查
 
 - 先读当前任务的需求、设计和执行计划，再读 [用量证据与本机运行契约](./usage-evidence-contract.md)。
+- 修改启动、重开、退出、托盘或运行凭证时同时读 [实例与生命周期契约](./runtime-lifecycle-contract.md)。
 - 识别本次修改涉及来源读取、领域计算、应用库、冻结材料还是 HTTP；按下表补读分题。
 - 使用任务自有 venv 和 `--data-dir`，个人源库、材料和运行凭证不进入 Git。
 - 跨层修改同时读 [前端契约](../frontend/local-web-contract.md) 和 [跨层思考指南](../guides/cross-layer-thinking-guide.md)。
@@ -14,6 +15,7 @@ aha v0.3.0 是 Python 3.12+ 本机 Codex 台账与费用证据工具。产品实
 | 文档 | 解决的问题 |
 | --- | --- |
 | [用量证据与本机运行契约](./usage-evidence-contract.md) | 来源、核算、独占、版本、迁移、HTTP 与交付的不变量 |
+| [实例与生命周期契约](./runtime-lifecycle-contract.md) | 按资料目录互斥、认证重开、Windows 托盘与完整退出 |
 | [目录与模块职责](./directory-structure.md) | 功能放在哪里、如何通过 Store 门面复用领域模块 |
 | [SQLite 与持久化](./database-guidelines.md) | 只读来源、事务、备份、迁移及不可变文件 |
 | [错误处理](./error-handling.md) | AppError、状态码、安全消息和故障回滚 |

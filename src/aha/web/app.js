@@ -939,8 +939,8 @@ const shutdown = () => run("正在退出…", async () => {
   await api("/api/shutdown", {});
   state.stopped = true;
   document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
-  state.ledger = null; invalidate("程序已退出");
-  notify("程序已退出，可以关闭此页面。", "info");
+  state.ledger = null; invalidate("程序正在退出");
+  notify("正在退出程序，已保存资料会保留，可以关闭此页面。", "info");
 });
 $("shutdown").addEventListener("click", shutdown);
 $("shutdown-compact").addEventListener("click", shutdown);

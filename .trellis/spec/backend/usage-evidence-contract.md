@@ -29,7 +29,7 @@ Store.download(batch_id, version) -> tuple[Path, str]
 
 CCS schema23 与应用 schema3 独立。新库显式创建，旧 schema1/2 或未知资料拒绝自动打开/升级；试用资料经单独清单工具保全历史用量后重建，不接续旧报销。Windows 默认 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。开发测试必须独立 data-dir。
 
-CLI 保留 `python -m aha [--data-dir PATH] [--port 0] [--no-browser]`；runtime.json 含本次 PID/run_id/私有启动地址，不能加入材料或公开记录。
+CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`；同目录单实例，复用不新增启动同步。runtime.json 含本次 PID/run_id/私有启动地址，不能加入材料或公开记录；持久锁文件退出后保留。详见 [实例与生命周期契约](./runtime-lifecycle-contract.md)。
 
 ## 3. 数据、查询与业务合同
 

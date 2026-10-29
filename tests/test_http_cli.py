@@ -73,7 +73,10 @@ class CLILifecycleTests(unittest.TestCase):
             data_dir = Path(temporary) / "data"
             source_root = Path(__file__).resolve().parents[1] / "src"
             process = subprocess.Popen(
-                [sys.executable, "-m", "aha", "--data-dir", str(data_dir), "--no-browser"],
+                [
+                    sys.executable, "-m", "aha", "--data-dir", str(data_dir),
+                    "--no-browser", "--no-tray",
+                ],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 env={**os.environ, "PYTHONPATH": str(source_root)},
@@ -116,6 +119,7 @@ class CLILifecycleTests(unittest.TestCase):
                         "--port",
                         "0",
                         "--no-browser",
+                        "--no-tray",
                     ],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,

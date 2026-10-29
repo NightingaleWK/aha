@@ -1,0 +1,51 @@
+{
+  "mode": "directory-r1",
+  "stages": [
+    {
+      "name": "default-exe-opens-browser-and-tray",
+      "passed": true,
+      "elapsed_ms": 2693
+    },
+    {
+      "name": "refresh-and-save-persistent-project-and-package",
+      "passed": true,
+      "elapsed_ms": 1530
+    },
+    {
+      "name": "concurrent-five-launches-reuse-one-service",
+      "passed": true,
+      "elapsed_ms": 507
+    },
+    {
+      "name": "close-all-app-tabs-and-double-launch-reopens",
+      "passed": true,
+      "elapsed_ms": 816
+    },
+    {
+      "name": "native-tray-open-and-taskbar-recreation",
+      "passed": true,
+      "elapsed_ms": 931
+    },
+    {
+      "name": "second-directory-isolated-and-page-exit",
+      "passed": true,
+      "elapsed_ms": 1642
+    },
+    {
+      "name": "native-tray-exit-and-persistent-restart",
+      "passed": true,
+      "elapsed_ms": 1642
+    },
+    {
+      "name": "owned-crash-stale-record-recovery-and-final-page-exit",
+      "passed": true,
+      "elapsed_ms": 1879
+    }
+  ],
+  "browser_errors": [],
+  "native_tray_mode": "real Win32 owned-window messages; physical clicks not covered",
+  "executable_sha256": "a9f55ff6ff52abb10fc65866ca7cb25170f50af8a4f7c7a5232ac38738bd9183",
+  "browser": "156.0.8078.48",
+  "passed": true,
+  "stage_count": 8
+}

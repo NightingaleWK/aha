@@ -2,7 +2,7 @@
 
 ## 私有启动信息
 
-程序未引入滚动日志框架。有控制台时 __main__ 输出 AHA_URL，无控制台时读取资料目录 runtime.json 的 PID/run_id/bootstrap_url；只删除属于当前启动的描述符。这些是私有凭证，验收只记录可访问、端口关闭与描述符清理，不记录真实token/Cookie/CSRF。
+程序未引入滚动日志框架。有控制台时 __main__ 输出 AHA_URL，无控制台时通过再次双击/托盘重开；资料目录 runtime.json 的 PID/run_id/profile_id/bootstrap_url 属于私有运行信息，只删除属于当前启动的描述符。验收只记录可访问、端口关闭与描述符清理，不记录真实token/Cookie/CSRF。`.instance.lock` 保留同一文件并最后释放句柄，不能通过删除文件判断退出；具体边界见 [实例与生命周期契约](./runtime-lifecycle-contract.md)。
 
 ## HTTP与同步错误
 

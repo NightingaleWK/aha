@@ -4,13 +4,14 @@
 
 页面由 [server.py](../../../src/aha/server.py) 提供，使用内置 HTML/CSS/JavaScript，没有前端构建器或外部资源。修改 `web/` 或请求字段前同时阅读 [后端契约](../backend/usage-evidence-contract.md)。产品文案使用简体中文。
 
-页面查询本地台账；只有启动程序一次和用户主动操作触发来源同步。刷新页面不重复启动同步；关闭标签不会退出进程，显式“退出程序”关闭服务。没有周期轮询来源、关闭后采集、托盘或开机启动。同步任务运行期间的 job 状态轮询不属于周期采集。
+页面查询本地台账；首次页面初始化和用户主动操作触发来源同步，服务按本次生命周期去重。刷新、重复双击重开和托盘打开不重跑已有启动同步；关闭标签不会退出进程。页面与 Windows 托盘的“退出程序”共用关闭流程。没有周期轮询来源、关闭后采集或开机启动。同步任务运行期间的 job 状态轮询不属于周期采集；实例与退出的后端边界见 [运行契约](../backend/runtime-lifecycle-contract.md)。
 
 ## 2. HTTP 入口
 
 | 接口 | 契约摘要 |
 | --- | --- |
 | `GET /api/status` | 本次启动凭证、日期、默认来源、启动与最近同步任务 |
+| `GET /api/instance` | 认证后的轻量实例身份/状态，供启动器复用，不读台账、不返回业务信息 |
 | `GET /api/ledger` | 本地记录数、覆盖、成功同步时间、最近尝试和目录依据 |
 | `POST /api/sync` | `{path?}`，空路径使用当前系统用户默认 CCS 库，返回异步 job |
 | `GET /api/sync/{job}` | `running/completed/failed/needs_review` 与结果；只有 running 继续轮询 |
@@ -32,7 +33,7 @@
 | `POST /api/batches/{id}/revisions/{n}/status` | status、expected_generation |
 | `POST /api/batches/{id}/withdraw`、`/void` | reason、expected_generation、idempotency_key |
 | `GET /api/batches/{id}/revisions/{n}/download` | 流式返回指定版本原 ZIP |
-| `POST /api/shutdown` | 本机认证后退出 |
+| `POST /api/shutdown` | 本机认证后接受退出请求；页面显示正在退出，不将 HTTP 成功等同全部资源已释放 |
 
 请求字段的精确允许值由服务端边界与领域函数验证。页面不再发送 capture_id、旧分页 page 或旧版本消解请求。
 

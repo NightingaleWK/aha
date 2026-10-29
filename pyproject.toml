@@ -17,7 +17,7 @@ aha = "aha.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-aha = ["web/*.html", "web/*.css", "web/*.js", "web/*.svg"]
+aha = ["web/*.html", "web/*.css", "web/*.js", "web/*.svg", "web/*.ico"]
 
 [tool.ruff]
 target-version = "py312"

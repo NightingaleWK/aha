@@ -6,7 +6,8 @@
 
 | 路径（Python文件均在 src/aha） | 职责 |
 | --- | --- |
-| __init__.py / __main__.py | 版本、CLI、资料目录、浏览器、私有runtime和退出 |
+| __init__.py / __main__.py | 版本、CLI、资料目录、实例复用分流、浏览器和安全启动错误 |
+| instance.py / runtime.py / tray_windows.py | 资料运行锁、私有描述符/身份核验、统一退出和 Windows 托盘；Store 不负责生产启动互斥 |
 | domain.py / decimal_sql.py | 允许字段、身份、归一、AppError、精确十进制/大整数聚合 |
 | sources.py / sql_dump.py | 同一只读源事务的分块投影、SQL字面量流式解析 |
 | session_meta.py | 普通/zstd会话头目录线索，不读取正文 |

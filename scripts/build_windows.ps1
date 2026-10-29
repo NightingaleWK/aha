@@ -45,7 +45,8 @@ New-Item -ItemType Directory -Force -Path $Dist, $Work, $Spec | Out-Null
 $BundleMode = if ($Stage -eq 'Directory') { '--onedir' } else { '--onefile' }
 $BuildArgs = @(
     '-m', 'PyInstaller', '--noconfirm', '--clean', '--windowed', $BundleMode,
-    '--name', 'aha', '--paths', (Join-Path $SourceRoot 'src'),
+    '--name', 'aha', '--icon', (Join-Path $SourceRoot 'src\aha\web\mark.ico'),
+    '--paths', (Join-Path $SourceRoot 'src'),
     '--collect-all', 'zstandard', '--copy-metadata', 'zstandard',
     '--add-data', ((Join-Path $SourceRoot 'src\aha\web') + ';aha/web'),
     '--add-data', ($LicenseDir + ';aha/licenses'),

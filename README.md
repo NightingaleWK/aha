@@ -11,7 +11,9 @@ aha 是 Windows 本机 Codex 用量台账与报销材料工具。双击 `aha.exe
 5. 默认“可用用量”排除已占用及待核对部分，显示原因。“全部用量（查看）”用于核对，不能直接保存新申请。明细与来源历史日汇总存在重叠时不相加，身份、版本或覆盖不清楚时先核对。
 6. 填写用途、选填申请金额/币种/金额依据，点击“保存并下载”。空金额与零分别保留；填金额须有依据。参考 USD 成本沿用来源保存值，不按今天价格重算，不自动换算或分摊订阅。
 7. ZIP 含 `使用明细.csv`、`每日汇总.csv`、`费用说明.html`、`导出信息.json`；导出完整筛选范围，不受当前页限制。CSV 用 Excel 打开，HTML 可打印或另存 PDF。
-8. 在“报销记录”查状态、修改当前草稿或重下材料。退出时点“退出程序”；只关浏览器标签，服务仍在运行，但不会新增周期同步。
+8. 在“报销记录”查状态、修改当前草稿或重下材料。同一资料目录只运行一个服务；误关网页后再次双击 `aha.exe` 即可找回页面。Windows 托盘支持双击打开，右键有“打开 aha”和“退出程序”；页面也保留“退出程序”。只关网页会保留后台，不会新增周期同步。
+
+首次换用支持单实例的新版前，请先正常退出旧版；旧 EXE 不具备新版的互斥机制。不同资料目录仍可独立运行，退出只影响对应实例。
 
 ## 历史保留与核对
 
@@ -46,7 +48,7 @@ Windows默认 `%LOCALAPPDATA%\aha`，Linux默认 `${XDG_DATA_HOME:-~/.local/shar
 
 不读取聊天正文，不上传数据，不自动写入 OneDrive 费用目录。分享包不附全库SQL、账号配置、API Key、IP、完整来源绝对路径或目录规则；项目、用途与用户填写说明会进入材料。
 
-服务仅监听127.0.0.1，校验Host/Origin/CSRF，资源内置。本次随机启动地址换取按端口隔离的Cookie；`runtime.json` 含临时地址与PID，退出删除，不应分享、提交Git或放进材料。
+服务仅监听127.0.0.1，校验Host/Origin/CSRF，资源内置。本次随机启动地址换取按端口隔离的Cookie；`runtime.json` 含临时地址与实例身份，退出删除，不应分享、提交Git或放进材料。资料目录中的 `.instance.lock` 是持久的运行锁文件，退出后保留；不要通过删除它解除运行占用。
 
 ## 开发与检查
 
@@ -55,7 +57,7 @@ Windows默认 `%LOCALAPPDATA%\aha`，Linux默认 `${XDG_DATA_HOME:-~/.local/shar
 ```bash
 python -m venv .venv
 .venv/bin/python -m pip install -e . -r requirements-dev.txt
-.venv/bin/python -m aha --data-dir .aha-data/dev --port 0 --no-browser
+.venv/bin/python -m aha --data-dir .aha-data/dev --port 0 --no-browser --no-tray
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m ruff check src tests scripts
 .venv/bin/python -m mypy src/aha
@@ -63,7 +65,7 @@ python -m venv .venv
 node --check src/aha/web/app.js
 ```
 
-Windows使用 `.venv\Scripts\python.exe`。开发/测试必须指定隔离data-dir。`--port 0` 自动选择端口；不加 `--no-browser` 自动开浏览器。控制台输出 `AHA_URL=...`，无控制台时从私有runtime.json取本次地址。Windows Node读取WSL UNC路径失败时可从stdin检查同一脚本，见前端质量规范。
+Windows使用 `.venv\Scripts\python.exe`。开发/测试必须指定隔离data-dir。`--port 0` 自动选择新服务端口，复用已有实例时沿用原端口；不加 `--no-browser` 自动开浏览器。`--no-tray` 用于无桌面的命令行运行，`--no-browser` 本身不会关闭 Windows 托盘。控制台输出 `AHA_URL=...`，无控制台时从私有runtime.json取本次地址。Windows Node读取WSL UNC路径失败时可从stdin检查同一脚本，见前端质量规范。
 
 ## 可复现规模验证
 
