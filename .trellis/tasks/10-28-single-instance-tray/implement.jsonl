@@ -1,9 +1,0 @@
-{"file":".trellis/spec/backend/index.md","reason":"后端层边界和本机工具约束"}
-{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"保持 CLI、资料隔离、HTTP 认证和有限同步，按批准增量增加托盘"}
-{"file":".trellis/spec/backend/directory-structure.md","reason":"生命周期留在入口与运行模块，不侵入 Store 和核算"}
-{"file":".trellis/spec/backend/error-handling.md","reason":"启动和退出的安全中文反馈"}
-{"file":".trellis/spec/backend/logging-guidelines.md","reason":"私有 runtime 和按本次身份清理，不记录凭证"}
-{"file":".trellis/spec/frontend/local-web-contract.md","reason":"页面同步去重、多标签和退出边界"}
-{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"CLI、服务、页面、托盘和打包的跨层生命周期"}
-{"file":".trellis/tasks/10-28-single-instance-tray/research/runtime-lifecycle.md","reason":"源码与官方 API 依据、兼容边界和技术取舍"}
-{"file": ".trellis/spec/backend/runtime-lifecycle-contract.md", "reason": "已实现的实例身份、运行锁与统一退出可执行契约"}

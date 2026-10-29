@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "跨进程、HTTP/CLI 退出与 Windows 发布门禁"}
+{"file": ".trellis/spec/backend/usage-evidence-contract.md", "reason": "复核只读来源、业务资料不变、有限同步与 HTTP 安全"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "失败保留资料，不复用未确认身份的服务"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "runtime 归属和凭证零公开记录"}
+{"file": ".trellis/spec/frontend/local-web-contract.md", "reason": "重开、多标签、Cookie 与退出状态"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "真实浏览器/Windows 成品，不用 mock 或历史验收替代"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "所有入口到完整清理的跨层资源所有权"}
+{"file": ".trellis/tasks/archive/2026-10/10-28-single-instance-tray/research/runtime-lifecycle.md", "reason": "API 限制、旧版兼容与 OneFile 服务数口径"}
+{"file": ".trellis/spec/backend/runtime-lifecycle-contract.md", "reason": "检查新协议、错误矩阵、托盘所有权和真实验收边界"}

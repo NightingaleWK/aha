@@ -1,0 +1,38 @@
+{
+  "id": "single-instance-tray",
+  "name": "single-instance-tray",
+  "title": "单实例重开与 Windows 托盘退出",
+  "description": "同一资料目录复用既有服务，重复双击找回页面，托盘提供打开与完整退出入口，并支持异常恢复。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "runtime",
+  "package": null,
+  "priority": "P1",
+  "creator": "NightingaleWK",
+  "assignee": "NightingaleWK",
+  "createdAt": "2026-10-28",
+  "completedAt": "2026-10-29",
+  "branch": "codex/single-instance-tray",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": "6fa4ee16658f389661e187f5f64732563331daae",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/tasks/archive/2026-10/10-28-single-instance-tray/prd.md",
+    ".trellis/tasks/archive/2026-10/10-28-single-instance-tray/design.md",
+    ".trellis/tasks/archive/2026-10/10-28-single-instance-tray/implement.md",
+    ".trellis/tasks/archive/2026-10/10-28-single-instance-tray/verification.md",
+    ".trellis/tasks/archive/2026-10/10-28-single-instance-tray/commit-plan.md",
+    ".trellis/tasks/archive/2026-10/10-28-single-instance-tray/research/final-check.md"
+  ],
+  "notes": "2026-10-29 用户明确要求“提交，合并main，归档”。工作提交 6fa4ee1，本地 main 已快进，开发分支保留，未推送。双平台检查与两种 Windows 成品自动流程已通过；AC4 实际鼠标展开托盘菜单/点击受 Computer Use 初始化故障限制，仍未验收，不记为通过，也不将归档指令解释为实际测试或明确豁免。按用户指令归档收尾，详见 verification.md。",
+  "meta": {
+    "archive_requested_at": "2026-10-29",
+    "unverified_acceptance": [
+      "AC4 实际鼠标展开托盘菜单/点击"
+    ]
+  }
+}
