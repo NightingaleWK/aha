@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 4
-- **Last Active**: 2026-10-28
+- **Total Sessions**: 5
+- **Last Active**: 2026-10-29
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~141 | Active |
+| `journal-1.md` | ~163 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 5 | 2026-10-29 | 单实例重开与 Windows 托盘退出收尾 | `6fa4ee1` | `main` |
 | 4 | 2026-10-28 | Codex 本地用量台账交付与试用重建 | `559fcbc8a93227fa097d074ca92734e41ea3bf9b` | `codex/local-usage-ledger` |
 | 3 | 2026-10-28 | 完成项目规范校准与双任务归档 | `5690e0b50cf7e73b12fdffb83a74867092fc3d7d` | `main` |
 | 2 | 2026-10-27 | 交付 aha v0.2.0 并合并 main | `1174db5ceb9cb9e8c5da18c63e31628bd7dc5218` | `main` |
