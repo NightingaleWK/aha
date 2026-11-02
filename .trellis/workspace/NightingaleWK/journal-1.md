@@ -347,3 +347,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 12: 修复真实机器人PR的组件分支识别
+<!-- trellis-session: v=2 fp=4e6d1dd61a7d5cea -->
+
+**Date**: 2026-11-02
+**Task**: 修复真实机器人PR的组件分支识别
+**Branch**: `main`
+
+### Summary
+
+用户开启Actions创建PR权限后真实生成0.4.0发布PR#2，发现原身份判断错误假设无组件分支。共享精确组件分支/同仓库/main/bot校验，保留已合并与标签门禁，真实输出正例及8类拒绝回归；实施与独立28项发布回归、Ruff、strict mypy及发布校验通过。更新规范及一次性设置排障，用户说明预览字节不变；不改桌面或构建。经修复PR检查合回main后清理临时分支；PR#2及首次真实候选验收仍待审，任务不归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f2b8ab0c461b05f6bd3a35b78825a3304ae0b417` | fix: 对齐 Release Please 组件分支身份 |
+
+### Status
+
+[OK] **Completed**

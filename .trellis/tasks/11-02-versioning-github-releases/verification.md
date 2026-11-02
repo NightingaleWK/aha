@@ -92,3 +92,13 @@ OneFile为11,744,925字节。Windows桌面接口确认交付位置为用户实�
 全部7个本地功能分支的提交均已被main完整包含，核对唯一worktree、空stash及分支归属后使用普通-d删除；远端仅删除已合并且HEAD仍为d1fcacf的设置分支。8个历史任务原本都已归档，没有漏归档的已完成任务。本任务首次发布验收尚缺，继续in_progress，当前跟进分支改为main，保留历史实施分支及合并SHA。AC13实际评估与选项已在对话交付，标记完成。
 
 本轮只做Git及任务记录收尾，未修改产品或构建源码；桌面EXE校验仍为c26a62b20f01c5eb0389fb43b0fffcfc63934c5478d0b58f238aa5d08ea862f8，无需重建。main合入触发的真实发布编排及后续发布PR状态单独核对，未合并发布PR或公开Release。
+
+## 首次机器人PR的真实运行发现
+
+主分支23977da的运行41411472858通过Windows质量与候选发现，在准备作业125167745818被仓库一次性设置拒绝创建PR。用户已明确回复“已开启并保存”Allow GitHub Actions to create and approve pull requests；不要求个人令牌或扩大普通PR写权限。
+
+最新main589294b的运行41411679448也通过Windows质量检查，机器人成功创建0.4.0发布PR#2，证明创建权限已生效；随后准备作业125169742509在补写说明前报Refusing to update an untrusted release PR。真实API身份为github-actions[bot]、同仓库head、main目标，分支为release-please--branches--main--components--aha-usage；原代码错误地要求无组件的短分支名，原单元夹具也复用了该假设。
+
+跟进修复在codex/release-pr-branch-identity中将身份检查归于同一所有者，严格匹配真实组件分支，并使用实际输出格式补充接受/拒绝回归；规范同步记录分支名与标签配置的区别。该修复仅涉及发布维护脚本，不进入桌面EXE。发布PR#2保持未合并，首次物理托盘和确切云端候选验收仍未完成。
+
+实施代理和独立检查代理分别通过28项发布回归（9.988秒、9.831秒），Ruff、release.py strict mypy、WORKTREE相对origin/main的发布校验及diff检查均通过；身份负例无远端写入，正例检查生成说明并dispatch最终HEAD。新增文档2个本地链接与1个锚点有效。内部片段不进入用户栏目，重生成0.4.0用户说明与原预览逐字节一致，SHA256为28d664d72b156fd7ef563dac5710b5f52c4318ec69f8a75b7722257d63ece12d。代理专用缓存已清理。后续按已获授权经修复PR检查、合并和分支清理，真实运行状态留存本轮GitHub记录及安全证据目录。

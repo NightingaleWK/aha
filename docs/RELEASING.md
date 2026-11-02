@@ -128,6 +128,8 @@ main的push检查使用事件before SHA作为比较起点；手动运行或初�
 
 核对仓库 [Actions设置](https://github.com/NightingaleWK/aha/settings/actions)：允许本仓库工作流运行，允许使用固定的官方actions和Release Please，允许GitHub Actions创建PR。各job在YAML中按需申请权限，普通PR测试不拥有仓库写权限。
 
+如果日志显示 `GitHub Actions is not permitted to create or approve pull requests`，在上述页面的Workflow permissions中勾选“Allow GitHub Actions to create and approve pull requests”并保存。开启后让正在运行的下一次准备流程继续，或只重跑已失败的准备作业；成功的质量检查无需整轮重做。
+
 无需个人电脑常驻或预置个人访问令牌。默认GITHUB_TOKEN创建的机器人PR事件可能等待人工批准，所以流程在生成文件更新完后显式dispatch CI到最终HEAD；分支继续变化后旧成功结果无效。若配置必需检查，应在真实运行后选择正确的Windows quality检查，并确认它绑定最终HEAD，不通过取消保护规则绕过失败。
 
 设置PR和首次发布PR合并前，保留维护者审阅决定。真实GitHub检查、候选构建、人工验收和正式公开发布分开记录；仅本地测试通过不等于已验证整条远端链路。

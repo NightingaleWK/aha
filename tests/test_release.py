@@ -537,7 +537,7 @@ class ReleaseTest(unittest.TestCase):
             "base": {"ref": "main"},
             "head": {
                 "sha": self.source,
-                "ref": "release-please--branches--main",
+                "ref": "release-please--branches--main--components--aha-usage",
                 "repo": {"full_name": self.api.repo},
             },
             "user": {"login": "github-actions[bot]"},
@@ -559,26 +559,86 @@ class ReleaseTest(unittest.TestCase):
         with self.assertRaisesRegex(release.ReleaseError, "different"):
             release.discover(self.root, self.api)
 
+    def test_discover_accepts_configured_component_branch(self) -> None:
+        self.api.prs = [self.trusted_pr()]
+        candidate = release.discover(self.root, self.api)
+        self.assertEqual(candidate["source_sha"], self.source)
+        self.assertEqual(candidate["pr_number"], 3)
+        self.assertTrue(candidate["needs_build"])
+
+    def test_release_identity_rejects_lookalikes_before_preparation_writes(self) -> None:
+        cases = (
+            (("head", "ref"), "release-please--branches--main"),
+            (("head", "ref"), "release-please--branches--main--components--other"),
+            (("head", "ref"), "release-please--branches--main--components--aha-usage-copy"),
+            (("head", "ref"), "release-please--branches--other--components--aha-usage"),
+            (("head", "repo", "full_name"), "untrusted/aha"),
+            (("head", "repo"), None),
+            (("base", "ref"), "other"),
+            (("user", "login"), "untrusted-user"),
+        )
+        for path, value in cases:
+            with self.subTest(path=path, value=value):
+                pr = self.trusted_pr()
+                target = pr
+                for field in path[:-1]:
+                    target = target[field]
+                target[path[-1]] = value
+                self.assertFalse(release.trusted_pr(pr, self.api.repo))
+                self.api = FakeGitHub(self.source, [pr])
+                self.assertIsNone(release.discover(self.root, self.api))
+                pr.update(state="open", merged_at=None)
+                self.api.prs = [pr]
+                with self.assertRaisesRegex(release.ReleaseError, "untrusted release PR"):
+                    release.prepare_pr(self.root, self.api, [{"number": 3}])
+                self.assertFalse(any(method != "GET" for method, _, _ in self.api.calls))
+
+    def test_merged_candidate_still_requires_merge_and_release_labels(self) -> None:
+        for changes in ({"merged_at": None}, {"labels": []}):
+            with self.subTest(changes=changes):
+                pr = {**self.trusted_pr(), **changes}
+                self.assertTrue(release.release_pr_identity(pr, self.api.repo))
+                self.assertFalse(release.trusted_pr(pr, self.api.repo))
+                self.api.prs = [pr]
+                self.assertIsNone(release.discover(self.root, self.api))
+
     def test_prepare_dispatches_final_generated_head_and_preserves_tool_body(self) -> None:
         pr = self.trusted_pr()
-        pr.update(state="open", body="release-please identifying body")
+        pr.update(state="open", merged_at=None, body="release-please identifying body")
         self.api.prs = [pr]
         original = release.git
 
         def local_git(root: Path, *args: str, **kwargs: object) -> bytes:
             return b"" if args[0] == "fetch" else original(root, *args, **kwargs)
 
+        output = {
+            "headBranchName": "release-please--branches--main--components--aha-usage",
+            "baseBranchName": "main",
+            "number": 3,
+            "title": "chore(main): release 0.4.0",
+            "body": pr["body"],
+            "files": [],
+            "labels": ["autorelease: pending"],
+        }
         with patch.object(release, "git", side_effect=local_git):
-            release.prepare_pr(self.root, self.api, [{"number": 3}])
+            release.prepare_pr(self.root, self.api, [output])
         update = next(
             data
             for method, path, data in self.api.calls
             if method == "PATCH" and path == "/pulls/3"
         )
         self.assertIn("release-please identifying body", update["body"])
+        self.assertIn("What’s New", update["body"])
+        self.assertEqual(update["body"].count(release.NOTE_START), 1)
+        branch = "release-please--branches--main--components--aha-usage"
+        self.assertIn(
+            ("PATCH", f"/git/refs/heads/{branch}", {"sha": "c" * 40, "force": False}),
+            self.api.calls,
+        )
         dispatch = next(
             data for method, path, data in self.api.calls if path.endswith("/dispatches")
         )
+        self.assertEqual(dispatch["ref"], branch)
         self.assertEqual(dispatch["inputs"]["expected_sha"], "c" * 40)
 
     def test_failed_native_verifier_prevents_bundling(self) -> None:

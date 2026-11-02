@@ -1,0 +1,8 @@
+{
+  "id": "release-pr-identity",
+  "kind": "internal",
+  "title": "对齐发布机器人的分支身份",
+  "description": "修正发布准备、候选发现及标签恢复对 Release Please 组件分支的精确识别，保留同仓库、目标分支和机器人身份校验。",
+  "reason": "首次启用发布流水线时发现的内部编排修正；不改变桌面程序行为，版本化发布能力已由现有用户说明覆盖。",
+  "upgrade_notes": []
+}
