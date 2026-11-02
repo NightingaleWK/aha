@@ -11,7 +11,13 @@ from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from . import time_ranges
-from .domain import BEIJING, AppError, canonical_bytes, content_hash
+from .domain import (
+    BEIJING,
+    USAGE_PROJECTION_SCHEMA_VERSION,
+    AppError,
+    canonical_bytes,
+    content_hash,
+)
 
 if TYPE_CHECKING:
     from .storage import Store
@@ -465,7 +471,8 @@ def _analyze(
         "expected_generation": expected_generation,
         "expected_active_version": expected_active_version,
         "timezone": "Asia/Shanghai",
-        "schema_version": 23,
+        "schema_version": USAGE_PROJECTION_SCHEMA_VERSION,
+        "usage_projection_schema_version": USAGE_PROJECTION_SCHEMA_VERSION,
         "ledger_schema_version": 3,
         "source": {"kind": "ledger", "name": "本地台账"},
         **store.revisions(connection),

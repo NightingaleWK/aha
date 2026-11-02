@@ -1,10 +1,10 @@
-# aha · 用量与费用 v0.3.0
+# aha · 用量与费用 v0.3.1
 
 aha 是 Windows 本机 Codex 用量台账与报销材料工具。双击 `aha.exe` 后在浏览器使用，运行环境和 SQLite 均内置。CC Switch 的数据按记录长期保存在 aha 自己的数据库，查询和导出使用本地台账。
 
 ## 使用
 
-1. 每次打开程序自动同步一次 `%USERPROFILE%\.cc-switch\cc-switch.db`；也可点“立即同步”、填写其他 SQLite 路径或导入 SQL 备份。支持 CCS schema23，仅统计 `codex_session`。同步不要求抢在 CCS 前启动。
+1. 每次打开程序自动同步一次 `%USERPROFILE%\.cc-switch\cc-switch.db`；也可点“立即同步”、填写其他 SQLite 路径或导入 SQL 备份。SQLite 与 SQL 备份支持 CCS 结构版本 23、24，仅统计 `codex_session`。同步不要求抢在 CCS 前启动。
 2. 页面先显示已有本地资料。来源正忙、无法读取或同步失败时仍可查询旧资料，并显示上次成功时间；需要核对的来源变化单独提示。程序只在打开和手动操作时读取来源，没有周期采集、关闭后同步或开机自启。
 3. 在“项目管理”新建项目，绑定发现的工作目录或手填 Windows/Linux 路径。一个项目可绑定多个目录，更具体的目录优先；未匹配保持“未归属”，也可人工分配。
 4. 在“用量与费用”搜索选择项目，打开时间面板，可选当天、近24小时、近7/14/30天、本月或全部，也可用日历和时间输入精确到分钟。确认后直接更新预览，取消保留原结果。全部按北京时间，手动结束时间包含该分钟；勾选跟随当前时刻后，每次更新预览才推进结束时刻。明细、历史日汇总、每日和模型使用游标翻页，查询不依赖原 CCS 文件仍存在。
@@ -24,6 +24,8 @@ aha 是 Windows 本机 Codex 用量台账与报销材料工具。双击 `aha.exe
 旧备份的导入时间不代表数据更新。与已知记录冲突的备份保留候选，明确选择时填写原因；新旧key可能指向同一消费时按确认后的身份关联。只有历史日汇总就按该粒度保留，不编造明细或按比例补差。
 
 同步对 CCS 使用有界只读事务，包含已提交 WAL，也支持 DELETE 日志模式；遇锁冲突有限等待后失败，可稍后手动重试。不会修改 CCS 的索引、日志模式、数据、设置或 Codex 会话文件。
+
+来源结构版本与 aha 内部用量投影版本分别记录：每次成功读取的同步结果保留实际 CCS 结构版本；内部历史投影仍为 23，应用库仍为 schema3。未知 CCS 版本会明确提示实际版本和当前支持范围，不会忽略必要字段检查。新分析和材料通过 `usage_projection_schema_version` 标明内部投影版本；材料的旧兼容字段 `source_schema_version=23` 由 `source_schema_version_scope=normalized_usage_projection` 说明其含义，不代表所有历史记录都来自 CCS 23。旧投影未记录的真实来源版本保留未知，已有下载包保持原字节。
 
 ## 报销记录与冻结材料
 
@@ -106,4 +108,4 @@ $BuildPython = Join-Path $BuildRoot 'venv\Scripts\python.exe'
 
 ## 数据解释依据
 
-CCS 的 Token 语义、会话来源和历史日汇总行为参考 [farion1231/cc-switch 的固定提交 e55d8a21](https://github.com/farion1231/cc-switch/tree/e55d8a21b3897b595b746e9f2139716b2931641d)，上游采用 [MIT License](https://github.com/farion1231/cc-switch/blob/e55d8a21b3897b595b746e9f2139716b2931641d/LICENSE)。aha 为独立实现；没有复制上游配置、凭据或原始个人数据。金额沿用来源历史保存值，不按当前价格表重算。
+CCS 的 Token 语义、会话来源、历史日汇总和结构 23→24 兼容行为参考 [farion1231/cc-switch 的固定提交 c0189078](https://github.com/farion1231/cc-switch/tree/c0189078aacdd80fd2462f59b345f55f62b41cf2)，上游采用 [MIT License](https://github.com/farion1231/cc-switch/blob/c0189078aacdd80fd2462f59b345f55f62b41cf2/LICENSE)。aha 为独立实现；没有复制上游配置、凭据或原始个人数据。金额沿用来源历史保存值，不按当前价格表重算。

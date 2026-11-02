@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/index.md","reason":"后端职责、来源与本机交付入口"}
+{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"只读来源、语义、版本、同步原子性与冻结材料不变量"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"有界只读来源、SQLite 门禁和应用资料保护"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"安全错误与旧资料/成功进度保留"}
+{"file":".trellis/spec/backend/time-range-contract.md","reason":"材料保持既有时间合同"}
+{"file":".trellis/spec/backend/delivery-and-cleanup.md","reason":"Windows 桌面单文件与任务环境清理"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"核对来源、同步、查询与材料的版本区分"}
+{"file":".trellis/tasks/11-02-ccs-schema-compatibility/research/compatibility-findings.md","reason":"本机版本、上游迁移和最小兼容影响面证据"}

@@ -2,7 +2,7 @@
 
 ## 1. 范围与触发条件
 
-修改来源、SQLite、查询、归属、报销、HTTP 或 Windows 打包时阅读。aha v0.3.0 是本机 Python3.12+ 工具；CCS 是只读输入，业务只访问 Store 的本地台账。实际 SQLite 必须通过 `migrations.sqlite_wal_safe`，不能仅凭 Python 版本启用多连接 WAL。
+修改来源、SQLite、查询、归属、报销、HTTP 或 Windows 打包时阅读。aha v0.3.1 是本机 Python3.12+ 工具；CCS 是只读输入，业务只访问 Store 的本地台账。实际 SQLite 必须通过 `migrations.sqlite_wal_safe`，不能仅凭 Python 版本启用多连接 WAL。
 
 ## 2. 签名与资料边界
 
@@ -28,7 +28,7 @@ Store.create_batch(analysis, claim, idempotency_key, batch_id=None, **kwargs)
 Store.download(batch_id, version) -> tuple[Path, str]
 ```
 
-CCS schema23 与应用 schema3 独立。新库显式创建，旧 schema1/2 或未知资料拒绝自动打开/升级；试用资料经单独清单工具保全历史用量后重建，不接续旧报销。Windows 默认 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。开发测试必须独立 data-dir。
+CCS 外部结构版本 23、24，内部用量投影版本 23，与应用 schema3 独立；来源观测、兼容边界和材料字段见 [CCS 来源兼容](./ccs-source-compatibility.md)。新库显式创建，旧 schema1/2 或未知资料拒绝自动打开/升级；试用资料经单独清单工具保全历史用量后重建，不接续旧报销。Windows 默认 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。开发测试必须独立 data-dir。
 
 CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`；同目录单实例，复用不新增启动同步。runtime.json 含本次 PID/run_id/私有启动地址，不能加入材料或公开记录；持久锁文件退出后保留。详见 [实例与生命周期契约](./runtime-lifecycle-contract.md)。
 

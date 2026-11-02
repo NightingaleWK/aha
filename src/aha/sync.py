@@ -15,6 +15,8 @@ from uuid import uuid4
 from . import ledger, session_meta, sources
 from .domain import (
     MAX_ROWS,
+    SUPPORTED_CCS_SCHEMA_VERSIONS,
+    USAGE_PROJECTION_SCHEMA_VERSION,
     AppError,
     content_hash,
     normalize_row,
@@ -558,10 +560,14 @@ def _publish(
             connection.execute(
                 "UPDATE settings SET value=CAST(value AS INTEGER)+1 WHERE key='data_revision'"
             )
+        source_version = source.get("source_schema_version")
         result = {
             **counts,
             "observed": dict(stager.counts),
             "source_fingerprint": source.get("fingerprint"),
+            "source_schema_version": source_version
+            if type(source_version) is int and source_version in SUPPORTED_CCS_SCHEMA_VERSIONS
+            else None,
             "metadata_errors": metadata.get("errors", []),
             "timings_ms": stager.timings,
         }
@@ -652,8 +658,11 @@ def sync_data(
     startup_id: str | None = None,
     cancel: threading.Event | None = None,
 ) -> dict[str, Any]:
-    if data.get("schema_version") != 23:
-        raise AppError("unsupported_schema", "仅支持结构版本 23 的用量来源。")
+    if data.get("schema_version") != USAGE_PROJECTION_SCHEMA_VERSION:
+        raise AppError(
+            "unsupported_schema",
+            f"历史用量投影格式不受支持；需要格式版本 {USAGE_PROJECTION_SCHEMA_VERSION}。",
+        )
     source = {"kind": "history", "name": "历史用量", **data.get("source", {})}
 
     def read(stager: _Stager) -> dict[str, Any]:

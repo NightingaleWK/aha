@@ -20,7 +20,7 @@ from aha.domain import (
     record_key,
     row_fingerprint,
 )
-from aha.sources import TABLE_FIELDS, load_sqlite
+from aha.sources import TABLE_FIELDS, load_sqlite, scan_sqlite
 from aha.sql_dump import load_sql_dump
 
 
@@ -93,9 +93,12 @@ def dump(
     details: list[dict[str, Any]] | None = None,
     rollups: list[dict[str, Any]] | None = None,
     pricing: list[dict[str, Any]] | None = None,
+    *,
+    version: int = 23,
 ) -> bytes:
     parts = [
-        "-- CC Switch backup\n-- user_version: 23\nPRAGMA foreign_keys=OFF;\nBEGIN TRANSACTION;"
+        f"-- CC Switch backup\n-- user_version: {version}\n"
+        "PRAGMA foreign_keys=OFF;\nBEGIN TRANSACTION;"
     ]
     values = {
         "proxy_request_logs": details or [],
@@ -118,9 +121,11 @@ def dump(
     return "\n".join(parts).encode("utf-8")
 
 
-def database(path: Path, rows: list[dict[str, Any]] | None = None) -> sqlite3.Connection:
+def database(
+    path: Path, rows: list[dict[str, Any]] | None = None, *, version: int = 23
+) -> sqlite3.Connection:
     connection = sqlite3.connect(path)
-    connection.execute("PRAGMA user_version=23")
+    connection.execute(f"PRAGMA user_version={version}")
     for table, fields in TABLE_FIELDS.items():
         # No affinity lets these fixtures exercise actual integer/text distinctions.
         connection.execute(f'CREATE TABLE "{table}" (' + ",".join(f'"{f}"' for f in fields) + ")")
@@ -202,9 +207,10 @@ class SqlDumpTests(unittest.TestCase):
     def test_version_declarations_are_real_comments_or_literal_pragma(self) -> None:
         raw = dump([detail()])
         for modified in (
-            raw.replace(b"user_version: 23", b"user_version: 24"),
+            raw.replace(b"user_version: 23", b"user_version: 25"),
             raw.replace(b"-- user_version: 23", b""),
             raw + b"\nPRAGMA user_version=22;",
+            raw + b"\nPRAGMA user_version=24;",
             raw.replace(
                 b"-- user_version: 23",
                 b"INSERT INTO settings(k,v) VALUES ('x','-- user_version: 23');",
@@ -217,6 +223,34 @@ class SqlDumpTests(unittest.TestCase):
             raw.replace(b"-- user_version: 23", b"PRAGMA user_version=23;"), "x.sql"
         )
         self.assertEqual(result["schema_version"], 23)
+
+    def test_supported_versions_share_projection_and_record_actual_source_version(self) -> None:
+        original = [detail(input_token_semantics=value, request_id=f"r{value}")
+                    for value in range(3)]
+        projected = []
+        for version in (23, 24):
+            for declaration in ("comment", "pragma"):
+                with self.subTest(version=version, declaration=declaration):
+                    raw = dump(original, [rollup()], [price()], version=version)
+                    if declaration == "pragma":
+                        raw = raw.replace(
+                            f"-- user_version: {version}".encode(),
+                            f"PRAGMA user_version={version};".encode(),
+                        )
+                    with patch("sqlite3.connect", side_effect=AssertionError("must not execute")):
+                        result = load_sql_dump(raw, "versions.sql")
+                    self.assertEqual(result["schema_version"], 23)
+                    self.assertEqual(result["source"]["source_schema_version"], version)
+                    projected.append({key: result[key] for key in
+                                      ("schema_version", "details", "rollups", "pricing")})
+        self.assertTrue(all(value == projected[0] for value in projected))
+
+    def test_unknown_version_reports_actual_version_and_supported_range(self) -> None:
+        with self.assertRaises(AppError) as error:
+            load_sql_dump(dump([detail()], version=25), "versions.sql")
+        self.assertEqual(error.exception.code, "unsupported_schema")
+        self.assertIn("25", error.exception.message)
+        self.assertIn("23、24", error.exception.message)
 
     def test_missing_columns_malformed_values_and_truncation_fail(self) -> None:
         raw = dump([detail()])
@@ -339,13 +373,57 @@ class SqliteSourceTests(unittest.TestCase):
         for key in ("details", "rollups", "pricing"):
             self.assertEqual(left[key], right[key])
 
+    def test_23_to_24_keeps_projection_identity_and_both_fingerprints(self) -> None:
+        connection = database(self.path, [detail()])
+        self.addCleanup(connection.close)
+        original = load_sqlite(self.path)
+        streamed = scan_sqlite(self.path, lambda table, row: None)
+        connection.execute("PRAGMA user_version=24")
+        connection.commit()
+        before = hashlib.sha256(self.path.read_bytes()).hexdigest()
+        upgraded = load_sqlite(self.path)
+        streamed_after = scan_sqlite(self.path, lambda table, row: None)
+        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(), before)
+        self.assertEqual(original["source"]["source_schema_version"], 23)
+        self.assertEqual(upgraded["source"]["source_schema_version"], 24)
+        self.assertEqual(upgraded["schema_version"], 23)
+        for key in ("schema_version", "details", "rollups", "pricing"):
+            self.assertEqual(upgraded[key], original[key])
+        self.assertEqual(upgraded["source"]["fingerprint"], original["source"]["fingerprint"])
+        self.assertEqual(streamed_after["fingerprint"], streamed["fingerprint"])
+        self.assertEqual(record_key(upgraded["details"][0]), record_key(original["details"][0]))
+        self.assertEqual(
+            row_fingerprint(upgraded["details"][0]), row_fingerprint(original["details"][0])
+        )
+
+    def test_unknown_versions_fail_before_projecting_and_keep_field_checks(self) -> None:
+        connection = database(self.path, [detail()])
+        self.addCleanup(connection.close)
+        for version in (0, 22, 25):
+            with self.subTest(version=version):
+                connection.execute(f"PRAGMA user_version={version}")
+                connection.commit()
+                projected = []
+                with self.assertRaises(AppError) as error:
+                    scan_sqlite(self.path, lambda table, row: projected.append((table, row)))
+                self.assertEqual(error.exception.code, "unsupported_schema")
+                self.assertIn(str(version), error.exception.message)
+                self.assertIn("23、24", error.exception.message)
+                self.assertEqual(projected, [])
+        connection.execute("PRAGMA user_version=24")
+        connection.execute("ALTER TABLE proxy_request_logs RENAME COLUMN input_tokens TO wrong")
+        connection.commit()
+        with self.assertRaises(AppError) as error:
+            load_sqlite(self.path)
+        self.assertEqual(error.exception.code, "incompatible_schema")
+
     def test_invalid_database_missing_table_version_and_float_money(self) -> None:
         for action in ("version", "table", "float"):
             with self.subTest(action=action):
                 path = Path(self.temporary.name, action + ".sqlite")
                 connection = database(path, [detail()])
                 if action == "version":
-                    connection.execute("PRAGMA user_version=24")
+                    connection.execute("PRAGMA user_version=25")
                 elif action == "table":
                     connection.execute("DROP TABLE usage_daily_rollups")
                 else:

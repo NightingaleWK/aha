@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import sqlite3
 import tempfile
 import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
-from test_sources import database
+from test_sources import database, dump
 from test_storage_helpers import claim, detail, metadata, rollup, source_data
 
 from aha.domain import AppError, record_key
@@ -44,6 +46,79 @@ class LedgerStorageTests(unittest.TestCase):
             self.assertEqual(db.execute("SELECT COUNT(*) FROM usage_versions").fetchone()[0], 1)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM sync_stage").fetchone()[0], 0)
         self.assertEqual(self.query()["summary"]["total_cost_usd"], "0.1234567")
+
+    def test_schema_upgrade_keeps_identity_assignment_claims_and_package(self) -> None:
+        path = self.root / "synthetic-source.sqlite"
+        connection = database(path, [detail()])
+        connection.close()
+        roots = [self.root / "isolated-codex"]
+        first = self.store.sync_sqlite(path, roots)
+        self.assertEqual(first["source_schema_version"], 23)
+        project = self.store.save_project(None, "兼容验证项目", "", ["/work/compat"])["project"]
+        self.store.assign_keys([record_key(detail())], project["id"])
+        batch = self.store.create_batch(self.query(), claim(), "before-source-upgrade")
+        package, _ = self.store.download(batch["id"], batch["version"])
+        package_sha = hashlib.sha256(package.read_bytes()).hexdigest()
+        with self.store.read_connection() as db:
+            before = tuple(db.execute(
+                "SELECT record_key,content_hash,project_id,assignment_origin FROM usage_records"
+            ).fetchone())
+        with closing(sqlite3.connect(path)) as connection:
+            connection.execute("PRAGMA user_version=24")
+            connection.commit()
+        upgraded = self.store.sync_sqlite(path, roots)
+        self.assertEqual(upgraded["source_schema_version"], 24)
+        self.assertEqual(upgraded["new_count"], 0)
+        self.assertEqual(upgraded["revised_count"], 0)
+        self.assertEqual(upgraded["unchanged_count"], 1)
+        self.assertEqual(self.query()["summary"]["record_count"], 0)
+        with self.store.read_connection() as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM usage_records").fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM usage_versions").fetchone()[0], 1)
+            self.assertEqual(tuple(db.execute(
+                "SELECT record_key,content_hash,project_id,assignment_origin FROM usage_records"
+            ).fetchone()), before)
+        original, _ = self.store.download(batch["id"], batch["version"])
+        self.assertEqual(hashlib.sha256(original.read_bytes()).hexdigest(), package_sha)
+        self.store.close()
+        self.store = Store(self.root)
+        self.assertEqual(self.store.sync_status(upgraded["id"])["source_schema_version"], 24)
+        self.assertEqual(self.store.sync_status(first["id"])["source_schema_version"], 23)
+
+    def test_sql24_failure_and_unknown_sql_version_do_not_publish_staged_rows(self) -> None:
+        initial = self.store.sync_sql(dump([detail()], version=24), "usage.sql", [])
+        self.assertEqual(initial["source_schema_version"], 24)
+        before = self.store.ledger_status()
+        for raw, code in (
+            (dump([detail("new")], version=25), "unsupported_schema"),
+            (dump([detail("new"), detail("invalid", input_tokens=-1)], version=24),
+             "invalid_number"),
+            (dump([detail("new")], version=24) + b"\nPRAGMA user_version=23;",
+             "unsupported_schema"),
+        ):
+            with self.subTest(code=code), self.assertRaises(AppError) as error:
+                self.store.sync_sql(raw, "usage.sql", [])
+            self.assertEqual(error.exception.code, code)
+            after = self.store.ledger_status()
+            self.assertEqual(after["counts"], before["counts"])
+            self.assertEqual(after["data_revision"], before["data_revision"])
+            self.assertEqual(after["last_successful_sync_at"], before["last_successful_sync_at"])
+            with self.store.read_connection() as db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM sync_stage").fetchone()[0], 0)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM usage_versions").fetchone()[0], 1)
+
+    def test_legacy_projection_without_source_version_stays_unknown(self) -> None:
+        data = source_data()
+        self.assertEqual(data["schema_version"], 23)
+        result = self.store.sync_data(data, metadata())
+        self.assertIsNone(result["source_schema_version"])
+        bad = {**data, "schema_version": 24}
+        with self.assertRaises(AppError) as error:
+            self.store.sync_data(bad, metadata())
+        self.assertEqual(error.exception.code, "unsupported_schema")
+        self.assertIn("投影", error.exception.message)
+        self.assertEqual(self.store.ledger_status()["counts"]["detail_count"], 1)
 
     def test_live_revision_preserves_old_fact_and_old_preview_expires(self) -> None:
         self.store.sync_data(source_data(), metadata(), trust="live")

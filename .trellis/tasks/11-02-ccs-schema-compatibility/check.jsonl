@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"回归、双平台与原生成品质量门禁"}
+{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"版本与来源只读、历史和冻结证据完整性"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"事务与失败路径、WAL/DELETE 边界"}
+{"file":".trellis/spec/backend/error-handling.md","reason":"版本错误清晰且不泄露私有内容"}
+{"file":".trellis/spec/backend/time-range-contract.md","reason":"新旧冻结材料兼容及时间口径"}
+{"file":".trellis/spec/backend/delivery-and-cleanup.md","reason":"Directory、OneFile、实际桌面验收和临时资源收尾"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"防止把源版本与内部投影混用"}
+{"file":".trellis/tasks/11-02-ccs-schema-compatibility/research/compatibility-findings.md","reason":"独立核对根因与有限兼容证据"}
