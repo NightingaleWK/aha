@@ -1,0 +1,8 @@
+{
+  "id": "rebuild-protected-paths",
+  "kind": "fix",
+  "title": "加强试用资料重建的目录保护",
+  "description": "手动重建试用资料时，使用等价路径写法也能正确识别保护目录，并在备份或清理前拒绝操作。",
+  "highlight": false,
+  "upgrade_notes": []
+}

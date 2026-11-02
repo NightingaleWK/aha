@@ -17,12 +17,12 @@ from .domain import (
     MAX_ROWS,
     PRICING_FIELDS,
     ROLLUP_FIELDS,
-    SCHEMA_VERSION,
     AppError,
     build_source_data,
     canonical_bytes,
     content_hash,
     source_name,
+    validate_ccs_schema_version,
 )
 
 SNAPSHOT_TIMEOUT = 5.0
@@ -34,9 +34,8 @@ TABLE_FIELDS = {
 }
 
 
-def _validate_schema(connection: sqlite3.Connection) -> None:
-    if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
-        raise AppError("unsupported_schema", "仅支持 CC Switch 结构版本 23。")
+def _validate_schema(connection: sqlite3.Connection) -> int:
+    version = validate_ccs_schema_version(connection.execute("PRAGMA user_version").fetchone()[0])
     tables = {
         row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
     }
@@ -46,6 +45,7 @@ def _validate_schema(connection: sqlite3.Connection) -> None:
         columns = {row[1] for row in connection.execute(f'PRAGMA table_info("{table}")')}
         if not set(fields).issubset(columns):
             raise AppError("incompatible_schema", "来源缺少必要用量字段。")
+    return version
 
 
 def scan_sqlite(
@@ -84,7 +84,7 @@ def scan_sqlite(
             connection.set_progress_handler(progress, 1000)
             connection.execute("BEGIN")
             try:
-                _validate_schema(connection)
+                source_version = _validate_schema(connection)
                 filters = {
                     "proxy_request_logs": "WHERE app_type='codex' AND data_source='codex_session'",
                     "usage_daily_rollups": ("WHERE app_type='codex' "
@@ -132,6 +132,7 @@ def scan_sqlite(
             "fingerprint_kind": "allowed_projection_stream_sha256",
             "fingerprint": digest.hexdigest(),
             "observed_at": observed,
+            "source_schema_version": source_version,
         }
     except AppError:
         raise

@@ -61,7 +61,8 @@ def protected_paths(paths: list[Path]) -> list[Path]:
 
 
 def ensure_not_protected(path: Path, protected: list[Path]) -> None:
-    if any(inside(path.resolve(), source) or path.resolve() == source for source in protected):
+    selected = path.resolve()
+    if any(inside(selected, source.resolve()) for source in protected):
         raise ValueError("A selected path belongs to protected CCS source data.")
 
 
@@ -124,7 +125,7 @@ def assert_trial_database(root: Path) -> None:
 def process_alive(pid: int) -> bool:
     if pid <= 0:
         raise ValueError("Invalid process identifier in the launch descriptor.")
-    if os.name == "nt":
+    if sys.platform == "win32":
         import ctypes
         from ctypes import wintypes
 

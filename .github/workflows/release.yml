@@ -1,0 +1,153 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# GitHub may replace pending runs. Each run rescans merged/unpublished release PRs.
+concurrency:
+  group: aha-main-release
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      source_sha: ${{ github.sha }}
+      base_sha: ${{ github.event_name == 'push' && github.event.before || '' }}
+      build: false
+  inspect:
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      has_candidate: ${{ steps.find.outputs.has_candidate }}
+      source_sha: ${{ steps.find.outputs.source_sha }}
+      previous_sha: ${{ steps.find.outputs.previous_sha }}
+      needs_build: ${{ steps.find.outputs.needs_build }}
+      recovery_run_id: ${{ steps.find.outputs.recovery_run_id }}
+      recovery_artifact: ${{ steps.find.outputs.recovery_artifact }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.15.2'
+      - name: Find earliest merged, unpublished release
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/release.py discover --output candidate.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.find.outputs.has_candidate == 'true'
+        with:
+          name: aha-candidate-${{ github.run_id }}
+          path: candidate.json
+          if-no-files-found: error
+          retention-days: 14
+  build:
+    needs: inspect
+    if: needs.inspect.outputs.has_candidate == 'true' && needs.inspect.outputs.needs_build == 'true'
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      source_sha: ${{ needs.inspect.outputs.source_sha }}
+      base_sha: ${{ needs.inspect.outputs.previous_sha }}
+      build: true
+      candidate_artifact: aha-candidate-${{ github.run_id }}
+  candidate:
+    needs: [inspect, build]
+    if: >-
+      always() && needs.inspect.result == 'success' &&
+      needs.inspect.outputs.has_candidate == 'true' &&
+      (needs.build.result == 'success' ||
+       (needs.build.result == 'skipped' && needs.inspect.outputs.needs_build == 'false'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      actions: read
+    outputs:
+      state: ${{ steps.stage.outputs.state }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.15.2'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: aha-candidate-${{ github.run_id }}
+          path: candidate
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.inspect.outputs.needs_build == 'true'
+        with:
+          name: ${{ needs.build.outputs.asset_artifact }}
+          path: release-assets
+      - name: Recover original bytes after interrupted upload
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: needs.inspect.outputs.recovery_run_id != ''
+        with:
+          name: ${{ needs.inspect.outputs.recovery_artifact }}
+          run-id: ${{ needs.inspect.outputs.recovery_run_id }}
+          github-token: ${{ github.token }}
+          path: release-assets
+      - name: Verify draft assets and publish only after applicable acceptance
+        id: stage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS_BUILD: ${{ needs.inspect.outputs.needs_build }}
+          RECOVERY_RUN_ID: ${{ needs.inspect.outputs.recovery_run_id }}
+        run: |
+          if [ "$NEEDS_BUILD" = true ] || [ -n "$RECOVERY_RUN_ID" ]; then
+            python scripts/release.py stage --candidate candidate/candidate.json --assets release-assets
+          else
+            python scripts/release.py stage --candidate candidate/candidate.json
+          fi
+  prepare:
+    needs: [inspect, candidate]
+    if: >-
+      always() && needs.inspect.result == 'success' &&
+      (needs.inspect.outputs.has_candidate == 'false' ||
+       needs.candidate.outputs.state == 'published' ||
+       needs.candidate.outputs.state == 'already_published')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.15.2'
+      - name: Reconcile a published version after interrupted label update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/release.py reconcile
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          token: ${{ github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: main
+          skip-github-release: true
+      - name: Prepare reviewed Chinese notes and dispatch final HEAD CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PRS: ${{ steps.release.outputs.prs }}
+        run: python scripts/release.py prepare-pr

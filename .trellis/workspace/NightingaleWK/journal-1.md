@@ -200,3 +200,127 @@
 
 - 验收记录位于.trellis/tasks/archive/2026-10/10-29-form-time-filter/research/verification.md；仅本地提交，未发布OneFile或替换用户资料。
 - 既有超过2^53的JSON Token页面精度问题已记录，需独立确定跨层大整数合同；本任务材料仍保留精确值。
+
+
+## Session 7: 修复 CCS 24 同步兼容并交付 aha 0.3.1
+<!-- trellis-session: v=2 fp=7f993a3b191a43db -->
+
+**Date**: 2026-11-02
+**Task**: 修复 CCS 24 同步兼容并交付 aha 0.3.1
+**Branch**: `codex/ccs-schema-compatibility`
+
+### Summary
+
+兼容 CCS 23/24，保持内部投影23和应用schema3；完成真实来源与旧资料副本验证、原生Directory/OneFile和实际交付位置验收，清理530.4MiB任务文件，按用户授权本地提交并归档。
+
+### Main Changes
+
+- 记录实际外部来源版本，明确分析与材料的内部投影作用域，保留身份、内容指纹、归属、占用及旧包字节。
+- 成品0.3.1交付后现位于 D:\Program Files\aha-0.6.0\aha.exe；运行文件SHA与验收OneFile一致，未干预用户在用实例。
+- 任务已归档至 .trellis/tasks/archive/2026-11/11-02-ccs-schema-compatibility；必要私有验收证据保留，任务环境、隔离库和构建中间物已清理。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fa4ec9327592ccb48b27ed3c744d0751b44dd0df` | fix: 兼容 CCS 24 同步并交付 aha 0.3.1 |
+
+### Testing
+
+- [OK] Linux211项OK、跳过2；Windows211项OK、跳过1；双平台Ruff、strict mypy22模块、compileall及独立检查通过。
+- [OK] Directory、OneFile和桌面副本各8组Edge流程通过；Excel显式UTF-8/逗号导入与A4 PDF检查通过；实际OneFile读CCS24完成，来源忙的有限手动重试验证通过。
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 8: 版本管理与自动发版设置 PR
+<!-- trellis-session: v=2 fp=9f12432e5c7e5f14 -->
+
+**Date**: 2026-11-02
+**Task**: 版本管理与自动发版设置 PR
+**Branch**: `codex/versioning-github-releases`
+
+### Summary
+
+建立单一版本、Release Please发布PR、中文What’s New、Windows自动检查和草稿发布门禁；设置PR#1已创建，保留main/正式发布审阅。
+
+### Main Changes
+
+- 源码与桌面OneFile一致，已完成Directory/OneFile/桌面/浏览器/Excel/A4 PDF验证，任务临时环境与缓存已清理。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3437e2cee0d96735fd378b8a51c2b46bbe841516` | feat: 建立版本管理与 GitHub 自动发版 |
+| `eacf4d601e2b3e1b3b48a6af7ff788abdac476d9` | docs: 记录自动发版规划与本机验收 |
+
+### Testing
+
+- [OK] Windows完整245项通过，最新发布回归及新增原生测试、Linux25发布回归、Ruff/strict mypy/actionlint/JS检查通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 审阅设置PR#1，核对最新GitHub CI；合入后验证机器人发布PR和首次云端构建，补物理托盘及确切候选回执，任务未归档。
+
+
+## Session 9: 修复真实云端CI发现的保护路径缺口
+<!-- trellis-session: v=2 fp=b95355a438a379e7 -->
+
+**Date**: 2026-11-02
+**Task**: 修复真实云端CI发现的保护路径缺口
+**Branch**: `codex/versioning-github-releases`
+
+### Summary
+
+真实GitHub Windows247项仅保护路径用例失败；双边resolve修复保护原语，新增等价路径拒绝及文件不变回归，保留原有断言。
+
+### Main Changes
+
+- 只改独立重建维护脚本/测试及说明，最终EXE打包源指纹未变。额外最小环境和专用缓存清理26,071,768字节。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `95cc15f1d7af074194131209839de55a0a13e548` | fix: 规范化试用重建的保护路径并补充回归 |
+
+### Testing
+
+- [OK] 完整16项原生Windows重建测试通过（1权限skip），相关Linux3项及该脚本Linux/Windows目标strict mypy、Ruff通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 推送同一设置PR#1并核对新HEAD的真实CI；main/正式发布仍待审阅和首次验收。
+
+
+## Session 10: 建立任务收尾的发版评估与用户选择
+<!-- trellis-session: v=2 fp=04bed1ff6d56ba61 -->
+
+**Date**: 2026-11-02
+**Task**: 建立任务收尾的发版评估与用户选择
+**Branch**: `codex/versioning-github-releases`
+
+### Summary
+
+补充R13/AC13，将每项任务收尾的发版建议、累计待发版本、中文说明、验收缺口与用户选择写入AGENTS、交付规范、发布合同和维护说明；独立文档审查21个链接及2个锚点通过。此次仅文档无需单独升号，首版仍拟0.4.0且尚缺物理托盘与确切云端候选验收；保留发布审阅决定，任务不归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f2b0bccff6f518bb93afd74b58bcd924031d0801` | docs: 规范任务收尾的发版评估与选择 |
+
+### Status
+
+[OK] **Completed**

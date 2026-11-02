@@ -2,7 +2,7 @@
 
 ## 所有权与连接
 
-本地应用 schema3，来源 CCS schema23，职责分别在 [storage.py](../../../src/aha/storage.py)、[migrations.py](../../../src/aha/migrations.py)、[sources.py](../../../src/aha/sources.py)。新库创建，不运行旧试用业务迁移；旧资料须按清单工具先保全用量再重建。
+本地应用 schema3，外部 CCS 支持结构版本 23、24，内部规范化投影仍为 23；版本与指纹合同见 [CCS 来源兼容](./ccs-source-compatibility.md)。职责分别在 [storage.py](../../../src/aha/storage.py)、[migrations.py](../../../src/aha/migrations.py)、[sources.py](../../../src/aha/sources.py)。新库创建，不运行旧试用业务迁移；旧资料须按清单工具先保全用量再重建。
 
 Store 检查实际 sqlite3.sqlite_version_info：3.51.3+，或核实的3.50.7/3.44.6回补分支。不要放宽为“所有大于3.44的版本”。测试和打包使用任务隔离运行时，不修改全局 SQLite。
 
@@ -32,6 +32,8 @@ revision_members 与 batch_events 有不可变保护。候选成员和四文件�
 [scripts/rebuild_trial_data.py](../../../scripts/rebuild_trial_data.py) 只有 inspect/extract/apply/import-history 四种明确动作。inspect 默认只读；extract 验证历史压缩对象的内容、版本、允许投影并保全；apply 需要匹配平台/data-dir 的清单、全量校验备份、完整历史输入和停止的旧进程。
 
 保护路径不可从 manifest 移除。只处理已识别且指纹未变化的 aha 试用文件；未知文件、CCS 原件/sidecar、未保全用量保留。拒绝穿越、符号链接、嵌套输出/备份、新业务 schema、文件集合变化；删除失败从校验副本恢复。不递归删除父目录或按数据库扩展名清扫。
+
+`ensure_not_protected(path, protected)` 在判断相等或父子关系前，必须将被检查路径和每一条保护路径都规范化为resolve后的路径；不能只规范化一侧。`trial/../trial` 等等价写法仍属于同一个保护目录，必须在备份或删除前以ValueError拒绝。回归应同时断言原文件指纹未变且备份尚未创建，不只观察异常类型。
 
 ## 检查
 

@@ -8,7 +8,13 @@ from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from typing import Any
 
-from .domain import SCHEMA_VERSION, AppError, build_source_data, source_name
+from .domain import (
+    CCS_SCHEMA_VERSIONS_TEXT,
+    AppError,
+    build_source_data,
+    source_name,
+    validate_ccs_schema_version,
+)
 from .sources import TABLE_FIELDS
 
 MAX_SQL_BYTES = 128 * 1024 * 1024
@@ -289,8 +295,13 @@ def scan_sql_dump(
         elif command not in {"BEGIN", "COMMIT", "END"}:
             # No UPDATE, ATTACH, SELECT, extension calls, triggers or SQL programs.
             raise _invalid()
-    if versions != {SCHEMA_VERSION}:
-        raise AppError("unsupported_schema", "SQL 未标明结构版本 23，或包含不一致的结构版本。")
+    if len(versions) != 1:
+        raise AppError(
+            "unsupported_schema",
+            "SQL 未标明唯一结构版本，或包含不一致的结构版本；"
+            f"当前支持版本 {CCS_SCHEMA_VERSIONS_TEXT}。",
+        )
+    source_version = validate_ccs_schema_version(next(iter(versions)))
     for table, required in TABLE_FIELDS.items():
         if not set(required).issubset(columns.get(table, set())):
             raise AppError(
@@ -302,6 +313,7 @@ def scan_sql_dump(
         "fingerprint_kind": "original_file_sha256",
         "fingerprint": hashlib.sha256(data).hexdigest(),
         "observed_at": datetime.now(UTC).isoformat(),
+        "source_schema_version": source_version,
     }
 
 

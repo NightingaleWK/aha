@@ -229,6 +229,40 @@ class HTTPTests(unittest.TestCase):
             self.assertEqual(len(page["rows"]), 50)
             self.json("GET", "/api/ledger")
 
+    def test_both_source_versions_report_actual_version_and_unknown_keeps_local_data(self) -> None:
+        for version in (23, 24):
+            with self.subTest(adapter="sql", version=version):
+                job = self.wait_sync(self.json("POST", "/api/source/sql", {
+                    "name": "versions.sql",
+                    "content_base64": base64.b64encode(
+                        dump([detail()], [], [price()], version=version)
+                    ).decode(),
+                }))
+                self.assertEqual(job["status"], "completed", job)
+                self.assertEqual(job["result"]["source_schema_version"], version)
+                self.assertEqual(job["result"]["new_count"], 1 if version == 23 else 0)
+        source = self.root / "synthetic-v24.sqlite"
+        connection = database(source, [detail()], version=24)
+        connection.close()
+        job = self.wait_sync(self.json("POST", "/api/sync", {"path": str(source)}))
+        self.assertEqual(job["status"], "completed", job)
+        self.assertEqual(job["result"]["source_schema_version"], 24)
+        analysis = self.analyze()
+        self.assertEqual(analysis["usage_projection_schema_version"], 23)
+        before = self.json("GET", "/api/ledger")
+        with closing(sqlite3.connect(source)) as connection:
+            connection.execute("PRAGMA user_version=25")
+            connection.commit()
+        failed = self.wait_sync(self.json("POST", "/api/sync", {"path": str(source)}))
+        self.assertEqual(failed["status"], "failed", failed)
+        self.assertIn("25", failed["message"])
+        self.assertIn("23、24", failed["message"])
+        after = self.json("GET", "/api/ledger")
+        self.assertEqual(after["counts"], before["counts"])
+        self.assertEqual(after["last_successful_sync_at"], before["last_successful_sync_at"])
+        rows = self.json("GET", f"/api/analysis/{analysis['analysis_id']}/details")
+        self.assertEqual(len(rows["rows"]), 1)
+
     def test_source_needing_review_finishes_without_becoming_success(self) -> None:
         source = self.root / "synthetic-ccs.db"
         with closing(database(source, [detail(request_id=f"request-{i}") for i in range(3)])):
@@ -385,7 +419,7 @@ class HTTPTests(unittest.TestCase):
             for server in (self.server, other):
                 with browser.open(server.origin + "/api/status", timeout=10) as response:
                     status = json.load(response)
-                self.assertEqual(status["version"], "0.3.0")
+                self.assertEqual(status["version"], "0.3.1")
         finally:
             other.shutdown()
             other.server_close()

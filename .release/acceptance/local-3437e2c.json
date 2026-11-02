@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "source_sha": "3437e2cee0d96735fd378b8a51c2b46bbe841516",
+  "completed_at": "2026-11-02T15:14:00+08:00",
+  "fingerprints": {
+    "full": "c43a3c1f6f0133671bf225eecd75297c234fa6f57eb2eb91f5df55813ecc404b",
+    "tray": "6341e2a0ad0d1f303f463908ba4a0f3f4f640c1a9f62f9db1875d920e0e22019",
+    "materials": "5071859342983ed67ac1b794ef7938f359e43a616c9bdd9801234c9742b2b084",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "checks": [
+    "directory",
+    "onefile",
+    "browser",
+    "excel",
+    "print"
+  ],
+  "evidence": [
+    {
+      "scope": "directory",
+      "sha256": "02a09b3506008f02f12b5823f283ff4a2a487ed7bd2ebb190d5b77f47bc8c003",
+      "description": "原生目录EXE实际HTTP、来源23/24、材料、复开和退出通过；非物理托盘点击。"
+    },
+    {
+      "scope": "onefile",
+      "sha256": "25bb5192228c5b172cda8e0819369157d31845314b8adf82b6f5fbadc4253fdb",
+      "description": "原生OneFile实际HTTP、材料、重启及退出通过。"
+    },
+    {
+      "scope": "browser",
+      "sha256": "89ab5aaf8786373c69e6af0fae99d67c241cf355377b456468aa8f708502c318",
+      "description": "从实际桌面文件启动，以真实Edge操作合成表单、保存下载、记录和退出。"
+    },
+    {
+      "scope": "excel",
+      "sha256": "78dfdf46957371cca39e0ca4132f337c3dda50c30751c365ed503e48f54854fc",
+      "description": "原生Excel明确UTF8/逗号/文本列导入，核对三条合成明细、精确金额和Token。"
+    },
+    {
+      "scope": "print",
+      "sha256": "8f9b2593c7f943cb98d5104e702f504d80c01f87524cf0e04f6090d2b7d1e376",
+      "description": "真实Edge输出一页A4 PDF，文本、尺寸及渲染核对；无纸质打印声明。"
+    }
+  ]
+}

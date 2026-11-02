@@ -18,9 +18,15 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from . import __version__, time_ranges
-from .domain import BEIJING, AppError, canonical_bytes, decimal_text
+from .domain import (
+    BEIJING,
+    USAGE_PROJECTION_SCHEMA_VERSION,
+    AppError,
+    canonical_bytes,
+    decimal_text,
+)
 
-UPSTREAM_COMMIT = "e55d8a21b3897b595b746e9f2139716b2931641d"
+UPSTREAM_COMMIT = "c0189078aacdd80fd2462f59b345f55f62b41cf2"
 MANIFEST_VERSION = 4
 COPY_BYTES = 1024 * 1024
 DETAIL_COLUMNS = (
@@ -425,7 +431,10 @@ def build_evidence(
         "manifest_version": MANIFEST_VERSION,
         "application": {"name": "aha", "version": __version__},
         "batch": {key: batch[key] for key in ("id", "number", "version", "created_at")},
-        "source_schema_version": 23,
+        # Legacy field retained for readers; it names the normalized projection.
+        "source_schema_version": USAGE_PROJECTION_SCHEMA_VERSION,
+        "source_schema_version_scope": "normalized_usage_projection",
+        "usage_projection_schema_version": USAGE_PROJECTION_SCHEMA_VERSION,
         "ledger": {
             key: analysis[key]
             for key in ("data_revision", "classification_revision", "claim_revision")

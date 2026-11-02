@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aha-usage"
-version = "0.3.0"
+dynamic = ["version"]
 description = "本机 Codex 用量留存与费用证据"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -15,6 +15,9 @@ aha = "aha.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "aha.__version__"}
 
 [tool.setuptools.package-data]
 aha = ["web/*.html", "web/*.css", "web/*.js", "web/*.svg", "web/*.ico"]

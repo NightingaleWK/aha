@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
+import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +21,66 @@ print(json.dumps({"windows": sys.platform == "win32", "bits": struct.calcsize("P
                   "sqlite": list(sqlite3.sqlite_version_info),
                   "sqlite_version": sqlite3.sqlite_version}))
 """
+
+
+def version_parts(version: object) -> tuple[int, int, int, int]:
+    if (
+        not isinstance(version, str)
+        or re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", version) is None
+    ):
+        raise ValueError("aha version must be a stable X.Y.Z string.")
+    major, minor, patch = (int(part) for part in version.split("."))
+    if max(major, minor, patch) > 65535:
+        raise ValueError("Version components must fit Windows 16-bit version fields.")
+    return major, minor, patch, 0
+
+
+def read_source_version(source_root: Path) -> str:
+    """Read the sole product version without executing package code."""
+    tree = ast.parse((source_root / "src" / "aha" / "__init__.py").read_text("utf-8"))
+    values = [
+        statement.value
+        for statement in tree.body
+        if isinstance(statement, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "__version__"
+                for target in statement.targets)
+    ]
+    if len(values) != 1 or not isinstance(values[0], ast.Constant):
+        raise ValueError("aha.__version__ must be one literal X.Y.Z string.")
+    version = values[0].value
+    version_parts(version)
+    if not isinstance(version, str):
+        raise ValueError("aha.__version__ must be a string.")
+    config = tomllib.loads((source_root / "pyproject.toml").read_text("utf-8"))
+    project = config.get("project", {})
+    dynamic = config.get("tool", {}).get("setuptools", {}).get("dynamic", {})
+    if (
+        "version" in project
+        or "version" not in project.get("dynamic", [])
+        or dynamic.get("version", {}).get("attr") != "aha.__version__"
+    ):
+        raise ValueError("Package metadata must derive its version from aha.__version__.")
+    return version
+
+
+def version_resource(version: str) -> str:
+    """Generate PyInstaller's Windows version resource from the product version."""
+    parts = version_parts(version)
+    return (
+        "VSVersionInfo(\n"
+        "  ffi=FixedFileInfo(\n"
+        f"    filevers={parts!r}, prodvers={parts!r},\n"
+        "    mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),\n"
+        "  kids=[StringFileInfo([StringTable('040904B0', [\n"
+        "    StringStruct('CompanyName', 'aha'),\n"
+        "    StringStruct('FileDescription', 'aha usage ledger'),\n"
+        f"    StringStruct('FileVersion', {version!r}),\n"
+        "    StringStruct('InternalName', 'aha'),\n"
+        "    StringStruct('OriginalFilename', 'aha.exe'),\n"
+        "    StringStruct('ProductName', 'aha'),\n"
+        f"    StringStruct('ProductVersion', {version!r})\n"
+        "  ])]), VarFileInfo([VarStruct('Translation', [1033, 1200])])])\n"
+    )
 
 
 def inspect_runtime(python_exe: Path) -> dict[str, Any]:
@@ -62,6 +125,9 @@ def build(
     source_root: Path,
     stage: str,
 ) -> Path:
+    if stage not in {"Directory", "OneFile"}:
+        raise ValueError("Unknown build stage.")
+    version = read_source_version(source_root)
     runtime = inspect_runtime(python_exe)
     script_dir = source_root / "scripts"
     requirements = script_dir / "requirements-build.txt"
@@ -74,6 +140,9 @@ def build(
     ):
         raise ValueError("SourceRoot must contain the aha sources and build helpers.")
     build_root.mkdir(parents=True, exist_ok=True)
+    version_file = build_root / "aha-version.txt"
+    version_file.write_text(version_resource(version), encoding="utf-8")
+    runtime["application_version"] = version
     (build_root / "runtime-versions.json").write_text(
         json.dumps(runtime, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -110,6 +179,8 @@ def build(
             "aha",
             "--icon",
             str(web_dir / "mark.ico"),
+            "--version-file",
+            str(version_file),
             "--paths",
             str(source_root / "src"),
             "--collect-all",
@@ -137,6 +208,7 @@ def build(
         fingerprint = hashlib.file_digest(artifact, "sha256").hexdigest()
     print(f"AHA_EXECUTABLE={executable}", flush=True)
     print(f"AHA_SHA256={fingerprint}", flush=True)
+    print(f"AHA_VERSION={version}", flush=True)
     if stage == "Directory":
         print("Next: verify the directory build on Windows, then build OneFile.", flush=True)
     return executable

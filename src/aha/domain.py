@@ -11,7 +11,10 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 Row = dict[str, Any]
-SCHEMA_VERSION = 23
+# The retained usage projection is stable across compatible external CCS schemas.
+USAGE_PROJECTION_SCHEMA_VERSION = 23
+SUPPORTED_CCS_SCHEMA_VERSIONS = (23, 24)
+CCS_SCHEMA_VERSIONS_TEXT = "、".join(str(version) for version in SUPPORTED_CCS_SCHEMA_VERSIONS)
 BEIJING = timezone(timedelta(hours=8), name="Asia/Shanghai")
 TOKEN_FIELDS = (
     "input_tokens",
@@ -78,6 +81,15 @@ class AppError(Exception):
         self.code = code
         self.message = message
         self.status = status
+
+
+def validate_ccs_schema_version(version: int) -> int:
+    if version not in SUPPORTED_CCS_SCHEMA_VERSIONS:
+        raise AppError(
+            "unsupported_schema",
+            f"CC Switch 结构版本 {version} 暂不支持；当前支持版本 {CCS_SCHEMA_VERSIONS_TEXT}。",
+        )
+    return version
 
 
 def canonical_bytes(value: Any) -> bytes:
@@ -210,7 +222,7 @@ def normalize_row(row: Mapping[str, Any], grain: str) -> Row:
     fields = DETAIL_FIELDS if grain == "detail" else ROLLUP_FIELDS
     if not set(fields).issubset(row):
         raise AppError(
-            "incompatible_schema", "来源缺少必要用量字段；请使用结构版本 23 的完整备份。"
+            "incompatible_schema", "来源缺少必要用量字段；请使用完整的 CC Switch 用量来源。"
         )
     result: Row = {}
     nullable = {"session_id", "request_model", "pricing_model"} if grain == "detail" else set()
@@ -257,7 +269,10 @@ def build_source_data(
     source: Row,
 ) -> Row:
     """One projection/validation boundary shared by SQLite and literal SQL."""
-    result: Row = {"schema_version": SCHEMA_VERSION, "details": [], "rollups": [], "pricing": []}
+    result: Row = {
+        "schema_version": USAGE_PROJECTION_SCHEMA_VERSION,
+        "details": [], "rollups": [], "pricing": [],
+    }
     for grain, rows, target in (("detail", details, "details"), ("rollup", rollups, "rollups")):
         seen: set[str] = set()
         for index, row in enumerate(rows):

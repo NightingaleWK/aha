@@ -42,7 +42,10 @@ class EvidenceTests(unittest.TestCase):
             ],
             [rollup()],
         )
+        data["source"]["source_schema_version"] = 24
         result = seed_analysis(self.store, data)
+        self.assertEqual(result["schema_version"], 23)
+        self.assertEqual(result["usage_projection_schema_version"], 23)
         self.assertFalse({"details", "rollups", "members", "daily", "models"} & result.keys())
         package, _ = self.package(result, amount="0.00", amount_note="仅留使用依据")
         with package:
@@ -52,6 +55,12 @@ class EvidenceTests(unittest.TestCase):
             )
             manifest = json.loads(package.read("导出信息.json"))
             self.assertEqual(manifest["manifest_version"], 4)
+            self.assertEqual(manifest["source_schema_version"], 23)
+            self.assertEqual(manifest["usage_projection_schema_version"], 23)
+            self.assertEqual(
+                manifest["source_schema_version_scope"], "normalized_usage_projection"
+            )
+            self.assertNotIn("source_schema_versions", manifest)
             self.assertNotIn("capture_id", manifest)
             self.assertEqual(len(manifest["members"]), 3)
             self.assertEqual(manifest["summary"]["record_count"], 9)
