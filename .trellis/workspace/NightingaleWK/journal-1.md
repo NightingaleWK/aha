@@ -200,3 +200,36 @@
 
 - 验收记录位于.trellis/tasks/archive/2026-10/10-29-form-time-filter/research/verification.md；仅本地提交，未发布OneFile或替换用户资料。
 - 既有超过2^53的JSON Token页面精度问题已记录，需独立确定跨层大整数合同；本任务材料仍保留精确值。
+
+
+## Session 7: 修复 CCS 24 同步兼容并交付 aha 0.3.1
+<!-- trellis-session: v=2 fp=7f993a3b191a43db -->
+
+**Date**: 2026-11-02
+**Task**: 修复 CCS 24 同步兼容并交付 aha 0.3.1
+**Branch**: `codex/ccs-schema-compatibility`
+
+### Summary
+
+兼容 CCS 23/24，保持内部投影23和应用schema3；完成真实来源与旧资料副本验证、原生Directory/OneFile和实际交付位置验收，清理530.4MiB任务文件，按用户授权本地提交并归档。
+
+### Main Changes
+
+- 记录实际外部来源版本，明确分析与材料的内部投影作用域，保留身份、内容指纹、归属、占用及旧包字节。
+- 成品0.3.1交付后现位于 D:\Program Files\aha-0.6.0\aha.exe；运行文件SHA与验收OneFile一致，未干预用户在用实例。
+- 任务已归档至 .trellis/tasks/archive/2026-11/11-02-ccs-schema-compatibility；必要私有验收证据保留，任务环境、隔离库和构建中间物已清理。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `fa4ec9327592ccb48b27ed3c744d0751b44dd0df` | fix: 兼容 CCS 24 同步并交付 aha 0.3.1 |
+
+### Testing
+
+- [OK] Linux211项OK、跳过2；Windows211项OK、跳过1；双平台Ruff、strict mypy22模块、compileall及独立检查通过。
+- [OK] Directory、OneFile和桌面副本各8组Edge流程通过；Excel显式UTF-8/逗号导入与A4 PDF检查通过；实际OneFile读CCS24完成，来源忙的有限手动重试验证通过。
+
+### Status
+
+[OK] **Completed**
