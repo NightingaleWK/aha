@@ -54,11 +54,12 @@
     "tests/test_release.py",
     "tests/test_windows_artifact.py"
   ],
-  "notes": "用户授权合并清理同步，设置PR#1已以23977da合入main，旧分支已清理，R13/AC13已完成。用户已开启Actions创建PR权限，机器人创建0.4.0发布PR#2；真实运行发现组件分支识别错误，跟进修复已通过实施及独立28项发布回归，按既有授权经修复PR合回main并验证。首次物理托盘及确切云端候选回执仍缺，发布PR保留待审，任务保持in_progress不归档。",
+  "notes": "用户授权合并清理同步，PR#1及组件识别修复PR#3已合main1bc7c2e，旧分支清理，R13/AC13完成。Actions创建PR权限已开启；主分支流程成功，0.4.0 PR#2自动中文说明已生成。用户选择审阅PR#2并补齐首版验收；候选最终CI发现HTTP断言硬编码0.3.1，测试修复已在原生Windows对真实0.3.1和0.4.0源码通过，等待受审合main后刷新候选。首版真实云端EXE及物理托盘验收仍缺，控制入口URI错误持续，任务保持in_progress不归档。",
   "meta": {
     "setup_merge_sha": "23977daa22aac9e92c3fa95b787cc5c939d95d28",
     "implementation_branch": "codex/versioning-github-releases",
     "release_pr_url": "https://github.com/NightingaleWK/aha/pull/2",
-    "repository_create_pr_permission": "user_enabled_2026-11-02"
+    "repository_create_pr_permission": "user_enabled_2026-11-02",
+    "first_acceptance_intent": "review-release-pr-2-and-complete-acceptance"
   }
 }
