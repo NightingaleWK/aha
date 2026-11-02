@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
+- **Total Sessions**: 8
 - **Last Active**: 2026-11-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~235 | Active |
+| `journal-1.md` | ~270 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-11-02 | 版本管理与自动发版设置 PR | `3437e2cee0d96735fd378b8a51c2b46bbe841516`, `eacf4d601e2b3e1b3b48a6af7ff788abdac476d9` | `codex/versioning-github-releases` |
 | 7 | 2026-11-02 | 修复 CCS 24 同步兼容并交付 aha 0.3.1 | `fa4ec9327592ccb48b27ed3c744d0751b44dd0df` | `codex/ccs-schema-compatibility` |
 | 6 | 2026-10-29 | 清爽表单与北京时间筛选实施收尾 | `8848629` | `codex/form-time-filter` |
 | 5 | 2026-10-29 | 单实例重开与 Windows 托盘退出收尾 | `6fa4ee1` | `main` |

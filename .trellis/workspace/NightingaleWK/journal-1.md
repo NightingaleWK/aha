@@ -233,3 +233,38 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 8: 版本管理与自动发版设置 PR
+<!-- trellis-session: v=2 fp=9f12432e5c7e5f14 -->
+
+**Date**: 2026-11-02
+**Task**: 版本管理与自动发版设置 PR
+**Branch**: `codex/versioning-github-releases`
+
+### Summary
+
+建立单一版本、Release Please发布PR、中文What’s New、Windows自动检查和草稿发布门禁；设置PR#1已创建，保留main/正式发布审阅。
+
+### Main Changes
+
+- 源码与桌面OneFile一致，已完成Directory/OneFile/桌面/浏览器/Excel/A4 PDF验证，任务临时环境与缓存已清理。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `3437e2cee0d96735fd378b8a51c2b46bbe841516` | feat: 建立版本管理与 GitHub 自动发版 |
+| `eacf4d601e2b3e1b3b48a6af7ff788abdac476d9` | docs: 记录自动发版规划与本机验收 |
+
+### Testing
+
+- [OK] Windows完整245项通过，最新发布回归及新增原生测试、Linux25发布回归、Ruff/strict mypy/actionlint/JS检查通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 审阅设置PR#1，核对最新GitHub CI；合入后验证机器人发布PR和首次云端构建，补物理托盘及确切候选回执，任务未归档。
