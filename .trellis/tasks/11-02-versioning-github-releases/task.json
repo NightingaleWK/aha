@@ -12,7 +12,7 @@
   "assignee": "NightingaleWK",
   "createdAt": "2026-11-02",
   "completedAt": null,
-  "branch": "codex/versioning-github-releases",
+  "branch": "main",
   "base_branch": "main",
   "worktree_path": null,
   "commit": "3437e2cee0d96735fd378b8a51c2b46bbe841516",
@@ -54,6 +54,9 @@
     "tests/test_release.py",
     "tests/test_windows_artifact.py"
   ],
-  "notes": "设置PR#1已创建，69a69a3云端Windows CI通过248项Python及6项JS测试；补充R13/AC13的本地收尾发版评估和用户选择规则。本次协作说明无需单独升号，累计候选仍为首次0.4.0。保留main/发布PR审阅决定，首次物理托盘及确切云端候选回执未完成，等待首版安排选择，任务保持in_progress不归档。",
-  "meta": {}
+  "notes": "用户授权合并现有分支并清理同步；设置PR#1在d1fcacf最终HEAD CI通过后以23977da合入main。R13/AC13收尾评估与用户选择已落地。已完成旧任务均已归档，合并分支已清理；累计候选仍为首次0.4.0，首次物理托盘及确切云端候选回执未完成，保留发布PR审阅决定，任务保持in_progress不归档。",
+  "meta": {
+    "setup_merge_sha": "23977daa22aac9e92c3fa95b787cc5c939d95d28",
+    "implementation_branch": "codex/versioning-github-releases"
+  }
 }
