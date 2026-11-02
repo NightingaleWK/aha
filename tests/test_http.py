@@ -24,6 +24,7 @@ from urllib.request import HTTPCookieProcessor, build_opener
 
 from test_sources import database, detail, dump, price, rollup
 
+from aha import __version__
 from aha.server import JSON_LIMIT, create_server
 
 
@@ -419,7 +420,7 @@ class HTTPTests(unittest.TestCase):
             for server in (self.server, other):
                 with browser.open(server.origin + "/api/status", timeout=10) as response:
                     status = json.load(response)
-                self.assertEqual(status["version"], "0.3.1")
+                self.assertEqual(status["version"], __version__)
         finally:
             other.shutdown()
             other.server_close()

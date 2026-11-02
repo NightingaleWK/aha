@@ -47,11 +47,13 @@ python scripts/release.py stage --candidate FILE [--assets DIR]
 ## 3. 数据、权限与验收合同
 
 - 版本PR统一升号：fix升patch、feat升minor；0.x破坏性变化升minor且明确升级说明，1.0需要显式审阅。Release Please显式更新真实导入包，不从发行名 `aha-usage` 猜成 `aha_usage`。
+- HTTP等真实产品测试的版本断言读取 `aha.__version__`，不能把当前产品版本写成固定字符串。只有测试自己创建的隔离版本夹具保留明确字面量；涉及升号的回归同时检查主分支和实际候选源码，不靠手工改期望数字维持通过。
 - `.release/changes/*.json` 的稳定id、分类、中文标题/说明及必要升级事项须与实际交付一致；已发布片段不可原地改写。What’s New按最近公开版本至候选最终树生成、去重，空栏目省略；在发布PR预览，正式发布时只填真实资产信息，不再自由改写产品描述。
 - 发布代码SHA M固定为可信同仓库发布PR的merge SHA，版本、说明、EXE和标签必须对应它。后续main推进不能混入旧候选。默认令牌创建标签不会保证触发后续构建；同一编排直接执行，并显式dispatch最终机器人PR HEAD的只读CI。
 - 发布PR身份统一校验实际组件分支 `release-please--branches--main--components--aha-usage`、同仓库head、main目标及 `github-actions[bot]` 作者。`include-component-in-tag=false` 不代表分支名也没有组件；准备说明、已合并候选发现和标签恢复共用同一严格身份判断，后两者保留各自的合并状态和标签门禁。配置或生成器升级改变分支名时同步核对真实REST响应，不能放宽为任意前缀匹配。
 - CI验证报告 `schema_version=1`，成功须有 `verified=true`、`executable_sha256`、`version`、`pe_version` 和实际检查范围。无桌面 `--no-tray` 不证明物理托盘操作；失败不得输出成功标记。
 - 人工回执含 `schema_version`、实际测试源码 `source_sha`、北京时间 `completed_at`、full/tray/materials/recipe指纹、实际生产/构建运行时 `runtime_sha256`、真实 `checks` 及小型证据摘要。首次公开还须绑定 `candidate_source_sha=M` 和确切云端EXE `artifact_sha256`；缺少真实托盘点击不能把tray列入已通过。指纹须从真实测试提交重算，与目标候选核对；不存在的源码或手填不符指纹不能放行。
+- 下载云端冻结EXE验收时，回执的 `runtime_sha256` 引用已独立核对EXE字节并按候选配方重算确认的 `build-info.runtime_sha256`，表示该被测产物的构建运行时，不冒称从无关本机QA解释器测得。Windows执行主机、浏览器/Office及QA环境另留真实证据；完整Python/SQLite/架构/固定构建依赖的相等及漂移重验要求不变。runtime命令记录当前解释器环境，不能探测冻结EXE内部；不为旧部分回执补填新候选字段冒充完成首版验收。
 - 构建依赖及实际使用的传递依赖全部固定在 `scripts/requirements-build.txt`。实际运行时摘要包含Python完整patch、SQLite、位数/平台及这些固定构建包的实际版本，排除不随产品打包的QA工具；运行时变化须重新验收，不能只核对配方文件未变。
 - 包版本清单按 `importlib.metadata.version(name)` 的活动provider解析；不能让后枚举的旧egg-info覆盖已安装dist-info，也不能删除主环境元数据来掩盖不一致。
 - Git文本统一LF，发布JSON、Markdown和SHA256SUMS使用显式UTF-8/LF字节写入，避免Windows默认CRLF导致远端校验不一致。专项源码指纹允许规范化文本的CRLF/LF和唯一版本数字，二进制保持原字节；实际资产仍逐字节校验SHA256，不能借源码规范化放宽资产检查。

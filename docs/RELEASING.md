@@ -90,7 +90,7 @@ python scripts/release.py runtime --ref <已验收的源码提交> --output <任
   "source_sha": "已实际验收的40位提交SHA",
   "candidate_source_sha": "首次GitHub候选的40位merge SHA",
   "artifact_sha256": "首次GitHub候选EXE的64位SHA256",
-  "runtime_sha256": "实际验收Windows环境的runtime命令输出",
+  "runtime_sha256": "已核验被测产物build-info.runtime_sha256；本机自构建时可由同一构建venv的runtime命令取得",
   "completed_at": "实际完成时间，ISO8601并带时区",
   "fingerprints": {
     "full": "指纹命令输出",
@@ -105,7 +105,9 @@ python scripts/release.py runtime --ref <已验收的源码提交> --output <任
 
 checks只能填写实际执行的directory、onefile、browser、tray、excel、print；每项都要有 `{"scope":"对应check","sha256":"安全验收记录的64位摘要","description":"实际检查和结果"}`。不要放个人路径、真实数据、Cookie、启动token或完整私有日志。
 
-runtime命令须在实际Windows x64验收venv执行，摘要覆盖完整Python修订版本、SQLite、平台/位数及固定构建依赖（含固定的传递依赖）。它不包含aha版本数字或无关Office/PDF等QA工具，常规升号不会触发全量重验；实际SQLite等运行时相较前版发生变化则要求全面验收，旧环境回执不能复用。build-info仍保留完整已安装依赖清单供追溯。
+runtime命令记录当前原生Windows x64构建/测试解释器，摘要覆盖完整Python修订版本、SQLite、Windows平台/位数/架构及固定构建依赖（含固定的传递依赖），不包含Windows具体版本号。它不包含aha版本数字或无关Office/PDF等QA工具，常规升号不会触发全量重验；实际SQLite等运行时相较前版发生变化则要求全面验收，旧环境回执不能复用。build-info仍保留完整已安装依赖清单供追溯。
+
+验收下载的云端EXE时，独立计算该文件SHA，与SHA256SUMS和build-info.executable核对，再按候选配方重算build-info构建运行时摘要；回执引用这一已核验产物的runtime_sha256，不拿无关QA venv的runtime输出替代。实际本机Windows版本、浏览器/Office及QA工具环境单独写入验收证据。引用构建信息不能替代托盘、浏览器和Office的真实执行记录，也不能给旧部分回执补填候选字段冒充新验收。
 
 首次还要求candidate_source_sha及artifact_sha256与当前候选完全一致；缺少物理托盘等任何项就保留草稿。可以在候选M生成后，通过仅增加回执的受审阅PR更新可信main，再恢复相同M/相同字节的发布。后合入的代码不能因此混进M；候选EXE重建后SHA变化，旧首次回执失效。
 
