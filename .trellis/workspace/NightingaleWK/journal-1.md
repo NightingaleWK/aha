@@ -268,3 +268,37 @@
 ### Next Steps
 
 - 审阅设置PR#1，核对最新GitHub CI；合入后验证机器人发布PR和首次云端构建，补物理托盘及确切候选回执，任务未归档。
+
+
+## Session 9: 修复真实云端CI发现的保护路径缺口
+<!-- trellis-session: v=2 fp=b95355a438a379e7 -->
+
+**Date**: 2026-11-02
+**Task**: 修复真实云端CI发现的保护路径缺口
+**Branch**: `codex/versioning-github-releases`
+
+### Summary
+
+真实GitHub Windows247项仅保护路径用例失败；双边resolve修复保护原语，新增等价路径拒绝及文件不变回归，保留原有断言。
+
+### Main Changes
+
+- 只改独立重建维护脚本/测试及说明，最终EXE打包源指纹未变。额外最小环境和专用缓存清理26,071,768字节。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `95cc15f1d7af074194131209839de55a0a13e548` | fix: 规范化试用重建的保护路径并补充回归 |
+
+### Testing
+
+- [OK] 完整16项原生Windows重建测试通过（1权限skip），相关Linux3项及该脚本Linux/Windows目标strict mypy、Ruff通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 推送同一设置PR#1并核对新HEAD的真实CI；main/正式发布仍待审阅和首次验收。
