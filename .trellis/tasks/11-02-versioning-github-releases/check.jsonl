@@ -1,0 +1,9 @@
+{"file":".trellis/spec/backend/index.md","reason":"整体规范一致性及不能扩张业务范围"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"Python/Windows真实检查及失败场景证据"}
+{"file":".trellis/spec/backend/delivery-and-cleanup.md","reason":"最终源码一致成品、实际桌面启动和清理证据"}
+{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"单一版本不影响已有材料和业务不变量"}
+{"file":".trellis/spec/backend/runtime-lifecycle-contract.md","reason":"核对Directory/OneFile的独立生命周期和私有凭证"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"实际浏览器/材料检查与自动CI证据不能混用"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"版本来源到发布资产的生产者/消费者核对"}
+{"file":".trellis/tasks/11-02-versioning-github-releases/research/github-release-findings.md","reason":"复核默认令牌事件、候选/正式版、幂等与运行时事实"}
+{"file":".trellis/tasks/11-02-versioning-github-releases/research/whats-new-design.md","reason":"复核自动说明真实范围、中文排版及已确认的验收方式1"}

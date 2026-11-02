@@ -34,6 +34,7 @@ python scripts/release.py stage --candidate FILE [--assets DIR]
 - CI验证报告 `schema_version=1`，成功须有 `verified=true`、`executable_sha256`、`version`、`pe_version` 和实际检查范围。无桌面 `--no-tray` 不证明物理托盘操作；失败不得输出成功标记。
 - 人工回执含 `schema_version`、实际测试源码 `source_sha`、北京时间 `completed_at`、full/tray/materials/recipe指纹、实际生产/构建运行时 `runtime_sha256`、真实 `checks` 及小型证据摘要。首次公开还须绑定 `candidate_source_sha=M` 和确切云端EXE `artifact_sha256`；缺少真实托盘点击不能把tray列入已通过。指纹须从真实测试提交重算，与目标候选核对；不存在的源码或手填不符指纹不能放行。
 - 构建依赖及实际使用的传递依赖全部固定在 `scripts/requirements-build.txt`。实际运行时摘要包含Python完整patch、SQLite、位数/平台及这些固定构建包的实际版本，排除不随产品打包的QA工具；运行时变化须重新验收，不能只核对配方文件未变。
+- 包版本清单按 `importlib.metadata.version(name)` 的活动provider解析；不能让后枚举的旧egg-info覆盖已安装dist-info，也不能删除主环境元数据来掩盖不一致。
 - Git文本统一LF，发布JSON、Markdown和SHA256SUMS使用显式UTF-8/LF字节写入，避免Windows默认CRLF导致远端校验不一致。专项源码指纹允许规范化文本的CRLF/LF和唯一版本数字，二进制保持原字节；实际资产仍逐字节校验SHA256，不能借源码规范化放宽资产检查。
 - 首次全面本机验收包括Directory、OneFile、浏览器、托盘、Excel及A4打印预览/PDF；以后每版自动验证原生EXE/HTTP/资源/材料/复开/退出。相关代码变化使对应专项失效，构建配方/运行时或未知生产模块变化保守要求全项；仅版本数字可在专项指纹内规范化，不能掩盖其他改动。
 - 人工回执可后补到可信main，再恢复同一草稿M；它不改变打包源码。草稿EXE变化使其资产回执失效。CI只校验回执匹配，不声称自己重新执行Office或物理交互。
@@ -49,6 +50,7 @@ python scripts/release.py stage --candidate FILE [--assets DIR]
 | 首次/专项人工证据缺失或失效 | 可生成候选供验收，公开动作必须保持阻断 |
 | 机器人PR继续更新 | 旧HEAD的绿色结果不能放行新HEAD |
 | 发布说明缺失、重复id冲突或回写已发布片段 | 明确失败，不静默漏项 |
+| 本地撤销未公开功能并删除其片段 | WORKTREE枚举排除已删除文件，不残留虚假说明或抛文件不存在；回退理由用internal片段记录 |
 | 已公开同版本重跑 | 相同身份返回已有成功；冲突则失败，不覆盖资产或移动标签 |
 | 草稿中断/部分上传 | 按版本和M独立恢复，不仅依赖release_created；资产改变须重新验收 |
 | 已公开但PR标签更新中断 | 写权限job在准备下一版前幂等修复tagged/pending标签，不能永久堵住后续发版 |
