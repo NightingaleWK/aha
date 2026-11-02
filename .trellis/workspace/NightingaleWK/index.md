@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 12
+- **Total Sessions**: 13
 - **Last Active**: 2026-11-02
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~371 | Active |
+| `journal-1.md` | ~393 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 13 | 2026-11-02 | 使HTTP真实版本回归随候选升号 | `e9672cb199c25bd4460c6b1017b48de9398dbffa` | `main` |
 | 12 | 2026-11-02 | 修复真实机器人PR的组件分支识别 | `f2b8ab0c461b05f6bd3a35b78825a3304ae0b417` | `main` |
 | 11 | 2026-11-02 | 合并主分支并清理同步线上线下 | `23977daa22aac9e92c3fa95b787cc5c939d95d28`, `978d3abba806838fb62be6d3631ce9b24b91d2e5` | `main` |
 | 10 | 2026-11-02 | 建立任务收尾的发版评估与用户选择 | `f2b0bccff6f518bb93afd74b58bcd924031d0801` | `codex/versioning-github-releases` |

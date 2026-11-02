@@ -369,3 +369,25 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 13: 使HTTP真实版本回归随候选升号
+<!-- trellis-session: v=2 fp=1156d77bded2f7c5 -->
+
+**Date**: 2026-11-02
+**Task**: 使HTTP真实版本回归随候选升号
+**Branch**: `main`
+
+### Summary
+
+用户选择审阅PR#2并补齐首版验收；0.4.0最终HEAD CI仅因HTTP断言硬编码0.3.1失败。测试改读权威__version__，在原生Windows3.15.2/SQLite3.53.4对真实main0.3.1及候选0.4.0源码各执行受影响用例通过，保留严格断言；独立审查、Ruff、发布及文档校验通过。澄清回执运行时引用已核验产物build-info并另记执行主机，现有门禁不变。清理23,279,032字节原生临时环境，仅测试/文档无需单独发版，仍待候选新HEAD CI及首次真实成品/物理验收。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e9672cb199c25bd4460c6b1017b48de9398dbffa` | test: 跟随权威版本校验状态接口 |
+
+### Status
+
+[OK] **Completed**
