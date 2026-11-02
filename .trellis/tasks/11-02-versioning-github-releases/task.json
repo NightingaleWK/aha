@@ -16,7 +16,7 @@
   "base_branch": "main",
   "worktree_path": null,
   "commit": "3437e2cee0d96735fd378b8a51c2b46bbe841516",
-  "pr_url": null,
+  "pr_url": "https://github.com/NightingaleWK/aha/pull/1",
   "subtasks": [],
   "children": [],
   "parent": null,
@@ -54,6 +54,6 @@
     "tests/test_release.py",
     "tests/test_windows_artifact.py"
   ],
-  "notes": "最新完整规划已获“好的”批准；完成本地实现、独立检查、Windows完整245项及发布回归、本机Directory/OneFile/桌面/浏览器/Excel/PDF验证。代码提交3437e2c。按已授权设置PR范围完成必要提交与工作分支推送；main及发布PR合并保留审阅决定。物理托盘与真实云端首版AC未完成，不归档。",
+  "notes": "已实施并通过独立检查/本机验收，代码3437e2c；设置PR#1已创建并触发Windows CI。保留main/发布PR审阅决定，首次物理托盘及确切云端候选回执未完成，任务保持in_progress不归档。",
   "meta": {}
 }

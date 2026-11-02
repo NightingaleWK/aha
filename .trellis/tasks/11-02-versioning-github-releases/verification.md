@@ -55,7 +55,7 @@ OneFile为11,744,925字节。Windows桌面接口确认交付位置为用户实�
 
 ## GitHub及首次发布状态
 
-本机实施、桌面成品和远端设置PR分开验收。设置PR的远端创建/CI结果在实际执行后补记；main及发布PR合并保留维护者审阅决定。没有将本地测试当成GitHub全链路成功。
+本机实施、桌面成品和远端设置PR分开验收。[设置PR#1](https://github.com/NightingaleWK/aha/pull/1) 已实际创建，首次pull_request事件已启动GitHub Windows CI，确认Actions能识别新工作流。最终检查以该PR最新HEAD为准，运行结果另在PR/本机证据留存。main及发布PR合并保留维护者审阅决定，没有将本地测试当成自动发版全链路成功。
 
 首次正式公开仍需本机物理托盘及确切云端候选EXE回执；当前未生成这类通过记录，首次发布应停在草稿/待验状态。AC11、AC12及AC10的物理部分保留未完成，任务保持 `in_progress`，不归档为全部完成。
 
