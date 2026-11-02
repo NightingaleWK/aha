@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "version": "0.4.0",
+  "base_sha": null,
+  "previous_tag": null,
+  "fragment_ids": [
+    "ccs24-compatibility",
+    "rebuild-protected-paths",
+    "release-pr-identity",
+    "versioned-windows-releases"
+  ],
+  "notes_sha256": "28d664d72b156fd7ef563dac5710b5f52c4318ec69f8a75b7722257d63ece12d"
+}
