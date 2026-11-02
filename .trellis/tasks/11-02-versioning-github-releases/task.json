@@ -54,6 +54,6 @@
     "tests/test_release.py",
     "tests/test_windows_artifact.py"
   ],
-  "notes": "已实施并通过独立检查/本机验收，代码3437e2c；设置PR#1已创建并触发Windows CI。保留main/发布PR审阅决定，首次物理托盘及确切云端候选回执未完成，任务保持in_progress不归档。",
+  "notes": "设置PR#1已创建，69a69a3云端Windows CI通过248项Python及6项JS测试；补充R13/AC13的本地收尾发版评估和用户选择规则。本次协作说明无需单独升号，累计候选仍为首次0.4.0。保留main/发布PR审阅决定，首次物理托盘及确切云端候选回执未完成，等待首版安排选择，任务保持in_progress不归档。",
   "meta": {}
 }
