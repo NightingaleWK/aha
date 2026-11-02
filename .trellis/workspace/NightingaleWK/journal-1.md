@@ -302,3 +302,25 @@
 ### Next Steps
 
 - 推送同一设置PR#1并核对新HEAD的真实CI；main/正式发布仍待审阅和首次验收。
+
+
+## Session 10: 建立任务收尾的发版评估与用户选择
+<!-- trellis-session: v=2 fp=04bed1ff6d56ba61 -->
+
+**Date**: 2026-11-02
+**Task**: 建立任务收尾的发版评估与用户选择
+**Branch**: `codex/versioning-github-releases`
+
+### Summary
+
+补充R13/AC13，将每项任务收尾的发版建议、累计待发版本、中文说明、验收缺口与用户选择写入AGENTS、交付规范、发布合同和维护说明；独立文档审查21个链接及2个锚点通过。此次仅文档无需单独升号，首版仍拟0.4.0且尚缺物理托盘与确切云端候选验收；保留发布审阅决定，任务不归档。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f2b0bccff6f518bb93afd74b58bcd924031d0801` | docs: 规范任务收尾的发版评估与选择 |
+
+### Status
+
+[OK] **Completed**
