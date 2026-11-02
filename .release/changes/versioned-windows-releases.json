@@ -1,0 +1,11 @@
+{
+  "id": "versioned-windows-releases",
+  "kind": "feature",
+  "title": "按版本下载 Windows 单文件程序",
+  "description": "通过GitHub Releases提供对应版本的Windows x64 EXE、中文What’s New和SHA256校验信息；程序显示、文件属性与发布版本保持一致。",
+  "highlight": true,
+  "upgrade_notes": [
+    "下载Windows x64 EXE，退出旧程序后使用新文件；发布流程不会移动或改写你的个人资料目录。",
+    "本版尚不包含应用内检查更新或自动安装，后续版本从Releases页面下载。"
+  ]
+}

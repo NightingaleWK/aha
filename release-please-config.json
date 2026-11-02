@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "f98df67df38a534fb240d20a79dda843297f4437",
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "draft": true,
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "aha-usage",
+      "extra-files": [
+        {"type": "generic", "path": "src/aha/__init__.py"}
+      ],
+      "changelog-sections": [
+        {"type": "feat", "section": "新增功能"},
+        {"type": "fix", "section": "问题修复"},
+        {"type": "perf", "section": "性能改进"},
+        {"type": "docs", "section": "文档", "hidden": true},
+        {"type": "chore", "section": "内部维护", "hidden": true},
+        {"type": "ci", "section": "构建与发布", "hidden": true},
+        {"type": "test", "section": "测试", "hidden": true}
+      ]
+    }
+  }
+}

@@ -16,7 +16,7 @@ python scripts/build_windows.py --build-root <同一目录> --stage OneFile --di
 aha.exe --data-dir <独立合成资料目录> --no-browser
 ```
 
-解释器必须为原生 Windows x64 隔离环境，通过既有 SQLite 门禁。先实际验收 Directory，再使用 `--directory-verified`；参数本身不构成验收。默认保留托盘，只有无桌面检查才显式使用 `--no-tray`。
+解释器必须为原生 Windows x64 隔离环境，通过既有 SQLite 门禁。先实际验收 Directory，再使用 `--directory-verified`；参数本身不构成验收。默认保留托盘，只有无桌面检查才显式使用 `--no-tray`。GitHub构建复用本入口，版本和发布门禁遵循 [发布合同](./release-contract.md)：首次全面本机验收，以后每版自动检查并按实际变化追加专项，不把无桌面检查计为物理托盘或Office操作。
 
 通过 Windows KnownFolder/系统桌面接口确认实际桌面，不能固定用户路径或假定桌面不在 OneDrive。默认成品名为 `aha.exe`；同名文件先核实归属、版本与占用，保留必要的可恢复旧版，不覆盖未识别文件或强杀不明进程。
 
@@ -26,7 +26,7 @@ aha.exe --data-dir <独立合成资料目录> --no-browser
 
 - 实施计划包含成品类型、实际交付位置和运行方式；默认桌面交付纳入同一任务验收，不留到用户再次提醒。
 - 记录构建的源码依据（提交或工作树指纹）、产物 SHA256、运行时和实际执行的检查。最后一次产品源码修改后必须重新构建对应成品。
-- Directory 与 OneFile 分别验证原生程序、实际 HTTP/页面、资源、相关业务及退出；有材料变化时核对 Excel/打印，区分独立验收与已核实的输出一致性。要求见 [质量规范](quality-guidelines.md)。
+- Directory 与 OneFile 分别验证原生程序、实际 HTTP/页面、资源、相关业务及退出；首次全面验收，后续有材料生产链变化时核对 Excel/打印，有托盘/启动退出变化时做相关交互，构建环境变化时重新全面验收。区分独立验收与已核实的输出一致性，回执按 [发布合同](release-contract.md) 绑定指纹；要求见 [质量规范](quality-guidelines.md)。
 - 交付副本与验收产物 SHA256 一致；从实际桌面文件再次启动，使用隔离合成资料检查主要功能、重开/原包、退出及运行描述符清理。OneFile 的 bootloader 父子进程不能误判为两个服务。
 - 最终说明包含用户可找到的文件路径、启动方式和已验证结果。不能只提供 Git 提交号、源码目录、测试预览或依赖整套目录的 EXE。
 

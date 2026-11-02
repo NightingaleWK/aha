@@ -1,0 +1,145 @@
+name: Windows quality and artifacts
+
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        required: true
+        type: string
+      base_sha:
+        default: ''
+        type: string
+      expected_event_sha:
+        default: ''
+        type: string
+      build:
+        default: false
+        type: boolean
+      candidate_artifact:
+        default: ''
+        type: string
+    outputs:
+      asset_artifact:
+        description: Verified release files
+        value: ${{ jobs.windows.outputs.asset_artifact }}
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows quality
+    runs-on: windows-2025
+    timeout-minutes: 35
+    outputs:
+      asset_artifact: ${{ steps.assets.outputs.name }}
+    steps:
+      - name: Bind dispatched run to final PR HEAD
+        shell: pwsh
+        env:
+          EXPECTED_EVENT_SHA: ${{ inputs.expected_event_sha }}
+          ACTUAL_EVENT_SHA: ${{ github.sha }}
+        run: |
+          if ($env:EXPECTED_EVENT_SHA -and $env:ACTUAL_EVENT_SHA -ne $env:EXPECTED_EVENT_SHA) {
+            throw 'Release PR advanced before dispatch. Check the new final HEAD.'
+          }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.15.2'
+          architecture: x64
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: Prepare isolated native environment
+        shell: pwsh
+        run: |
+          $venv = Join-Path $env:RUNNER_TEMP 'aha-ci-venv'
+          python -m venv $venv
+          $py = Join-Path $venv 'Scripts/python.exe'
+          "AHA_CI_PYTHON=$py" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          & $py -m pip install --disable-pip-version-check -r scripts/requirements-build.txt -r requirements-dev.txt
+          & $py -m pip install --disable-pip-version-check --no-build-isolation -e .
+          & $py -c "from pathlib import Path; import sys; from scripts.build_windows import inspect_runtime; inspect_runtime(Path(sys.executable))"
+      - name: Check release inputs
+        shell: pwsh
+        env:
+          INPUT_BASE: ${{ inputs.base_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $base = $env:INPUT_BASE
+          if (-not $base -or $base -match '^0{40}$') {
+            $base = & $env:AHA_CI_PYTHON scripts/release.py validation-base
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+          & $env:AHA_CI_PYTHON scripts/release.py validate --base $base
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Python checks
+        shell: pwsh
+        run: |
+          & $env:AHA_CI_PYTHON -m unittest discover -s tests -v
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $env:AHA_CI_PYTHON -m ruff check src tests scripts
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $env:AHA_CI_PYTHON -m mypy src/aha scripts/release.py scripts/build_windows.py scripts/verify_windows_artifact.py --cache-dir "$env:RUNNER_TEMP/aha-mypy"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $env:AHA_CI_PYTHON -m compileall -q src/aha scripts
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          git diff --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: JavaScript checks
+        shell: pwsh
+        run: |
+          node --check src/aha/web/app.js
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node --check src/aha/web/form-controls.js
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node --check src/aha/web/time-range-picker.js
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node --test tests/web_state.test.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Download candidate identity
+        if: inputs.build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.candidate_artifact }}
+          path: ${{ runner.temp }}/aha-candidate
+      - name: Build and verify Directory
+        if: inputs.build
+        shell: pwsh
+        run: |
+          $build = Join-Path $env:RUNNER_TEMP 'aha-windows-build'
+          & $env:AHA_CI_PYTHON scripts/build_windows.py --build-root $build --stage Directory
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $env:AHA_CI_PYTHON scripts/verify_windows_artifact.py --exe "$build/release/directory/aha/aha.exe" --source-root . --data-root "$env:RUNNER_TEMP/aha-verify-directory" --report "$env:RUNNER_TEMP/aha-directory.json"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build and verify OneFile
+        if: inputs.build
+        shell: pwsh
+        run: |
+          $build = Join-Path $env:RUNNER_TEMP 'aha-windows-build'
+          & $env:AHA_CI_PYTHON scripts/build_windows.py --build-root $build --stage OneFile --directory-verified
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $env:AHA_CI_PYTHON scripts/verify_windows_artifact.py --exe "$build/release/portable/aha.exe" --source-root . --data-root "$env:RUNNER_TEMP/aha-verify-onefile" --report "$env:RUNNER_TEMP/aha-onefile.json"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $env:AHA_CI_PYTHON scripts/release.py bundle --exe "$build/release/portable/aha.exe" --directory-report "$env:RUNNER_TEMP/aha-directory.json" --onefile-report "$env:RUNNER_TEMP/aha-onefile.json" --runtime "$build/runtime-versions.json" --candidate "$env:RUNNER_TEMP/aha-candidate/candidate.json" --output "$env:RUNNER_TEMP/aha-release-assets"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Name verified asset set
+        if: inputs.build
+        id: assets
+        shell: pwsh
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: '"name=aha-assets-$env:SOURCE_SHA-$env:GITHUB_RUN_ATTEMPT" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: inputs.build
+        with:
+          name: ${{ steps.assets.outputs.name }}
+          path: ${{ runner.temp }}/aha-release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

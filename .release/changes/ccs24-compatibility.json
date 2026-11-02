@@ -1,0 +1,8 @@
+{
+  "id": "ccs24-compatibility",
+  "kind": "fix",
+  "title": "兼容 CC Switch 24 的用量同步",
+  "description": "支持读取结构版本23和24的CC Switch数据库与SQL备份，遇到未知结构版本会明确提示；已有用量、归属和冻结材料保留原有规则。",
+  "highlight": true,
+  "upgrade_notes": []
+}

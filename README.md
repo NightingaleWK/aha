@@ -1,6 +1,12 @@
-# aha · 用量与费用 v0.3.1
+# aha · 用量与费用
 
 aha 是 Windows 本机 Codex 用量台账与报销材料工具。双击 `aha.exe` 后在浏览器使用，运行环境和 SQLite 均内置。CC Switch 的数据按记录长期保存在 aha 自己的数据库，查询和导出使用本地台账。
+
+## 下载与版本
+
+正式版本统一在 [GitHub Releases](https://github.com/NightingaleWK/aha/releases) 提供 Windows x64 单文件 EXE、中文版 What’s New 和 SHA256 校验信息。当前运行版本显示在程序页面右上角；下载后可改名为 `aha.exe` 使用。程序仍在本机离线运行，本轮没有增加联网检查更新或自动安装。
+
+开发采用发布 PR：功能合入 main 后自动汇总下一版的版本号和说明，维护者合并发布 PR 后由 GitHub Windows 环境构建验证，再公开 Release。构建或验收未完成时只保留候选/草稿，首次启用是否已完成以真实 Releases 和 Actions 运行结果为准。维护步骤见 [发版说明](docs/RELEASING.md)。
 
 ## 使用
 
@@ -104,7 +110,7 @@ $BuildPython = Join-Path $BuildRoot 'venv\Scripts\python.exe'
 
 `--python-exe` 可显式指定隔离环境解释器，缺省使用当前解释器；`--source-root` 可指定源码根目录，缺省为构建脚本所在项目。入口会检查所选解释器为 64 位 Windows 隔离环境和修复版SQLite，并写runtime-versions.json，再安装固定构建依赖并采集许可证。已有的 `scripts/build_windows.ps1` 保留为兼容入口；无需为使用它改变执行策略。
 
-便携成品在 `release\portable\aha.exe`。脚本输出 EXE 路径与 SHA-256；构建成功本身不代表通过业务验收。CSV 还需在目标 Windows 表格软件打开，HTML 在浏览器查看并打印预览。构建脚本采集实际 CPython、zstandard、zstd 和 PyInstaller 的许可证原文及指纹并内置在成品中，启动后通过页面底部“开源说明”查看。
+便携成品在 `release\portable\aha.exe`。脚本输出 EXE 路径与 SHA-256；构建成功本身不代表通过业务验收。每版独立验证 Directory/OneFile 的原生程序、HTTP、资源、材料和退出。首次发布完成本机全面验收；以后涉及材料生产链时补 Excel/打印，涉及托盘/启动退出时补相关交互，运行时和构建环境变化时重新全面验收，具体见 [发布合同](.trellis/spec/backend/release-contract.md)。构建脚本采集实际 CPython、zstandard、zstd 和 PyInstaller 的许可证原文及指纹并内置在成品中，启动后通过页面底部“开源说明”查看。
 
 ## 数据解释依据
 

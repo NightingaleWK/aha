@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact final release-PR HEAD to check
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      source_sha: ${{ github.event.pull_request.head.sha || inputs.expected_sha || github.sha }}
+      base_sha: ${{ github.event.pull_request.base.sha || '' }}
+      expected_event_sha: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || '' }}
+      build: false

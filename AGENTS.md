@@ -28,4 +28,5 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 - 收尾主动清理自己创建且已确认不再使用的合成大库、任务专用虚拟环境、构建中间件和缓存。先核实归属与运行占用；保留真实资料、源码、主开发环境、必要验收记录和最终成品，不能按 `.gitignore` 批量删除。
 - WSL 中的交互 HTML 使用本机 HTTP 服务和应用内浏览器呈现，提供当次验证过的可点击 URL。不要继续使用已失败的内联可视化路径；打开请求返回 queued 时只说明已排队。
 - 时间、统计、保存与材料共用 [时间合同](.trellis/spec/backend/time-range-contract.md)；表单动态值、键盘/焦点及迟到请求遵循 [组件](.trellis/spec/frontend/component-guidelines.md) 和 [状态规范](.trellis/spec/frontend/state-management.md)，不能只验外观或成功路径。
+- 版本与 GitHub 发布遵循 [版本发布合同](.trellis/spec/backend/release-contract.md)。每项用户可感知的功能/修复随代码提供中文 What’s New 片段，由开发代理按实际改动编写；版本由发布 PR 统一递增，不手工在多处改数字。首次全面本机验收，以后每版自动检查，涉及托盘、Excel、打印或构建环境变化时追加相应专项；没有实际执行的检查不能写成通过。
 - 复用用户已明确给出的授权，不重复确认同一事项。需要确认的流程节点集中提出，执行结果按实际证据说明；新的用户指令优先于本地默认约定。

@@ -2,7 +2,7 @@
 
 ## 1. 范围与触发条件
 
-修改来源、SQLite、查询、归属、报销、HTTP 或 Windows 打包时阅读。aha v0.3.1 是本机 Python3.12+ 工具；CCS 是只读输入，业务只访问 Store 的本地台账。实际 SQLite 必须通过 `migrations.sqlite_wal_safe`，不能仅凭 Python 版本启用多连接 WAL。
+修改来源、SQLite、查询、归属、报销、HTTP 或 Windows 打包时阅读。aha 是本机Python3.12+工具，版本以包内 `__version__` 为准；CCS 是只读输入，业务只访问 Store 的本地台账。实际 SQLite 必须通过 `migrations.sqlite_wal_safe`，不能仅凭 Python 版本启用多连接 WAL。版本、打包身份和GitHub正式发版遵循 [发布合同](./release-contract.md)。
 
 ## 2. 签名与资料边界
 
@@ -92,7 +92,7 @@ CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`�
 - test_analysis/test_projects/test_session_meta：精确金额和超 int64 Token、北京时间、四视图游标/自豁免、内容绑定归属、普通/zstd 元数据和查询无外部读取。
 - test_claims/test_batches/test_claim_concurrency/test_evidence：相关索引候选、行式冻结/完整选择、并发竞争/失败原版、成本变化后frozen修订、深路径、流式四文件与原包。
 - test_http/test_http_cli/test_rebuild_trial_data：认证、有限同步状态、已打开修订失效、持久重放、源保护/清单完整性/删除失败恢复、退出与原生平台资源关闭。
-- benchmark_ledger：百万/千万规模、固定来源窗口、首/深页和统计、冷热/P50/P95/RSS/磁盘/EXPLAIN；理论容量和少量用例不能替代实测。Windows 目录包、真实浏览器、Excel/打印与 OneFile 分别验收。
+- benchmark_ledger：百万/千万规模、固定来源窗口、首/深页和统计、冷热/P50/P95/RSS/磁盘/EXPLAIN；理论容量和少量用例不能替代实测。Windows Directory与OneFile每版独立检查，首次全面本机验收和以后相关Excel/打印、托盘专项按发布合同分别留证。
 
 ## 7. 错误与正确做法
 

@@ -1,6 +1,6 @@
 # 后端开发规范
 
-aha v0.3.1 是 Python 3.12+ 本机 Codex 台账与费用证据工具。产品实现位于 `src/aha/`，CCS 来源只读，业务在独立 Store/schema3 查询；SQLite 运行时必须通过并发修复门禁。这里记录当前实现的开发约束；用户说明见 [README](../../../README.md)。
+aha 是 Python 3.12+ 本机 Codex 台账与费用证据工具。产品版本以 `aha.__version__` 为准；实现位于 `src/aha/`，CCS 来源只读，业务在独立 Store/schema3 查询；SQLite 运行时必须通过并发修复门禁。这里记录当前实现的开发约束；用户说明见 [README](../../../README.md)。
 
 ## 开发前检查
 
@@ -25,9 +25,10 @@ aha v0.3.1 是 Python 3.12+ 本机 Codex 台账与费用证据工具。产品实
 | [运行输出与操作历史](./logging-guidelines.md) | 私有启动输出、关闭的默认日志和库内审计事件 |
 | [质量要求](./quality-guidelines.md) | Python 检查、测试实例、隔离和原生发布门禁 |
 | [成品交付与清理](./delivery-and-cleanup.md) | 桌面 EXE、WSL 预览、实际产物验收和任务临时文件生命周期 |
+| [版本与 GitHub 发布](./release-contract.md) | 单一版本、发布PR、中文What’s New、自动及专项验收、草稿恢复与正式资产 |
 
 ## 质量检查
 
-按 [质量要求](./quality-guidelines.md) 运行与改动相符的测试、Ruff、strict mypy 和 compileall；接口/页面变更增加 HTTP 与实际浏览器验证。Windows 发布须完成目录包、原生程序、Excel/打印及 OneFile 门禁，不能仅凭 Linux 测试宣布发布通过。
+按 [质量要求](./quality-guidelines.md) 运行与改动相符的测试、Ruff、strict mypy 和 compileall；接口/页面变更增加 HTTP 与实际浏览器验证。Windows每版须完成Directory、OneFile的原生自动检查，首次全面本机验收及以后专项按 [发布合同](./release-contract.md) 执行，不能仅凭Linux测试或构建成功宣布正式发布通过。
 
 规范和任务说明使用简体中文，命令、路径、字段、错误码和协议标识保留原文。仅文档变动时检查引用、占位、业务一致性和写入范围；源码未变且基线已通过时，不重复全套产品测试。
