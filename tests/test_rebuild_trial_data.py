@@ -161,6 +161,20 @@ class RebuildTrialTests(unittest.TestCase):
             rebuild.apply_manifest(self.data, self.manifest, self.data / "backup", self.index, [])
         self.assertTrue((self.data / "aha.sqlite3").exists())
 
+    def test_protected_source_alias_refuses_before_backup_or_deletion(self) -> None:
+        # Resolve-equivalent spellings occur with Windows runner drive aliases too.
+        protected_alias = self.data / ".." / self.data.name
+        self.assertNotEqual(protected_alias, self.data)
+        self.assertEqual(protected_alias.resolve(), self.data.resolve())
+        before = {entry["relative"]: entry["sha256"] for entry in self.manifest["files"]}
+        with self.assertRaises(ValueError):
+            rebuild.apply_manifest(
+                self.data, self.manifest, self.backup, self.index, [protected_alias]
+            )
+        self.assertFalse(self.backup.exists())
+        for relative, digest in before.items():
+            self.assertEqual(rebuild.fingerprint(self.data / relative), digest)
+
     def test_live_process_refuses_cleanup_without_killing_it(self) -> None:
         (self.data / "runtime.json").write_text(json.dumps({"pid": os.getpid()}))
         manifest = rebuild.inspect(self.data, [])

@@ -33,6 +33,8 @@ revision_members 与 batch_events 有不可变保护。候选成员和四文件�
 
 保护路径不可从 manifest 移除。只处理已识别且指纹未变化的 aha 试用文件；未知文件、CCS 原件/sidecar、未保全用量保留。拒绝穿越、符号链接、嵌套输出/备份、新业务 schema、文件集合变化；删除失败从校验副本恢复。不递归删除父目录或按数据库扩展名清扫。
 
+`ensure_not_protected(path, protected)` 在判断相等或父子关系前，必须将被检查路径和每一条保护路径都规范化为resolve后的路径；不能只规范化一侧。`trial/../trial` 等等价写法仍属于同一个保护目录，必须在备份或删除前以ValueError拒绝。回归应同时断言原文件指纹未变且备份尚未创建，不只观察异常类型。
+
 ## 检查
 
 覆盖 test_storage/test_sources 的一致读取、成功进度和重启；test_migrations 的新库/旧库拒绝/回滚；test_claim_concurrency 的独立连接/进程竞争；test_rebuild_trial_data 的清理边界及失败恢复。Windows 必须显式关闭 SQLite/文件句柄，不能依赖 GC 才释放临时目录。

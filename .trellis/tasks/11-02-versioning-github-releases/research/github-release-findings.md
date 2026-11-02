@@ -44,3 +44,7 @@
 - [PyInstaller官方使用说明](https://www.pyinstaller.org/en/stable/usage.html#windows-specific-options) 支持 `--version-file`，可以从权威版本生成Windows版本资源，不另设人工数字。
 - 2026-11-02通过GitHub连接器读取 [Actions官方Python版本manifest](https://github.com/actions/python-versions/blob/main/versions-manifest.json)：稳定3.15.2提供win32/x64资源。选用此版本仍须在实际runner探测SQLite、依赖及打包，不将“有下载”当成“本项目已构建通过”。
 - 项目上一轮归档验收 `.trellis/tasks/archive/2026-11/11-02-ccs-schema-compatibility/verification.md` 记录本机3.15.2/SQLite3.53.4可用；明确没有托盘物理点击证据，且交付后的文件位置发生变化。这仅帮助选择运行时和保护现有实例，本轮仍须独立做首次全面验收及确认实际桌面，不复用历史结果冒充新证据。
+
+## 实际GitHub调试入口
+
+通用fetch对job logs/annotations路径有限制，但连接器的专用 `fetch_workflow_job_logs` 能读取解码日志，实际用于定位运行41405705046的唯一保护路径失败。不能从通用URL拒绝推断整个连接器没有日志能力；同一连接器还提供workflow作业/步骤及artifact专用入口，后续按实际工具能力使用。
