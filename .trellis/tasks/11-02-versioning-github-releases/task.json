@@ -54,9 +54,11 @@
     "tests/test_release.py",
     "tests/test_windows_artifact.py"
   ],
-  "notes": "用户授权合并现有分支并清理同步；设置PR#1在d1fcacf最终HEAD CI通过后以23977da合入main。R13/AC13收尾评估与用户选择已落地。已完成旧任务均已归档，合并分支已清理；累计候选仍为首次0.4.0，首次物理托盘及确切云端候选回执未完成，保留发布PR审阅决定，任务保持in_progress不归档。",
+  "notes": "用户授权合并清理同步，设置PR#1已以23977da合入main，旧分支已清理，R13/AC13已完成。用户已开启Actions创建PR权限，机器人创建0.4.0发布PR#2；真实运行发现组件分支识别错误，跟进修复已通过实施及独立28项发布回归，按既有授权经修复PR合回main并验证。首次物理托盘及确切云端候选回执仍缺，发布PR保留待审，任务保持in_progress不归档。",
   "meta": {
     "setup_merge_sha": "23977daa22aac9e92c3fa95b787cc5c939d95d28",
-    "implementation_branch": "codex/versioning-github-releases"
+    "implementation_branch": "codex/versioning-github-releases",
+    "release_pr_url": "https://github.com/NightingaleWK/aha/pull/2",
+    "repository_create_pr_permission": "user_enabled_2026-11-02"
   }
 }

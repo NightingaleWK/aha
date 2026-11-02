@@ -49,6 +49,7 @@ python scripts/release.py stage --candidate FILE [--assets DIR]
 - 版本PR统一升号：fix升patch、feat升minor；0.x破坏性变化升minor且明确升级说明，1.0需要显式审阅。Release Please显式更新真实导入包，不从发行名 `aha-usage` 猜成 `aha_usage`。
 - `.release/changes/*.json` 的稳定id、分类、中文标题/说明及必要升级事项须与实际交付一致；已发布片段不可原地改写。What’s New按最近公开版本至候选最终树生成、去重，空栏目省略；在发布PR预览，正式发布时只填真实资产信息，不再自由改写产品描述。
 - 发布代码SHA M固定为可信同仓库发布PR的merge SHA，版本、说明、EXE和标签必须对应它。后续main推进不能混入旧候选。默认令牌创建标签不会保证触发后续构建；同一编排直接执行，并显式dispatch最终机器人PR HEAD的只读CI。
+- 发布PR身份统一校验实际组件分支 `release-please--branches--main--components--aha-usage`、同仓库head、main目标及 `github-actions[bot]` 作者。`include-component-in-tag=false` 不代表分支名也没有组件；准备说明、已合并候选发现和标签恢复共用同一严格身份判断，后两者保留各自的合并状态和标签门禁。配置或生成器升级改变分支名时同步核对真实REST响应，不能放宽为任意前缀匹配。
 - CI验证报告 `schema_version=1`，成功须有 `verified=true`、`executable_sha256`、`version`、`pe_version` 和实际检查范围。无桌面 `--no-tray` 不证明物理托盘操作；失败不得输出成功标记。
 - 人工回执含 `schema_version`、实际测试源码 `source_sha`、北京时间 `completed_at`、full/tray/materials/recipe指纹、实际生产/构建运行时 `runtime_sha256`、真实 `checks` 及小型证据摘要。首次公开还须绑定 `candidate_source_sha=M` 和确切云端EXE `artifact_sha256`；缺少真实托盘点击不能把tray列入已通过。指纹须从真实测试提交重算，与目标候选核对；不存在的源码或手填不符指纹不能放行。
 - 构建依赖及实际使用的传递依赖全部固定在 `scripts/requirements-build.txt`。实际运行时摘要包含Python完整patch、SQLite、位数/平台及这些固定构建包的实际版本，排除不随产品打包的QA工具；运行时变化须重新验收，不能只核对配方文件未变。
@@ -65,6 +66,8 @@ python scripts/release.py stage --candidate FILE [--assets DIR]
 | 本次仅文档，但存在先前待发功能 | 本次无需单独升号；仍报告累计候选、未发内容及既有缺口 |
 | 用户选择积累或没有回复发布选择 | 保留待发片段及未合并发布PR，不把开发完成当作正式发布授权 |
 | 请求现在发布，但适用验收仍有缺口 | 明确缺口并先准备/补验，不降低门禁或声称已经发布 |
+| 自动创建PR被仓库设置阻止 | 明确区分质量检查成功与准备失败；开启所需一次性权限后恢复，不更换个人令牌绕过设置 |
+| 合法机器人组件分支被误判为不可信 | 按真实生成器格式修正共用身份判断，仍拒绝错误组件、仿冒后缀、外部仓库、错误目标和作者 |
 | 版本、候选SHA、说明或产物指纹不一致 | 阻断，不标签错误源码 |
 | SQLite/解释器/Directory检查失败 | 阻断OneFile和正式发布 |
 | OneFile或资产校验失败 | 不公开，可保留自有草稿恢复 |
@@ -86,6 +89,8 @@ python scripts/release.py stage --candidate FILE [--assets DIR]
 ## 6. 必须覆盖的验证
 
 版本/元数据/PE一致及原门禁；多片段、撤销未发布功能、空/缺失/重复及breaking说明；精确M、默认令牌dispatch、HEAD迟到结果；草稿恢复/重复正式版/上传中断；人工指纹规范化、相关变化失效及first资产SHA绑定。原生EXE必须实际执行HTTP、材料和生命周期，不以解析脚本或静态字符串替代。
+
+发布PR身份回归使用实际Release Please输出字段和组件分支REST样例，验证准备说明后dispatch最终HEAD、已合并发现/恢复均识别同一身份；错误组件、近似后缀、fork、目标或作者错误时拒绝且不写远端，未合并PR不能被识别为发布候选。
 
 正式验收分别记录源码检查、本机成品、机器人PR、GitHub构建、首次人工门禁和真实Release下载；未执行远端链路时保持对应AC未完成。桌面交付与清理见 [交付规范](delivery-and-cleanup.md)。
 

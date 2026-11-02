@@ -23,6 +23,8 @@ from pathlib import Path
 from typing import Any
 
 BOOTSTRAP = "f98df67df38a534fb240d20a79dda843297f4437"
+# Release Please's configured package-name adds a component to its PR branch.
+RELEASE_BRANCH = "release-please--branches--main--components--aha-usage"
 VERSION_RE = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
 SHA_RE = re.compile(r"[0-9a-f]{40}\Z")
 DIGEST_RE = re.compile(r"[0-9a-f]{64}\Z")
@@ -555,13 +557,21 @@ def release_identity(release: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+def release_pr_identity(pr: dict[str, Any], repo: str) -> bool:
+    base, head, user = pr.get("base") or {}, pr.get("head") or {}, pr.get("user") or {}
+    head_repo = head.get("repo") or {}
+    return bool(
+        base.get("ref") == "main"
+        and head_repo.get("full_name") == repo
+        and head.get("ref") == RELEASE_BRANCH
+        and user.get("login") == "github-actions[bot]"
+    )
+
+
 def trusted_pr(pr: dict[str, Any], repo: str) -> bool:
     return bool(
         pr.get("merged_at")
-        and pr.get("base", {}).get("ref") == "main"
-        and pr.get("head", {}).get("repo", {}).get("full_name") == repo
-        and pr.get("head", {}).get("ref") == "release-please--branches--main"
-        and pr.get("user", {}).get("login") == "github-actions[bot]"
+        and release_pr_identity(pr, repo)
         and any(
             label.get("name") in {"autorelease: pending", "autorelease: tagged"}
             for label in pr.get("labels", [])
@@ -748,10 +758,7 @@ def prepare_pr(root: Path, api: GitHub, prs: list[dict[str, Any]]) -> None:
         if (
             not pr
             or pr["state"] != "open"
-            or pr["base"]["ref"] != "main"
-            or pr["head"]["repo"]["full_name"] != api.repo
-            or pr["head"]["ref"] != "release-please--branches--main"
-            or pr["user"]["login"] != "github-actions[bot]"
+            or not release_pr_identity(pr, api.repo)
         ):
             raise ReleaseError("Refusing to update an untrusted release PR.")
         head, branch = pr["head"]["sha"], pr["head"]["ref"]
