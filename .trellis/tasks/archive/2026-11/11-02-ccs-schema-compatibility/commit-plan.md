@@ -42,4 +42,4 @@
 - 双平台211项测试分别OK（Linux跳过2、Windows跳过1），Ruff/strict mypy/compileall及独立审阅通过；原生与真实来源证据见 verification.md。
 - 用户原始 CCS/aha、最终桌面 EXE、私有验收文件不加入 Git。
 - 用户确认后先完成以上工作提交，再按 Trellis finish-work 执行当前任务归档和 journal（各自产生 bookkeeping commit）。不修改其他任务；没有远端推送计划。
-- 确认依据：.trellis/workflow.md 第3.4节要求展示提交清单并一次集中确认。用户已回复“执行”授权整批，按本清单执行提交及收尾。
+- 确认依据：.trellis/workflow.md 第3.4节要求展示提交清单并一次集中确认。用户已回复“执行”授权整批，工作提交 `fa4ec9327592ccb48b27ed3c744d0751b44dd0df` 已完成，按本清单归档并记录 journal。
