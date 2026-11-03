@@ -24,7 +24,9 @@ jobs:
     needs: quality
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # GitHub lists draft releases only for tokens with push access.
+      # This trusted lookup must see existing drafts to reuse verified bytes.
+      contents: write
       pull-requests: read
     outputs:
       has_candidate: ${{ steps.find.outputs.has_candidate }}
@@ -72,6 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Publication also reconciles labels on the merged release PR.
+      pull-requests: write
       issues: write
       actions: read
     outputs:
