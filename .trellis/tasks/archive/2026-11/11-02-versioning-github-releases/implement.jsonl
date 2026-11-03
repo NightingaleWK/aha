@@ -6,5 +6,5 @@
 {"file":".trellis/spec/frontend/quality-guidelines.md","reason":"页面/资源和材料证据边界及需同步的发布政策"}
 {"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"沿用现有构建与业务所有者，避免复制打包或金额计算"}
 {"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"版本、材料、HTTP和成品跨层一致性"}
-{"file":".trellis/tasks/11-02-versioning-github-releases/research/github-release-findings.md","reason":"官方工具能力、令牌事件、动态版本及首次基线证据"}
-{"file":".trellis/tasks/11-02-versioning-github-releases/research/whats-new-design.md","reason":"用户确认的自动What’s New及内容来源/验收政策"}
+{"file":".trellis/tasks/archive/2026-11/11-02-versioning-github-releases/research/github-release-findings.md","reason":"官方工具能力、令牌事件、动态版本及首次基线证据"}
+{"file":".trellis/tasks/archive/2026-11/11-02-versioning-github-releases/research/whats-new-design.md","reason":"用户确认的自动What’s New及内容来源/验收政策"}
