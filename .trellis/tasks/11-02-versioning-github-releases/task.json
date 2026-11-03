@@ -12,7 +12,7 @@
   "assignee": "NightingaleWK",
   "createdAt": "2026-11-02",
   "completedAt": null,
-  "branch": "codex/first-release-acceptance",
+  "branch": "codex/release-draft-discovery",
   "base_branch": "main",
   "worktree_path": null,
   "commit": "3437e2cee0d96735fd378b8a51c2b46bbe841516",
@@ -55,7 +55,7 @@
     "tests/test_release.py",
     "tests/test_windows_artifact.py"
   ],
-  "notes": "用户授权合并清理同步；设置PR#1、组件识别PR#3、版本断言PR#4和0.4.0发布PR#2已合main。最终发布PR HEAD CI41419894652及候选流水线41420947881通过，M01703aea的云端EXE已交付实际桌面并验证。用户于2026-11-03明确确认物理托盘重开/菜单退出及本机Excel正常，六项完整回执已准备并离线门禁通过，旧部分回执保持原样。累计待发首次0.4.0，准备受审阅的验收PR；该PR合main会自动公开原草稿，等待本次具体公开选择。尚未真正公开及验证正式下载，任务保持in_progress。",
+  "notes": "首版六项真实验收回执已合main2aacb30，用户于2026-11-03明确选择现在正式公开0.4.0并完成下载复验、归档清理及同步。真实恢复发现inspect只读令牌看不见草稿，误触重建被资产保护拒绝，原三资产不变。仅修正可信发现作业权限；在精确受审阅修复分支运行原流程，先公开M01703aea的已验收字节，再移除临时触发并合main永久修复。尚未公开及正式下载，任务保持in_progress。",
   "meta": {
     "setup_merge_sha": "23977daa22aac9e92c3fa95b787cc5c939d95d28",
     "implementation_branch": "codex/versioning-github-releases",
@@ -66,6 +66,9 @@
     "candidate_actions_run_id": "41420947881",
     "draft_release_id": "431280323",
     "human_acceptance_confirmed_on": "2026-11-03",
-    "publication_decision": "awaiting_explicit_choice"
+    "publication_decision": "authorized_2026-11-03",
+    "acceptance_pr_url": "https://github.com/NightingaleWK/aha/pull/5",
+    "acceptance_merge_sha": "2aacb30a1e24cc8970727476cbe83dd19b0b1695",
+    "draft_visibility_failed_run_id": "41558110567"
   }
 }

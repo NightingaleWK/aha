@@ -60,6 +60,8 @@ python scripts/release.py stage --candidate FILE [--assets DIR]
 - 首次全面本机验收包括Directory、OneFile、浏览器、托盘、Excel及A4打印预览/PDF；以后每版自动验证原生EXE/HTTP/资源/材料/复开/退出。相关代码变化使对应专项失效，构建配方/运行时或未知生产模块变化保守要求全项；仅版本数字可在专项指纹内规范化，不能掩盖其他改动。
 - 人工回执可后补到可信main，再恢复同一草稿M；它不改变打包源码。草稿EXE变化使其资产回执失效。CI只校验回执匹配，不声称自己重新执行Office或物理交互。
 - 普通PR及构建只读；PR准备、dispatch及发布job按需要分别授权。不得在不可信源码执行中暴露写令牌，不拼接PR文案为shell，不记录运行凭证。
+- 草稿发现作业 `inspect` 须具有 `contents: write`：GitHub的List releases仅向有push权限的调用方返回草稿，`contents: read`成功返回公开列表不证明已有草稿不存在。写权限只用于可信main或明确审阅的同仓库修复分支上的发布编排；质量/构建仍只读，checkout保持 `persist-credentials: false`。不能用权限更高的连接器查询结果冒充实际job令牌的可见性验证。
+- 发布旧候选M前，核对M与默认main之间 `.github/workflows/` 的差异。GitHub更新Release时可能要求 `Workflows: write`，而默认GITHUB_TOKEN不能取得该权限；需要修复发布工作流时，优先先在受审阅修复分支运行相同流程公开原M，再合入工作流修复，保持源M、已验收资产及回执不变。不要为绕过权限改标最新main或索取个人令牌。官方边界见 [List releases](https://docs.github.com/en/rest/releases/releases#list-releases) 和 [Update a release](https://docs.github.com/en/rest/releases/releases#update-a-release)。
 
 ## 4. 校验与错误矩阵
 
@@ -79,6 +81,8 @@ python scripts/release.py stage --candidate FILE [--assets DIR]
 | 本地撤销未公开功能并删除其片段 | WORKTREE枚举排除已删除文件，不残留虚假说明或抛文件不存在；回退理由用internal片段记录 |
 | 已公开同版本重跑 | 相同身份返回已有成功；冲突则失败，不覆盖资产或移动标签 |
 | 草稿中断/部分上传 | 按版本和M独立恢复，不仅依赖release_created；资产改变须重新验收 |
+| 完整草稿恢复却触发重建 | 先核对发现job的实际草稿可见权限；原资产保持不变，不能用新构建覆盖已验收字节 |
+| 旧候选与默认main的工作流有差异 | 核对GitHub的Workflows权限限制，受审阅修复分支先恢复原M；失败时保留草稿及回执，不更换发布源码 |
 | 已公开但PR标签更新中断 | 写权限job在准备下一版前幂等修复tagged/pending标签，不能永久堵住后续发版 |
 
 ## 5. 正常、基础与错误场景
@@ -95,6 +99,8 @@ python scripts/release.py stage --candidate FILE [--assets DIR]
 发布PR身份回归使用实际Release Please输出字段和组件分支REST样例，验证准备说明后dispatch最终HEAD、已合并发现/恢复均识别同一身份；错误组件、近似后缀、fork、目标或作者错误时拒绝且不写远端，未合并PR不能被识别为发布候选。
 
 正式验收分别记录源码检查、本机成品、机器人PR、GitHub构建、首次人工门禁和真实Release下载；未执行远端链路时保持对应AC未完成。桌面交付与清理见 [交付规范](delivery-and-cleanup.md)。
+
+草稿恢复须使用真实Actions作业权限验证：已有三项完整资产时，`discover`输出 `needs_build=false`、构建job跳过，`stage`核对并公开同一M和相同资产；不能只用高权限连接器或模拟API数据预测恢复成功。普通PR/构建无写权限，修复分支临时触发入口在合回main前必须移除。
 
 收尾规则变更通过文档一致性审阅覆盖“修复单独发布 / 累计功能决定版本 / 纯文档但有待发功能 / 用户选择积累 / 尚缺验收 / 无发布授权”场景；只调整协作规范时检查引用和规则一致性，无需构建EXE或新增自动测试。
 

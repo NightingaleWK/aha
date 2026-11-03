@@ -16,6 +16,14 @@
 
 本次只补真实验收及任务记录，不改产品、版本或What’s New，不另升号。累计待发仍为首次0.4.0：CCS24兼容、版本化Windows下载及自动发布、试用资料重建目录保护。建议在受审阅的验收PR检查通过后公开0.4.0；完整回执合入main会自动恢复原草稿并公开同一M及相同字节，因此该PR在用户作出具体公开选择前保持未合并。AC3、AC8正式正文及AC11/12公开下载链路仍未完成，本任务保持 `in_progress`。
 
+### 用户发布决定与真实恢复发现
+
+用户随后明确选择“现在正式公开v0.4.0”，覆盖合并验收PR#5、正式公开、下载复验、归档与同步。PR#5最终HEAD `a7beadb9c125e6574b7115b12b380449128add6f` 的CI [41557279893](https://github.com/NightingaleWK/aha/actions/runs/41557279893) 通过251项Python测试、Ruff、25文件strict mypy及JavaScript检查后，以 `2aacb30a1e24cc8970727476cbe83dd19b0b1695` 合main。原分支确认完全合入后删除，本地/远端main同步。
+
+真实恢复运行 [41558110567](https://github.com/NightingaleWK/aha/actions/runs/41558110567) 的只读inspect看不见草稿，输出 `needs_build=true`，错误触发重建；candidate作业拒绝冲突资产，原草稿三资产及SHA保持不变。官方文档明确草稿列表仅push访问者可见，前次独立审阅使用高权限连接器，遗漏了实际作业令牌差异。修复仅将可信inspect的contents权限改为write，质量/构建及原资产保护不变；四项源码/配方指纹与M相同，六项回执仍有效，actionlint和独立语义审阅通过。
+
+GitHub另限制更新旧候选时相对默认main的工作流差异，默认GITHUB_TOKEN无法取得所需Workflows写权限。因此main先保持与M相同工作流，在受审阅同仓库修复分支运行同一个Release流程公开原M，再合回永久权限修复。连接器不提供workflow_dispatch入口，本次临时只给精确修复分支增加push触发，保留全部检查、资产/回执门禁和固定并发组；成功后立即恢复main-only触发再合并。此处不构成新的长期发布入口，也不要求用户重复授权同一版本。
+
 日期：2026-11-02。用户在完整规划审阅后回复“好的”，批准实施并准备可审阅的设置PR。分支 `codex/versioning-github-releases`，实施基线 `f2e77cbe62bdd50cee435cd37e2a2f64a517fd68`，远端main起点 `f98df67df38a534fb240d20a79dda843297f4437`。保留本地已有CCS24修复，未改用户真实资料或正在使用的其他程序。
 
 ## 已实施范围

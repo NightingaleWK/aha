@@ -115,6 +115,10 @@ runtime命令记录当前原生Windows x64构建/测试解释器，摘要覆盖�
 
 工作流使用确切源码SHA，不打包执行时最新main。测试、版本、说明、运行时或产物失败时不公开；人工证据缺失时会明确返回 `awaiting_acceptance`，含缺少的检查和候选标识，这表示候选就绪、未发布成功。
 
+草稿发现作业需要 `contents: write`，因为GitHub只向有push访问权限的调用方返回草稿列表；只读请求成功但列表为空不能用来判断没有草稿。该权限仅限可信发布编排，普通PR、质量及构建仍只读。完整草稿恢复应显示 `needs_build=false` 并跳过重建，再复用已验收字节。[GitHub草稿可见性说明](https://docs.github.com/en/rest/releases/releases#list-releases)
+
+修复工作流时，还须先核对旧候选M与默认main的工作流差异：GitHub更新Release可能要求Workflows写权限，默认GITHUB_TOKEN无法具备。优先在已审阅的同仓库修复分支运行同一发布流程，公开原M后再合入工作流修复；不要改成发布最新main或重建旧包规避限制。本次修复若临时增加精确分支触发，须在合回main前移除。[GitHub发布更新权限说明](https://docs.github.com/en/rest/releases/releases#update-a-release)
+
 - 修复失败原因或补齐真实回执后，在 [Release工作流](https://github.com/NightingaleWK/aha/actions/workflows/release.yml) 选择Run workflow，或等待下一次main提交触发。每轮扫描最早未发布的可信已合并发布PR，能够恢复错过的main事件。
 - 上传先保存build-info，记录同次Actions资产及run id。上传中断时下载原运行的已验证资产补传，保留原EXE字节，不用新打包结果冒充同一候选。原运行资产保留14天。
 - 原运行资产过期、草稿已有冲突文件或标识不一致时停止，维护者审阅后处理自有未公开草稿再重建；重新生成的EXE需要重新匹配回执。程序不自动删除不明草稿。

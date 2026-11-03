@@ -53,15 +53,36 @@
 
 ## 合并和公开边界
 
-`.github/workflows/release.yml` 由 main push 触发。完整新回执合入 main 后，`discover` 会发现同一未公开 M，三资产完整时 `needs_build=false`，跳过重建；`stage` 核对原资产并从固定的最新可信 main 提交读取回执。六项通过后立即 `PATCH /releases/431280323`，令 `draft=false`、`make_latest=true`，随后将 PR 标记为 tagged。因此合并完整回执是实际公开动作的入口，不能以“仅补文档”解释为没有发布影响。
+`.github/workflows/release.yml` 由 main push 触发。按代码路径，完整新回执合入 main 后，只有 `discover` 所使用的令牌能看见同一未公开 M 的草稿时，三资产完整才会得到 `needs_build=false`、跳过重建；`stage` 核对原资产并从固定的最新可信 main 提交读取回执。六项通过后立即 `PATCH /releases/431280323`，令 `draft=false`、`make_latest=true`，随后将 PR 标记为 tagged。因此合并完整回执是实际公开动作的入口，不能以“仅补文档”解释为没有发布影响。初轮只使用高权限连接器查看草稿，未覆盖 job 只读令牌的可见性差异；后续真实运行揭示的问题见下节。
 
-当前用户明确确认了人工验收通过；正式公开仍按当前可审阅结果和明确发布选择执行。新回执 PR 可先准备、审阅及运行只读 CI，未经本次公开决定不合并该 PR、不调用 `stage` 或手动工作流恢复。保持本轮候选 EXE 字节与源码 M 不变。
+初轮审阅时用户确认人工验收通过、公开选择尚待给出。此后用户已明确授权公开 0.4.0，验收 PR #5 已合入 main `2aacb30a1e24cc8970727476cbe83dd19b0b1695`；既有授权直接复用，不再重复询问。保持本轮候选 EXE 字节与源码 M 不变。
 
 ## 检查结果
 
 - Ruff：`ruff check --no-cache src tests scripts` 通过。
 - mypy：`mypy --cache-dir=/dev/null src/aha` 通过，22 个生产源文件无问题。
 - `git diff --check`：通过。
-- 首版门禁：远端现有 main 上旧部分回执缺六项；分支上的完整新回执经真实代码调用返回 `[]`，正负场景通过，等待用户公开选择及受审阅合并。未运行真实 `stage`。
+- 初轮首版门禁：当时远端 main 的旧部分回执缺六项，分支上的完整新回执经真实代码调用返回 `[]`，正负场景通过。此后回执已随 PR #5 合入 main；真实恢复状态见下节。本审阅代理没有执行真实 `stage`。
 - 完整 251 项 Python 和现有 JavaScript 基线：本轮无产品改动，不重复执行；远端 M 对应候选质量检查成功。
-- 未发现需要修改产品源码或工作流的问题。新回执最终复核通过；公开发布和公开下载核验尚未执行，相关范围保留未完成，不能提前归档任务。
+- 初轮未发现产品源码或回执问题，但漏查了草稿发现令牌权限差异；后续真实运行需要修复该工作流权限。公开发布和公开下载核验尚未完成前，相关范围保持未完成。
+
+## 真实恢复运行揭示的草稿可见性问题
+
+补查时间：2026-11-03 09:20（北京时间）。[恢复运行 41558110567](https://github.com/NightingaleWK/aha/actions/runs/41558110567) 已完成 main 质量检查。inspect job `125663387139` 的真实日志记录 `Contents: read`、`PullRequests: read`，随后调用 `release.py discover`。build job `125663477787` 被启动，说明该轮发现结果要求重新构建；此时高权限连接器仍可查看到同一草稿的原三项完整资产，EXE 资产 ID、大小及 SHA256 均未变，Release 仍未公开。
+
+GitHub 官方 [List releases](https://docs.github.com/en/rest/releases/releases#list-releases) 明确：公开版本向所有人可见，草稿列表仅向具有仓库 push 访问权的调用者提供。端点的通用 `contents:read` 要求不能推出草稿也可见。结合实际 job 权限、执行分支和代码，根因为 inspect 的只读 `GITHUB_TOKEN` 看不到草稿，`discover` 得到 `existing=None` 后将其当作尚无资产，输出 `needs_build=true`。这里没有提取或重放 job 令牌，也没有把高权限连接器的可见性冒称只读 job 已验证。
+
+最小修复是仅把可信发布编排的 `inspect.permissions.contents` 改为 `write`，并写明是为读取草稿可见性而需要；`pull-requests` 保持 `read`，顶层默认、普通 PR 质量检查和构建仍保持只读。发现脚本本身仍只发 GET 请求，不增加写 API、个人令牌或额外资产替换逻辑。`actions/checkout` 继续 `persist-credentials:false`，写令牌不交给不可信 PR 执行。
+
+当前错误重建不能成为替换已验收字节的理由。后续 `stage` 用具备写权限的令牌看见原草稿时，会对已存在同名资产逐字节核对；新构建的 build-info 或 EXE 与原字节不同即失败，不能覆盖原资产或用旧回执放行新 EXE。该行为是代码路径核查结论，旧运行尚未结束时不声称已观察到该最终失败。
+
+同一官方页面的 [Update a release](https://docs.github.com/en/rest/releases/releases#update-a-release) 还说明：若目标提交相对默认分支修改 `.github/workflows/` 文件，发布更新可能要求 `workflows:write`，而 Actions `GITHUB_TOKEN` 不能取得该权限。因此将权限修复先合 main 后再公开旧 M，需要留意这一权限边界；具体历史祖先提交是否命中该限制尚未实测，不能断言一定拒绝。可在受信任的修复分支上显式运行 Release 工作流、保持默认 main 的工作流仍与 M 一致，成功公开同 M 后再合修复。该路径仍须核对实际执行结果，不以文档推断代替真实发布成功，也不要求另换个人令牌。
+
+### 权限修复落地后的复核
+
+- 用 PyYAML 解析修复前后的整个 `release.yml` 并做语义比较，唯一语义变化为 `jobs.inspect.permissions.contents: read → write`。顶层 `contents:read`、inspect 的 `pull-requests:read`、其他 job 权限和 `persist-credentials:false` 全部不变。
+- 产品源码、构建入口与实际 Windows 配方未变；工作树四项指纹与 M 全部一致，因此不需要另建 EXE 或重新做人机专项。
+- 原新回执文件的 SHA256 仍为 `cd75f88401ad8a3b4f5e0815c7f4e7ba417df7c98a39d85a6713e3445127ee8d`；实际调用 `acceptance_missing(M, WORKTREE, None, 48d5…81f5, 2d64…8642)` 返回 `[]`，旧候选资产绑定保持有效。
+- `release.py validate --base HEAD --ref WORKTREE` 和 `git diff --check` 均通过。没有新增产品源码，不重复 251 项基线；此前 Ruff 和 mypy 的通过范围未发生代码变化。
+- 本机没有 actionlint，未声称执行该检查；YAML 解析和权限语义比较已实际执行。
+- 新权限令牌在 GitHub 上能看到草稿、跳过重建并成功公开原资产，仍须后续真实运行确认。本代理未发起、合并、公开或替换任何远端资产。
