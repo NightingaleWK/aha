@@ -4,7 +4,13 @@
 
 2026-11-03 09:30:55（北京时间），[v0.4.0](https://github.com/NightingaleWK/aha/releases/tag/v0.4.0) 正式公开。标签指向M=`01703aea603549c3d39e64a25a57218c42215b58`；三项资产ID与SHA保持原候选不变，正式正文与已审阅中文说明逐字节一致。09:32:42，独立从正式Release下载的EXE通过Windows原生运行、PE/HTTP版本、资源字节、CCS23/24及SQL24、精确冻结材料、复开/重启和退出清理检查；SHA与实际桌面副本相同。公开证明为 `public-release-0.4.0-proof.json`，原生报告为 `public-release-0.4.0-check.json`，后者SHA256为 `063fdc5f925fcc198235cfe01d16d8ba21db74daf6690b1555753d6b85b48de9`。
 
-修复后的真实恢复运行 [41559607007](https://github.com/NightingaleWK/aha/actions/runs/41559607007) 已正确发现完整草稿并跳过build，公开原M成功；随后PR标签回写POST403导致该运行标红。临时分支触发已移除，candidate增加明确PR写权限，最终由可信main的prepare/reconcile验证状态恢复；在此验证前不把整个收尾标为完成。以下保存从本机验收到首版公开的阶段记录。
+修复后的真实恢复运行 [41559607007](https://github.com/NightingaleWK/aha/actions/runs/41559607007) 已正确发现完整草稿并跳过build，公开原M成功；随后PR标签回写POST403导致该运行标红。临时分支触发已移除，candidate增加明确PR写权限。最终修复PR#6的HEAD `7f1c5ade26029f0b87ac723efd658dc7cb49200d` 在CI [41561551436](https://github.com/NightingaleWK/aha/actions/runs/41561551436) 通过后，以 `1961d94338610b7acea52e59716373f2bac4b726` 合main。
+
+主分支实际运行 [41562176404](https://github.com/NightingaleWK/aha/actions/runs/41562176404) 的quality、inspect、prepare全部成功，已公开版本无需再次build/candidate。prepare中的reconcile在核对原Release、标签和资产后自动将发布PR#2标为 `autorelease: tagged` 并移除pending，真实REST结果已确认，证明状态恢复完成；历史失败记录如实保留，没有删除或冒称全绿。全部13项AC满足，本任务进入归档及最终同步。
+
+本次发版评估：最近真正公开版本为0.4.0，main没有相对其新增的产品变化，累计用户待发内容为空；余下权限与收尾记录不单独升0.4.1或编造What’s New。用户明确选择的首次公开已执行，不重复询问同一版本。完整变更、中文说明和实际资产在正式Release可审阅。
+
+## 阶段记录：本机验收到首版公开
 
 2026-11-03，用户提供真实 Windows 托盘图标、右键菜单及 v0.4.0 页面截图和 Excel 表格，并明确确认双击托盘重开、右键退出后图标消失、本机 Microsoft Excel 打开中文及精确金额均正常。以下较早的0.3.1阶段记录作为实施历史保留，当前交付及候选以下列0.4.0记录为准。
 
