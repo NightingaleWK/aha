@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 14
+- **Total Sessions**: 15
 - **Last Active**: 2026-11-03
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~430 | Active |
+| `journal-1.md` | ~469 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 15 | 2026-11-03 | v0.4.0首次正式发布与收尾 | `7f1c5ade26029f0b87ac723efd658dc7cb49200d`, `f7f548e` | `main` |
 | 14 | 2026-11-03 | 补齐0.4.0首版人工验收 | `34534b9c95cd40131c6a7f03dbff8acc58aebedc` | `codex/first-release-acceptance` |
 | 13 | 2026-11-02 | 使HTTP真实版本回归随候选升号 | `e9672cb199c25bd4460c6b1017b48de9398dbffa` | `main` |
 | 12 | 2026-11-02 | 修复真实机器人PR的组件分支识别 | `f2b8ab0c461b05f6bd3a35b78825a3304ae0b417` | `main` |

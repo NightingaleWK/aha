@@ -428,3 +428,42 @@
 
 - 验收PR的最新HEAD GitHub检查通过后，请用户选择公开0.4.0或保留草稿；合入完整回执将自动公开同一候选。
 - 仅在真实公开和正式下载验证后完成AC及归档；正式下载所需原生QA环境暂留。
+
+
+## Session 15: v0.4.0首次正式发布与收尾
+<!-- trellis-session: v=2 fp=5be06979d4752879 -->
+
+**Date**: 2026-11-03
+**Task**: v0.4.0首次正式发布与收尾
+**Branch**: `main`
+
+### Summary
+
+首版0.4.0原候选公开，正式下载与桌面EXE原生验收一致；修复草稿可见性和发布PR状态权限，main真实流程全绿并恢复tagged，13项AC完成，任务归档。
+
+### Main Changes
+
+- 公开Release源码为01703aea，EXE SHA48d5d469...81f5，中文说明与受审阅正文完全相同；物理托盘/Excel由用户实际确认。
+- 永久工作流仅调整可信inspect及candidate的相应写权限；临时分支触发已移除，普通PR/构建仍只读。
+- 清理本轮114+4641个任务文件、110931840字节，保留桌面成品、必要PDF/JSON及冻结合成ZIP。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7f1c5ade26029f0b87ac723efd658dc7cb49200d` | chore(release): 固定发布权限并完成公开下载验收 |
+| `f7f548e` | docs(release): 记录0.4.0公开与恢复链路验收完成 |
+
+### Testing
+
+- [OK] 正式公开下载EXE通过PE/HTTP0.4、资源、CCS23/24/SQL24、精确材料、复开/重启及退出；与桌面相同SHA。
+- [OK] 最终PR#6 CI41561551436及main流程41562176404成功，PR#2 tagged且pending已移除；actionlint、指纹、回执和链接检查通过。
+- [OK] 归档后重写4处任务内JSONL路径，核对全部context、relatedFiles及6个本地Markdown链接。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 常规新功能/修复随代码附中文片段，收尾给出累计范围、版本建议和发布/积累选择；本轮暂无新增用户待发内容，不另发空版本。
