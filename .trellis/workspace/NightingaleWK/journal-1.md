@@ -391,3 +391,40 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 14: 补齐0.4.0首版人工验收
+<!-- trellis-session: v=2 fp=c5461564d97c9f06 -->
+
+**Date**: 2026-11-03
+**Task**: 补齐0.4.0首版人工验收
+**Branch**: `codex/first-release-acceptance`
+
+### Summary
+
+用户亲自确认托盘重开/菜单退出和本机Excel正常；完整回执绑定云端候选M及确切EXE，六项门禁和独立负例通过。准备验收PR，正式公开仍待具体选择，任务保持进行中。
+
+### Main Changes
+
+- 保留旧部分回执，新增M01703aea的首版六项完整回执和独立审阅记录。
+- 核实桌面0.4.0与云端SHA一致、六份冻结材料不变，无aha/Excel存活；清理114个任务临时文件，释放50,913,104字节。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `34534b9c95cd40131c6a7f03dbff8acc58aebedc` | chore(release): 补齐0.4.0首版真实验收回执 |
+
+### Testing
+
+- [OK] 实际acceptance_missing返回空列表；错误M/资产/运行时/缺托盘证据均被阻断。
+- [OK] 发布输入、Ruff、mypy及diff检查通过，产品源码未变；原候选流水线41420947881成功。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 验收PR的最新HEAD GitHub检查通过后，请用户选择公开0.4.0或保留草稿；合入完整回执将自动公开同一候选。
+- 仅在真实公开和正式下载验证后完成AC及归档；正式下载所需原生QA环境暂留。
