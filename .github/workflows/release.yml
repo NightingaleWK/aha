@@ -2,9 +2,7 @@ name: Release
 
 on:
   push:
-    # Temporary trusted recovery branch: publish existing M before merging this fix.
-    # Restore main-only triggering immediately after the release succeeds.
-    branches: [main, codex/release-draft-discovery]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -76,6 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Publication also reconciles labels on the merged release PR.
+      pull-requests: write
       issues: write
       actions: read
     outputs:

@@ -86,3 +86,48 @@ GitHub 官方 [List releases](https://docs.github.com/en/rest/releases/releases#
 - `release.py validate --base HEAD --ref WORKTREE` 和 `git diff --check` 均通过。没有新增产品源码，不重复 251 项基线；此前 Ruff 和 mypy 的通过范围未发生代码变化。
 - 本机没有 actionlint，未声称执行该检查；YAML 解析和权限语义比较已实际执行。
 - 新权限令牌在 GitHub 上能看到草稿、跳过重建并成功公开原资产，仍须后续真实运行确认。本代理未发起、合并、公开或替换任何远端资产。
+
+### 精确受信分支临时入口审阅
+
+当前连接器没有可用的工作流 dispatch/cancel 写入口。主会话采用同一 `release.yml` 的临时精确 push 分支作为一次性恢复入口，先从受信分支运行修复后的 inspect，避免提前改变默认 main 的工作流；不另建发布链或更换资产。实际审阅的临时 YAML SHA256 为 `d7988c532682ee167b746bf6a31f7916a50892a124a74245a8a0a49a358294fe`。
+
+- PyYAML 解析和前后语义比较确认：除 inspect 的必要 `contents:write` 外，仅把 `push.branches` 从 `[main]` 临时改为 `[main, codex/release-draft-discovery]`。没有新增 `pull_request`、`pull_request_target`、通配分支或可执行任意 PR 代码的入口；其他/近似分支名不能匹配。
+- 入口是同仓库受信分支的 push，不读取不可信 PR 代码；仍先执行只读 quality，成功后才能执行 inspect。原只读 CI、Windows 构建工作流和发布脚本均未修改。
+- 原固定并发组 `aha-main-release` 与 `cancel-in-progress:false` 不变，旧 main 恢复和新受信分支运行继续串行处理同一候选。candidate 仍依赖 inspect/build 的真实结果，不绕过失败。
+- 构建源码仍取 `needs.inspect.outputs.source_sha`，而非临时分支 HEAD。discover 仍从可信 main 寻找已合并的真实发布 PR、验证 M 是 main 祖先；stage 仍验证 M 的中文说明、资产来源/字节、实际运行时和固定可信 main 上的完整回执。旧候选或回执门禁没有放宽。
+- 只读查询核对 remote main 仍为 `2aacb30a1e24cc8970727476cbe83dd19b0b1695`；本地 Git 对比该提交与 M 的全部 `.github/workflows/` 路径无差异。原草稿仍为 M，原三资产的 ID/SHA256 不变。
+- 临时分支工作树四项指纹仍等于 M，原回执的实际门禁结果仍为 `[]`；发布输入校验和 diff 检查均通过。
+
+该临时入口在当前既有公开授权内可执行。公开原 M 后，应立即删除临时分支触发及相关临时注释，恢复 `[main]`，再审恢复后的最终 HEAD 并合入永久 inspect 权限修复。此次结论只覆盖上述精确临时状态；真实运行成功和最终入口移除仍须分别核验。本代理没有推送或修改远端。
+
+## 正式公开、下载验收与最终工作树审阅
+
+### 已公开事实
+
+- [v0.4.0](https://github.com/NightingaleWK/aha/releases/tag/v0.4.0) 已于 2026-11-03 09:30:55（北京时间）正式公开。独立查询 GitHub 确认 `draft=false`、发布标签 `refs/tags/v0.4.0` 为直接 commit 引用且指向 M；三项资产的 ID、大小和 SHA256 均与原候选相同，没有因恢复重建替换已验收 EXE。
+- 真实修复运行 [41559607007](https://github.com/NightingaleWK/aha/actions/runs/41559607007) 的 inspect 日志实际记录 `Contents: write`、`PullRequests: read`；inspect 成功、build skipped，证实修正令牌权限后能够复用完整草稿。本轮公开的是原 M 和原资产，并未把临时分支代码打包进去。
+- candidate 在公开成功之后发生 `GitHub POST failed with HTTP 403`，真实权限日志仅有 `Contents: write` 和 `Issues: write`。结合 stage 的执行顺序，错误发生在公开后的 `mark_tagged` 阶段；日志没有具体请求路径，不能断言是仓库 label 创建还是给 PR 添加 label 的某个 POST。
+- GitHub [标签接口说明](https://docs.github.com/en/rest/issues/labels#add-labels-to-an-issue) 把 Issues(write) 和 Pull requests(write) 列为至少满足其一，不能将本次 403 推导成所有标签操作普遍必须同时授予两者。本项目 candidate 显式增加 `pull-requests:write`，使其覆盖已合并发布 PR 的状态回写并与 prepare 的配置一致；是否彻底解决本次状态回写，仍由后续真实 main 的 prepare/reconcile 及 PR pending/tagged 状态验证，不能提前写成已成功。
+
+### 公开下载和成品核验
+
+- 已独立核对 `public-release-0.4.0-proof.json` 与实时 GitHub 的 Release、标签 M 和三资产元数据一致；记录的公开下载检查文件 SHA256 与实际 `public-release-0.4.0-check.json` 一致，为 `063fdc5f925fcc198235cfe01d16d8ba21db74daf6690b1555753d6b85b48de9`。
+- 公开下载的 EXE 已于 09:32:42 通过原生运行、PE/HTTP 0.4.0、资源字节、CCS23/24、SQL24、精确冻结材料、复开/持久重启和退出清理。检查明确保留 `tray_physical_checked=false`、`browser_driven=false`、`office_checked=false`，不把这次自动复验冒充重新做过的物理专项；先前本版实际人工证据继续按原指纹和原资产有效。
+- 本审阅代理再次独立计算实际桌面 `aha.exe` SHA256，仍为 `48d5d469da803f77f797d3a1fa51035950eb16669fdeeaa9e333e0db29ca81f5`，与正式下载和原候选相同。
+- 清理后再次独立核对保留的 `public-release-0.4.0-build-info.json`、`public-release-0.4.0-SHA256SUMS.txt` 摘要与真实公开资产完全一致；冻结材料 `public-release-0.4.0-frozen-material.zip` 摘要匹配公开原生检查记录，四个成员完整。使用保留的 build-info 重算运行时仍为 `2d64…8642`；任务 QA 根已移除，本轮证据复核不依赖已清理的环境或构建目录。
+
+### 最终 YAML、指纹和文档
+
+- 最终工作树 `release.yml` SHA256 为 `a0ed0704a5e3149f76f92cc21703a722e60c115016812ff3b3a515e13c426959`。与验收 main `2aacb30` 的整份 YAML 做语义比较，永久变化只有 inspect 的 `contents:read → write` 和 candidate 新增 `pull-requests:write`。
+- 已实际确认临时分支名称和临时注释全部移除，`push.branches=[main]`，仅保留原有 workflow_dispatch；普通 PR/质量/构建权限、其他作业、固定并发和全部发布门禁未变化。
+- 工作树四指纹与 M 完全一致，原完整回执字节 SHA 不变，生产 `acceptance_missing` 仍返回 `[]`；发布输入校验与 `git diff --check` 通过。产品源码和 Windows 构建配方没有改变，无需重建成品或重复已有全面人工验收。
+- 审阅新增 Markdown 链接：GitHub 官方草稿可见性、Release 更新权限、标签权限页面与对应发布/运行记录可读，未发现新增本地链接缺失。规范中的本项目权限配置与 GitHub 通用可选权限说明分开记录；关于历史 M 与新默认工作流差异的限制仅作为官方边界，不声称本次已经实测发生该第二种拒绝。
+- 主会话已修正 verification 的相关措辞：工作流差异仅记录为依据官方边界采取的预防顺序，祖先 M 在另一种合并顺序下是否发生额外 403 未实测；标签 POST 的确切路径和充分失败原因也没有被无证据确定。
+
+### 实际 actionlint
+
+- 从 [actionlint 官方 v1.7.12](https://github.com/rhysd/actionlint/releases/tag/v1.7.12) 下载 Linux amd64 版本，归档 SHA256 `8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8` 同时匹配官方 checksums 文件及 GitHub 资产 digest；没有全局安装或修改 bundled 依赖。
+- 实际执行 `actionlint -oneline .github/workflows/ci.yml .github/workflows/release.yml .github/workflows/windows-build.yml`，退出码 0、stdout/stderr 均为空。临时下载目录经归属校验后已清理。
+- ShellCheck 和 Pyflakes 不在本机 PATH，未宣称执行其额外检查。此前 Ruff/mypy 和产品测试基线不因本轮仅 YAML/文档的变化失效，不重复 251 项产品全量测试。
+
+最终独立审阅未发现还需修改产品、候选资产或最终 YAML 的问题。真实公开和公开下载验收已完成；标签状态恢复的实际成功仍待主会话随后确认，再做整个任务的最终归档。本审阅代理始终未执行推送、合并、发布或远端标签/资产修改。

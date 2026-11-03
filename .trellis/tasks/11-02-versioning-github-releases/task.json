@@ -16,7 +16,7 @@
   "base_branch": "main",
   "worktree_path": null,
   "commit": "3437e2cee0d96735fd378b8a51c2b46bbe841516",
-  "pr_url": "https://github.com/NightingaleWK/aha/pull/1",
+  "pr_url": "https://github.com/NightingaleWK/aha/pull/6",
   "subtasks": [],
   "children": [],
   "parent": null,
@@ -55,7 +55,7 @@
     "tests/test_release.py",
     "tests/test_windows_artifact.py"
   ],
-  "notes": "首版六项真实验收回执已合main2aacb30，用户于2026-11-03明确选择现在正式公开0.4.0并完成下载复验、归档清理及同步。真实恢复发现inspect只读令牌看不见草稿，误触重建被资产保护拒绝，原三资产不变。仅修正可信发现作业权限；在精确受审阅修复分支运行原流程，先公开M01703aea的已验收字节，再移除临时触发并合main永久修复。尚未公开及正式下载，任务保持in_progress。",
+  "notes": "用户明确选择正式公开0.4.0；六项真实验收回执已合main，原候选M01703aea及原三资产于2026-11-03 09:30:55公开。正式下载EXE于09:32:42原生验证通过，SHA与桌面一致，说明及标签源均核实。草稿发现权限已修正且真实恢复跳过重建；发布后PR标签回写POST403，临时触发已移除并为发布job明确补PR写权限，待PR#6最终检查合main后由prepare/reconcile验证回写恢复。AC11和任务归档等待该真实验证，其余首次验收已完成。",
   "meta": {
     "setup_merge_sha": "23977daa22aac9e92c3fa95b787cc5c939d95d28",
     "implementation_branch": "codex/versioning-github-releases",
@@ -69,6 +69,14 @@
     "publication_decision": "authorized_2026-11-03",
     "acceptance_pr_url": "https://github.com/NightingaleWK/aha/pull/5",
     "acceptance_merge_sha": "2aacb30a1e24cc8970727476cbe83dd19b0b1695",
-    "draft_visibility_failed_run_id": "41558110567"
+    "draft_visibility_failed_run_id": "41558110567",
+    "setup_pr_url": "https://github.com/NightingaleWK/aha/pull/1",
+    "recovery_pr_url": "https://github.com/NightingaleWK/aha/pull/6",
+    "public_release_url": "https://github.com/NightingaleWK/aha/releases/tag/v0.4.0",
+    "public_release_published_at": "2026-11-03T09:30:55+08:00",
+    "published_source_sha": "01703aea603549c3d39e64a25a57218c42215b58",
+    "public_download_verified_at": "2026-11-03T09:32:42+08:00",
+    "publication_run_id": "41559607007",
+    "post_publication_labels": "awaiting_main_reconcile"
   }
 }
