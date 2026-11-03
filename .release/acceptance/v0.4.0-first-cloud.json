@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "source_sha": "01703aea603549c3d39e64a25a57218c42215b58",
+  "candidate_source_sha": "01703aea603549c3d39e64a25a57218c42215b58",
+  "artifact_sha256": "48d5d469da803f77f797d3a1fa51035950eb16669fdeeaa9e333e0db29ca81f5",
+  "completed_at": "2026-11-03T08:58:56+08:00",
+  "fingerprints": {
+    "full": "c43a3c1f6f0133671bf225eecd75297c234fa6f57eb2eb91f5df55813ecc404b",
+    "tray": "6341e2a0ad0d1f303f463908ba4a0f3f4f640c1a9f62f9db1875d920e0e22019",
+    "materials": "5071859342983ed67ac1b794ef7938f359e43a616c9bdd9801234c9742b2b084",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "checks": [
+    "directory",
+    "onefile",
+    "browser",
+    "tray",
+    "excel",
+    "print"
+  ],
+  "evidence": [
+    {
+      "scope": "directory",
+      "sha256": "07111e691351420846f1e7a01704f2443c90812bb22b44db39eb31eb48ec397b",
+      "description": "候选M的本机原生Directory EXE核对版本/资源/CCS23和24/材料/复开/重启/退出；与云端同源同配方。"
+    },
+    {
+      "scope": "onefile",
+      "sha256": "07529912571bd1fa2506f9f209d9774f096e29a6fce5395527263c5bcf53d9e4",
+      "description": "下载确切云端OneFile后独立运行HTTP、资源、材料和生命周期；另从实际桌面副本复验，SHA与候选完全一致。"
+    },
+    {
+      "scope": "browser",
+      "sha256": "67f5121a7b115392b886e1c954b64a53c29a9bbabf08fc4f11497b91362463c4",
+      "description": "确切云端OneFile启动真实Edge，填写用途、保存下载、打开记录及详情、重载与原包复下、页面退出通过。"
+    },
+    {
+      "scope": "tray",
+      "sha256": "431d11d053f8826d965dbfb4a5334b325c4ec6eedd82fe398e2dedd635f782c0",
+      "description": "用户实际验证v0.4.0托盘菜单打开、双击重开及菜单退出后图标消失；截图及事后无aha进程/日常实例描述符留证，无模拟点击或原监测退出码声明。"
+    },
+    {
+      "scope": "excel",
+      "sha256": "431d11d053f8826d965dbfb4a5334b325c4ec6eedd82fe398e2dedd635f782c0",
+      "description": "用户在本机Microsoft Excel打开该云端EXE导出的CSV，三行中文模型、每行105Tokens/0.190000001USD正常；关闭后冻结材料各文件SHA不变。"
+    },
+    {
+      "scope": "print",
+      "sha256": "5f7d06b17ed7be80d9f87a50199e75cab6c4025f03b7c630c191d7736cb0d71a",
+      "description": "确切云端OneFile费用HTML由真实Edge输出一页A4 PDF，文本、页面尺寸及逐页渲染核对通过；本机Directory另有同范围PDF证据，无纸质打印声明。"
+    }
+  ]
+}
