@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/NightingaleWK/aha/compare/v0.4.0...v0.4.1) (2026-11-05)
+
+
+### 问题修复
+
+* **sync:** 修复同步误超时与失败状态提示 ([117044f](https://github.com/NightingaleWK/aha/commit/117044fc70a7a1eb0a0f99ff63a43b70e44467dd))
+* **sync:** 修复同步超时与失败状态提示 ([3e897d1](https://github.com/NightingaleWK/aha/commit/3e897d115a3e1d02f87ef55938f29b53df798224))
+
 ## [0.4.0](https://github.com/NightingaleWK/aha/compare/v0.3.1...v0.4.0) (2026-11-02)
 
 
