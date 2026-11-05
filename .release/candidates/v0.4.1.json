@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "version": "0.4.1",
+  "base_sha": "01703aea603549c3d39e64a25a57218c42215b58",
+  "previous_tag": "v0.4.0",
+  "fragment_ids": [
+    "sync-timeout-status"
+  ],
+  "notes_sha256": "2a1fb16c8fb6b2da8e72cc9000c1ffb5c7c17bf50256de46ac4e3a631ba30611"
+}
