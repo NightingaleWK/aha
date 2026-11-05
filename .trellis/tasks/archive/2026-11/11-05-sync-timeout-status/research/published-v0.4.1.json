@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "version": "0.4.1",
+  "release_url": "https://github.com/NightingaleWK/aha/releases/tag/v0.4.1",
+  "published_at": "2026-11-05T14:37:15Z",
+  "source_sha": "8898451cde00956d32edd0585b8b68690ea3307d",
+  "tag_source_sha": "8898451cde00956d32edd0585b8b68690ea3307d",
+  "fix_pr": 7,
+  "release_pr": 8,
+  "release_pr_tagged": true,
+  "release_run": {
+    "id": 42044696078,
+    "url": "https://github.com/NightingaleWK/aha/actions/runs/42044696078",
+    "quality": "success",
+    "inspect": "success",
+    "build": "success",
+    "candidate": "published",
+    "prepare": "success"
+  },
+  "executable": {
+    "name": "aha-0.4.1-windows-x64.exe",
+    "sha256": "0c25c25da9df56f7b82e7fe4cbce9f20613e1e82172c2ac9b620c2b77b0e8f58",
+    "size": 12738437
+  },
+  "build_info_sha256": "126eabf1b8eaf7d0f882c0941c1587789198abf126267fbae4a10c8252cbff71",
+  "sha256sums_verified": true,
+  "notes_match": true,
+  "fingerprints": {
+    "full": "e730b2ec8e05d13d3c8a0b01b8029e6899326a2456cd8dc073e102df118a3128",
+    "tray": "6341e2a0ad0d1f303f463908ba4a0f3f4f640c1a9f62f9db1875d920e0e22019",
+    "materials": "7ac210f79eef5dd456f72db9749512c84b8033cb564c85f06a394ba9eba57fb4",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "missing_manual_checks": [],
+  "independent_readonly_provenance_review": "passed",
+  "cloud_automatic_checks": [
+    {
+      "verified": true,
+      "version": "0.4.1",
+      "executable_sha256": "5ce13da892d3c013244bc790bf497288dc52a7d57cc3b9e3221fb4d1869e992c",
+      "pe_version": {
+        "file_version_parts": [
+          0,
+          4,
+          1,
+          0
+        ],
+        "file_version": "0.4.1",
+        "product_version_parts": [
+          0,
+          4,
+          1,
+          0
+        ],
+        "product_version": "0.4.1"
+      },
+      "material_sha256": "2d4782f380bb323cdaa24677392a3d9e24bb758c5185381d5d67b85424f1d0dc",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "ccs-23-24",
+        "sql-24",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ]
+    },
+    {
+      "verified": true,
+      "version": "0.4.1",
+      "executable_sha256": "0c25c25da9df56f7b82e7fe4cbce9f20613e1e82172c2ac9b620c2b77b0e8f58",
+      "pe_version": {
+        "file_version_parts": [
+          0,
+          4,
+          1,
+          0
+        ],
+        "file_version": "0.4.1",
+        "product_version_parts": [
+          0,
+          4,
+          1,
+          0
+        ],
+        "product_version": "0.4.1"
+      },
+      "material_sha256": "ab6b06c8c9a63344ec83100823a2b951c85932f566c943547426a9402283e6d0",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "ccs-23-24",
+        "sql-24",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ]
+    }
+  ],
+  "native_download_verification": {
+    "schema_version": 1,
+    "verified": true,
+    "version": "0.4.1",
+    "executable_sha256": "0c25c25da9df56f7b82e7fe4cbce9f20613e1e82172c2ac9b620c2b77b0e8f58",
+    "pe_version": {
+      "file_version_parts": [
+        0,
+        4,
+        1,
+        0
+      ],
+      "file_version": "0.4.1",
+      "product_version_parts": [
+        0,
+        4,
+        1,
+        0
+      ],
+      "product_version": "0.4.1"
+    },
+    "material_sha256": "306264c58f3b689d43986b9ba4a5137d8c7672ae31566e3dacab317b16ca8164",
+    "verified_at": "2026-11-05T22:40:48+08:00",
+    "scopes": [
+      "native-exe",
+      "pe-version",
+      "http-authentication",
+      "resource-bytes",
+      "ccs-23-24",
+      "sql-24",
+      "frozen-material",
+      "same-directory-reopen",
+      "persistent-restart",
+      "shutdown-cleanup"
+    ],
+    "tray_enabled": false,
+    "tray_physical_checked": false,
+    "browser_driven": false,
+    "office_checked": false,
+    "manual_checks": []
+  },
+  "native_desktop_verification": {
+    "schema_version": 1,
+    "verified": true,
+    "version": "0.4.1",
+    "executable_sha256": "0c25c25da9df56f7b82e7fe4cbce9f20613e1e82172c2ac9b620c2b77b0e8f58",
+    "pe_version": {
+      "file_version_parts": [
+        0,
+        4,
+        1,
+        0
+      ],
+      "file_version": "0.4.1",
+      "product_version_parts": [
+        0,
+        4,
+        1,
+        0
+      ],
+      "product_version": "0.4.1"
+    },
+    "material_sha256": "4e7dc0c6f8d0296d8800f87bc01788b4b78bb59a3ea6ee5bd892e461cf995123",
+    "verified_at": "2026-11-05T22:43:20+08:00",
+    "scopes": [
+      "native-exe",
+      "pe-version",
+      "http-authentication",
+      "resource-bytes",
+      "ccs-23-24",
+      "sql-24",
+      "frozen-material",
+      "same-directory-reopen",
+      "persistent-restart",
+      "shutdown-cleanup"
+    ],
+    "tray_enabled": true,
+    "tray_physical_checked": false,
+    "browser_driven": false,
+    "office_checked": false,
+    "manual_checks": []
+  },
+  "cleanup": {
+    "verified": true,
+    "removed_bytes": 26007850,
+    "removed_files": 66,
+    "inventory": [
+      {
+        "name": "desktop-auto",
+        "files": 10,
+        "bytes": 395432
+      },
+      {
+        "name": "download",
+        "files": 3,
+        "bytes": 12742276
+      },
+      {
+        "name": "downloaded-auto",
+        "files": 10,
+        "bytes": 395434
+      },
+      {
+        "name": "previous-desktop.exe",
+        "files": 1,
+        "bytes": 11746949
+      },
+      {
+        "name": "source",
+        "files": 41,
+        "bytes": 727463
+      },
+      {
+        "name": "task-owner.json",
+        "files": 1,
+        "bytes": 296
+      }
+    ],
+    "no_owned_processes_before_deletion": true,
+    "no_reparse_points": true,
+    "desktop_sha256_after": "0c25c25da9df56f7b82e7fe4cbce9f20613e1e82172c2ac9b620c2b77b0e8f58",
+    "original_public_backup_preserved": true,
+    "temporary_repair_copy_removed_after_official_desktop_verification": true,
+    "new_venv_created": false
+  },
+  "current_product_pending_release": false
+}

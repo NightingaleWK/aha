@@ -2,15 +2,15 @@
 
 ## 当前状态
 
-产品实施、独立复核、Directory/OneFile、浏览器/Office/打印、桌面交付及临时文件清理均已完成。修复源码已提交为 `117044fc70a7a1eb0a0f99ff63a43b70e44467dd`。用户选择“补齐发版条件”；正式回执已补齐，后续PR/CI按GitHub当前状态和本机 `release-readiness-result.json` 记录核对，正式公开仍待最终授权。
+修复、正式发版和桌面交付均已完成。用户在准备完成后回复“ok”授权公开；v0.4.1已发布，发布源码/标签固定为 `8898451cde00956d32edd0585b8b68690ea3307d`。正式EXE的公开下载与桌面副本均已原生验收；详细最终证据见 research/published-v0.4.1.json。
 
 ## 环境与源码依据
 
 - 2026-11-05只读GitHub API核实最近公开Release为v0.4.0（2026-11-03），源提交 `01703aea603549c3d39e64a25a57218c42215b58`。实施基线 `a635ae3a2cfc05ac11a22d3ff02a5b1c6d8ef70b`，分支 `codex/sync-timeout-status`。
 - 主 `.venv` 的SQLite3.46.1不满足Store门禁，未替换主环境；产品测试和构建使用任务自有原生Windows Python3.15.2 / SQLite3.53.4和固定构建依赖。
 - 构建运行时摘要 `2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642` 与已核验公开版build-info一致。无运行时、托盘实现和构建配方变化。
-- 最终产品树指纹 `f87e884d7f5684fe2cd131946ed40953162e5e9da8e3d856a8c2e3f2a905eae3`；逐文件清单在本机证据区 build-source-manifest.json。构建后已核对src、scripts和pyproject.toml与冻结副本相同。后续只改验收脚本和说明，不影响EXE输入。
-- 产品版本仍为单一来源0.4.0，这是本地修复构建；后续v0.4.1由发布PR递增，不能把本机包称为已公开v0.4.1。
+- 本机修复候选产品树指纹 `f87e884d7f5684fe2cd131946ed40953162e5e9da8e3d856a8c2e3f2a905eae3`；逐文件清单在本机证据区 build-source-manifest.json。构建后已核对src、scripts和pyproject.toml与冻结副本相同。后续只改验收脚本和说明，不影响EXE输入。
+- 首轮本机修复构建沿用单一来源0.4.0；随后由发布PR统一递增为0.4.1，正式公开和桌面更新结果见末节。
 
 ## 源码与独立复核
 
@@ -19,7 +19,7 @@
 - Node页面状态24/24；Ruff、strict mypy、compileall、JS语法、发布片段检查及git diff --check通过。
 - 详细发现、已修复项及明确限制见 research/check-report.md。已覆盖源锁释放、真正源超时、本地超时、两个取消信号、临时文件异常、写锁有界返回、失败恢复/租约、旧材料不变及前端迟到请求。
 
-## 最终原生成品
+## 首轮本机修复候选（0.4.0）
 
 | 成品 | SHA256 | 自动验收 |
 | --- | --- | --- |
@@ -45,7 +45,7 @@
 - 最终联合专项在全新合成资料上通过（2026-11-05 18:04北京时间）：浏览器无JS异常，失败时实际页面仍显示30,000条和3,150,000 Token；Excel 3行/23列逐值通过，39个数值单元格精确比较且无公式；A4共1页，精确金额0.570000003未变。最终PDF SHA256：`c489090727eddeec8b7567e59067cc73ef40a73b53b90808c0bdccbb3fdb6236`。
 - 最终1440/375页面截图及A4栅格图已直接查看，未见同步提示溢出、遮挡、金额截断或异常分页；Browser进程与测试服务退出后描述符和端口均清理。
 
-## 桌面交付与清理
+## 首轮桌面修复包交付与清理
 
 - Windows KnownFolder核实实际桌面为 `C:\Users\djsyw\Desktop`。交付 `aha.exe`，11,746,949字节，SHA256与最终OneFile完全一致（`ae59af57fab753b43a5c3e7f1aa585a24f46ae93a4910e274cc0aeea1866aa8e`）。
 - 替换前确认旧文件为已识别公开v0.4.0且未被进程占用；恢复副本保留在 `C:\Users\djsyw\AppData\Local\aha-backups\aha-0.4.0-48d5d469.exe`，SHA256 `48d5d469da803f77f797d3a1fa51035950eb16669fdeeaa9e333e0db29ca81f5`。
@@ -62,20 +62,34 @@
 - AC4：23/24、重复导入、金额/Token、核对与冻结材料在源码和原生成品通过。
 - AC5：有/无历史失败、重试运行、待核对、成功恢复、刷新及迟到响应在Node和原生Edge通过。
 - AC6：适用质量检查、两形态及桌面原生验收、浏览器/Excel/A4专项通过。
-- AC7：规范、中文片段、证据和临时清理完成；发版评估已准备，用户已选择补齐发版条件；正式公开发布尚待最终确认。
+- AC7：规范、中文片段、证据和临时清理完成；发版评估已准备，用户先选择补齐条件，随后授权正式公开；最终发布和交付已完成。
 
 
 ## 证据与发布边界
 
 - 本机小型证据区：`C:\Users\djsyw\.codex\visualizations\2026\11\05\01a1aaeb-6c81-7ad1-8bc7-b8e9fb05e27d\aha-sync-qa`。保留清单、摘要、必要日志/截图、三条合成材料及PDF，不保存真实来源库或凭证。
 - 任务内研究脚本用于复现原生规模和页面/Office验收；产品自动验收继续复用正式scripts入口。
-- 本次没有写真实CC Switch/aha资料、处理真实核对事项、远端推送或公开发版。
-- 发布建议及What’s New见 research/commit-plan.md 与 research/whats-new-preview.md；预览中的v0.4.1下载地址尚未发布，不作为当前可下载成品。
+- 本次没有写真实CC Switch/aha资料或处理真实核对事项；远端修复PR及正式发布仅在后续用户授权范围内执行。
+- 发布建议及What’s New见 research/commit-plan.md 与 research/whats-new-preview.md；准备阶段的预览已由正式v0.4.1发布说明取代，下载地址已实际核验。
 
-## 发版条件补齐（2026-11-05）
+## 发版条件补齐（公开之前，2026-11-05）
 
-- 用户实际指令：“补齐发版条件”；范围包含必要本地提交、正式回执、普通修复PR/CI与未合并v0.4.1发布PR准备。公开Release不在本轮授权内。
+- 用户实际指令：“补齐发版条件”；范围包含必要本地提交、正式回执、普通修复PR/CI与未合并v0.4.1发布PR准备。此准备阶段尚未包含公开授权，后续“ok”授权见下一节。
 - 正式回执 `.release/acceptance/sync-timeout-status.json` 绑定修复提交117044f；42个产品/构建Git blob逐一匹配已验收快照。小型无个人路径证据见 research/release-evidence.json。
 - 独立Trellis check只读复核回执scope/摘要及来源绑定通过。实际调用当前门禁：相对v0.4.0需要excel、print，同运行时missing为空；没有把物理托盘或云端候选写成本轮通过。
 - 当前托盘和配方指纹与v0.4.0相同。若最终云端运行时变化，必须按真实门禁补验，不把当前missing为空当作未来候选自动获准。
-- 普通修复任务满足交付标准后可按流程归档；最终公开发布保持未执行。远端PR链接、最终HEAD/CI和公开状态在同一小型证据区 release-readiness-result.json 留存并在对话中交付。
+- 普通修复任务满足交付标准后可按流程归档；该准备阶段未公开发布；后续正式公开、PR链接、最终HEAD/CI及成品结果已更新到小型证据区 release-readiness-result.json 和本任务最终JSON。
+
+## 正式v0.4.1发布与最终交付
+
+- 用户对“合并#8并正式发布v0.4.1”回复“ok”，沿用本次授权完成全流程，没有重复申请新任务或公开授权。
+- 修复PR [#7](https://github.com/NightingaleWK/aha/pull/7) 与发布PR [#8](https://github.com/NightingaleWK/aha/pull/8) 已合入main。发布PR最终HEAD `9c25371bf5d019da58bf080aea99adf20386cbe7` 的CI通过267项Python、24项Node和代码检查。
+- 正式发布源码及远端v0.4.1标签均为 `8898451cde00956d32edd0585b8b68690ea3307d`；[Release工作流42044696078](https://github.com/NightingaleWK/aha/actions/runs/42044696078) 的quality/inspect/build/candidate/prepare全部成功，Directory和OneFile均实际原生验收。
+- [v0.4.1](https://github.com/NightingaleWK/aha/releases/tag/v0.4.1) 于北京时间2026-11-05 22:37:15公开，非草稿/预发布；#8已标记autorelease: tagged，没有遗留打开的版本PR。
+- 公开EXE `aha-0.4.1-windows-x64.exe` 为12,738,437字节，SHA256 `0c25c25da9df56f7b82e7fe4cbce9f20613e1e82172c2ac9b620c2b77b0e8f58`。EXE/build-info/SHA256SUMS逐字节校验、发布说明、候选身份、四组指纹和运行时重算均通过，独立复核通过。
+- 正式运行时摘要仍为 `2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642`，正式材料专项回执无缺项；未伪造云端或本机物理托盘检查。
+- 下载包本机原生验收通过；Windows KnownFolder确认实际桌面后，以同一公开字节替换桌面 `aha.exe`，再次完成版本/PE、认证/资源、CCS23/24、SQL24、材料/原包持久重开、同目录重复启动、退出/端口/描述符验收。桌面检查启用了托盘启动，仍不冒称物理菜单点击。
+- 桌面最终版本为0.4.1，SHA与公开EXE一致。已识别公开0.4.0的恢复副本继续保留；本次中间修复包的临时副本在正式桌面验收成功后清理。
+- 核实归属、无重解析点和运行占用后，本阶段清理66个文件、26,007,850字节（约24.8MiB）的下载副本、源码快照、合成资料和临时旧修复包；未创建额外venv，保留主环境、真实资料和最终桌面EXE。
+- 完整本机小证据在既定证据区 `published-v0.4.1/`；提交安全摘要 research/published-v0.4.1.json，不将运行凭据或真实数据纳入Git。
+- 发版评估：本次产品修复已在最新公开v0.4.1中交付，没有累计待发产品内容；此后收尾提交只同步记录，不需要再发一个版本。

@@ -16,21 +16,26 @@
   "base_branch": "main",
   "worktree_path": null,
   "commit": "117044fc70a7a1eb0a0f99ff63a43b70e44467dd",
-  "pr_url": null,
+  "pr_url": "https://github.com/NightingaleWK/aha/pull/7",
   "subtasks": [],
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "修复与桌面交付完成，正式回执绑定117044f且专项门禁无缺项。用户选择补齐发版条件，继续普通修复PR/CI及未合并v0.4.1发布PR；最终HEAD/CI见GitHub及本机release-readiness-result.json。正式公开仍待授权。",
+  "notes": "用户授权正式发布后，修复PR#7、发布PR#8均已合入main。v0.4.1于2026-11-05公开，源码/标签8898451；云端两形态、公开下载来源与哈希、原生下载包及桌面副本验收通过，临时文件已清理。无本任务待发产品变化。",
   "meta": {
     "planning_review": "approved",
     "task_creation_consent": "2026-11-05 建立任务并进入规划",
     "quality_gate": "passed",
     "delivery": "desktop_onefile_verified",
     "local_commit": "completed",
-    "release_decision": "prepare_conditions",
+    "release_decision": "publish_authorized_and_completed",
     "recommended_release": "v0.4.1",
-    "release_preparation": "manual_gates_ready",
-    "publication": "awaiting_final_authorization"
+    "release_preparation": "complete",
+    "publication": "published",
+    "published_version": "0.4.1",
+    "release_url": "https://github.com/NightingaleWK/aha/releases/tag/v0.4.1",
+    "release_pr": "https://github.com/NightingaleWK/aha/pull/8",
+    "published_source_sha": "8898451cde00956d32edd0585b8b68690ea3307d",
+    "desktop_delivery": "official_v0.4.1_verified"
   }
 }

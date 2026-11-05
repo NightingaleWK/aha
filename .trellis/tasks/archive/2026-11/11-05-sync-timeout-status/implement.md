@@ -54,4 +54,4 @@ python scripts/release.py validate --ref WORKTREE --base main
 
 ## 发版评估（交付后填写）
 
-已核实最近公开v0.4.0，累计待发用户变化为本次同步修复；建议补丁v0.4.1。实际What’s New、公开发布剩余条件与待选项见 research/commit-plan.md；本机交付完成不代表已公开发布，用户已选择补齐发版条件；开始必要本地提交、回执和PR/CI，正式公开发布仍待最终确认。
+已核实最近公开v0.4.0，累计待发用户变化为本次同步修复；建议补丁v0.4.1。实际What’s New、公开发布剩余条件与待选项见 research/commit-plan.md；本机交付完成不代表已公开发布，用户先选择补齐条件，后授权正式公开；v0.4.1发布和官方EXE桌面交付均已完成，最终证据见 verification.md 和 research/published-v0.4.1.json。
