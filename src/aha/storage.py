@@ -29,6 +29,9 @@ class Store:
         self._readers: set[sqlite3.Connection] = set()
         self._reader_lock = threading.Lock()
         self._sync_cancel = threading.Event()
+        # Failed runs may need cleanup after a competing SQLite writer releases.
+        self._sync_failure_lock = threading.Lock()
+        self._pending_sync_failures: dict[str, tuple[str, str]] = {}
         if not sqlite_wal_safe():
             raise AppError(
                 "unsupported_sqlite", "SQLite 运行时缺少必要并发修复，请使用新版完整程序。", 500
@@ -101,18 +104,18 @@ class Store:
 
     @contextmanager
     def _staging_transaction(
-        self, check: Callable[[], None], source_deadline: float | None = None
+        self, check: Callable[[], None], processing_deadline: float | None = None
     ) -> Iterator[None]:
-        # A source DELETE-mode reader must never wait indefinitely on our Python
-        # writer lock. Limit both this wait and SQLite's subsequent busy wait;
+        # Limit both the Python writer lock and SQLite's subsequent busy wait;
         # ordinary business transactions keep their existing wait semantics.
         deadline = monotonic() + 0.25
-        if source_deadline is not None:
-            deadline = min(deadline, source_deadline)
+        if processing_deadline is not None:
+            deadline = min(deadline, processing_deadline)
         while True:
             check()
             remaining = deadline - monotonic()
             if remaining <= 0:
+                check()
                 raise AppError("store_busy", "本地资料正在更新，同步未完成，请稍后重试。", 409)
             if self._lock.acquire(timeout=min(0.02, remaining)):
                 break
@@ -125,9 +128,13 @@ class Store:
             # keep headroom inside the separate 250ms staging deadline.
             milliseconds = min(100, max(1, int((deadline - monotonic()) * 1000)))
             self._db.execute(f"PRAGMA busy_timeout={milliseconds}")
-            with self._transaction():
-                yield
+            try:
+                with self._transaction():
+                    yield
+                    check()
+            except AppError:
                 check()
+                raise
         finally:
             if previous_timeout is not None:
                 self._db.execute(f"PRAGMA busy_timeout={previous_timeout}")

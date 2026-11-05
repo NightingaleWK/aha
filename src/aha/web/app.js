@@ -2,7 +2,8 @@
 
 const $ = (id) => document.getElementById(id);
 const state = {
-  csrf: "", today: "", now: "", ledger: null, sync: null, syncBusy: false, reconciliations: [],
+  csrf: "", today: "", now: "", ledger: null, sync: null, syncBusy: false, syncGeneration: 0, syncPreviewPending: false, reconciliations: [],
+  ledgerRequest: 0, projectsRequest: 0, reconciliationsRequest: 0,
   config: {revision: 0, projects: []}, analysis: null, tab: "daily", page: 1,
   rows: [], total: 0, cursor: null, nextCursor: null, cursors: [null], selected: new Map(), batches: [], batch: null,
   busy: false, pendingBatch: null, revision: null, lifecycle: null, noticeTimer: null, stopped: false,
@@ -111,7 +112,13 @@ async function run(label, action, {rethrow = false} = {}) {
     $("busy").hidden = true;
     syncActions();
     if (document.activeElement === document.body && focused?.isConnected && !focused.disabled && focused.getClientRects().length) focused.focus({preventScroll: true});
+    refreshPendingSyncPreview();
   }
+}
+function refreshPendingSyncPreview() {
+  if (!state.syncPreviewPending || state.syncBusy || state.busy || state.stopped) return;
+  state.syncPreviewPending = false;
+  void run("正在更新本地预览…", analyze);
 }
 function syncActions() {
   if (state.stopped) {
@@ -208,67 +215,113 @@ function renderTimeCoverage(target, result, onWholeDays = null, frozen = false) 
     node("p", "field-help", frozen ? "此记录沿用已确定的冻结用量，材料保留此说明。" : "当前合计仅含已确定的用量；有可用用量时仍可保存，材料将保留此说明。"));
   if (onWholeDays) target.append(actionButton("改查整天", onWholeDays, "button small"));
 }
-async function refreshLedger() {
-  state.ledger = await api("/api/ledger");
+function refreshRequest(requestKey, isCurrent) {
+  const request = ++state[requestKey];
+  return () => request === state[requestKey] && isCurrent() && !state.stopped;
+}
+async function currentResult(path, isCurrent) {
+  try { return await api(path, undefined, isCurrent); }
+  catch (error) { if (isCurrent()) throw error; return null; }
+}
+async function refreshLedger(isCurrent = () => true) {
+  const active = refreshRequest("ledgerRequest", isCurrent);
+  const ledger = await currentResult("/api/ledger", active);
+  if (!active()) return;
+  state.ledger = ledger;
   renderSource();
+}
+function syncStatus(attempt) {
+  const status = attempt?.status || attempt?.state;
+  const result = attempt?.result?.status || attempt?.result?.state;
+  return status === "completed" && result === "needs_review" ? result : status || result;
 }
 function renderSource() {
   const ledger = state.ledger;
   const amount = ledger?.counts || {};
   const coverage = ledger?.coverage || {};
-  const needsReview = state.sync?.status === "needs_review" || state.sync?.result?.status === "needs_review";
+  const attempt = state.sync || ledger?.last_attempt;
+  const status = syncStatus(attempt);
+  const running = state.syncBusy || status === "running";
+  const failed = !running && ["failed", "cancelled"].includes(status);
+  const needsReview = !running && !failed && status === "needs_review";
   const last = ledger?.last_successful_sync_at ||
-    (["completed", "succeeded", "success"].includes(ledger?.last_sync?.status) ? ledger.last_sync.finished_at || ledger.last_sync.completed_at : null);
+    (["completed", "succeeded", "success"].includes(syncStatus(ledger?.last_sync)) ? ledger.last_sync.finished_at || ledger.last_sync.completed_at : null);
   $("source-name").textContent = "本地用量台账";
-  $("source-mode").textContent = state.syncBusy ? "同步中" : needsReview ? "需要核对" : last ? "已同步" : "本地资料";
+  $("source-mode").textContent = running ? "同步中" : failed ? "同步失败" : needsReview ? "需要核对" : last ? "已同步" : "本地资料";
   const period = coverage.start_date ? ` · ${coverage.start_date} 至 ${coverage.end_date}` : "";
   $("source-description").textContent = ledger
     ? `${counts(amount.detail_count)} 条明细 · ${counts(amount.rollup_count)} 条来源日汇总${period} · ${last ? `上次成功 ${dateTime(last)}` : "尚无成功同步"}${needsReview ? " · 本次来源需要核对" : ""}`
     : "正在读取本地资料。";
   $("load-default").textContent = state.syncBusy ? "正在同步…" : "立即同步";
-  const failed = state.sync?.status === "failed";
   $("sync-error").hidden = !failed;
-  $("sync-error").textContent = failed ? state.sync.message || "同步未完成，原本地数据仍可查询。" : "";
+  const reason = attempt?.result?.error_message || attempt?.message || attempt?.error_message || "同步未完成，请稍后重试。";
+  const saved = last || amount.detail_count > 0 || amount.rollup_count > 0;
+  $("sync-error").textContent = failed ? `${reason} ${saved ? "当前显示已保存的本地数据。" : ""}${last ? "" : "尚未成功同步，当前统计不代表实际用量。"}` : "";
   $("reconciliation-count").textContent = counts(amount.pending_count || state.reconciliations.length);
   renderDirectories(); syncActions();
 }
-async function refreshReconciliations() {
-  state.reconciliations = (await api("/api/reconciliations")).cases;
+async function refreshReconciliations(isCurrent = () => true) {
+  const active = refreshRequest("reconciliationsRequest", isCurrent);
+  const result = await currentResult("/api/reconciliations", active);
+  if (!active()) return;
+  state.reconciliations = result.cases;
   $("reconciliation-count").textContent = counts(state.reconciliations.length);
 }
-async function watchSync(job) {
+function handleSyncError(error) {
+  const message = error.message || "同步未完成，原本地数据仍可查询。";
+  const status = syncStatus(state.sync);
+  if (["completed", "needs_review"].includes(status)) state.syncPreviewPending = false;
+  if (!["completed", "failed", "needs_review"].includes(status)) {
+    state.sync = {status: "failed", message};
+  }
+  notify(message, "error");
+}
+async function watchSync(job, generation = state.syncGeneration) {
+  const isCurrent = () => generation === state.syncGeneration && !state.stopped;
+  if (!isCurrent()) return;
   state.sync = job; state.syncBusy = job.status === "running";
   renderSource();
-  while (!state.stopped && state.sync.status === "running") {
+  while (isCurrent() && state.sync.status === "running") {
     await new Promise((resolve) => setTimeout(resolve, 450));
-    if (state.stopped) return;
-    state.sync = await api(`/api/sync/${encodeURIComponent(job.id)}`);
+    if (!isCurrent()) return;
+    const latest = await api(`/api/sync/${encodeURIComponent(job.id)}`, undefined, isCurrent);
+    if (!isCurrent()) return;
+    state.sync = latest;
     renderSource();
   }
+  if (!isCurrent()) return;
   state.syncBusy = false;
-  if (state.stopped) return;
-  await Promise.all([refreshLedger(), refreshProjects(), refreshReconciliations()]);
-  if (state.sync.status === "failed") { renderSource(); return; }
-  invalidate("同步已完成，请更新预览");
-  if (!state.busy) await run("正在更新本地预览…", analyze);
   renderSource();
-  const needsReview = state.sync.status === "needs_review" || state.sync.result?.status === "needs_review";
+  const failed = ["failed", "cancelled"].includes(syncStatus(state.sync));
+  if (!failed) {
+    invalidate("同步已完成，请更新预览");
+    state.syncPreviewPending = true;
+  }
+  await Promise.all([refreshLedger(isCurrent), refreshProjects(isCurrent), refreshReconciliations(isCurrent)]);
+  if (!isCurrent()) return;
+  if (failed) { renderSource(); refreshPendingSyncPreview(); return; }
+  if (!state.busy) await run("正在更新本地预览…", analyze);
+  if (!isCurrent()) return;
+  renderSource();
+  const needsReview = syncStatus(state.sync) === "needs_review";
   notify(needsReview
     ? "本次来源需要核对，已保留本地用量。请查看“数据核对”。"
     : "同步已完成。后续查询使用本地台账。", needsReview ? "info" : "success");
 }
 async function loadSource(path = "/api/sync", body = {}) {
   if (state.syncBusy || state.stopped) return;
-  state.syncBusy = true; syncActions();
+  const generation = ++state.syncGeneration;
+  const isCurrent = () => generation === state.syncGeneration && !state.stopped;
+  state.syncBusy = true; state.sync = {status: "running"}; renderSource();
   try {
-    const job = await api(path, {...body, idempotency_key: crypto.randomUUID()});
+    const job = await api(path, {...body, idempotency_key: crypto.randomUUID()}, isCurrent);
+    if (!isCurrent()) return;
     $("source-dialog").close();
-    await watchSync(job);
+    await watchSync(job, generation);
   } catch (error) {
-    state.sync = {status: "failed", message: error.message || "同步未完成，原本地数据仍可查询。"};
-    notify(state.sync.message, "error");
+    if (isCurrent()) handleSyncError(error);
   } finally {
-    state.syncBusy = false; renderSource();
+    if (isCurrent()) { state.syncBusy = false; renderSource(); refreshPendingSyncPreview(); }
   }
 }
 async function importSQL(file) {
@@ -282,8 +335,11 @@ async function importSQL(file) {
   });
   await loadSource("/api/source/sql", {name: file.name, content_base64: encoded});
 }
-async function refreshProjects() {
-  state.config = await api("/api/projects");
+async function refreshProjects(isCurrent = () => true) {
+  const active = refreshRequest("projectsRequest", isCurrent);
+  const config = await currentResult("/api/projects", active);
+  if (!active()) return;
+  state.config = config;
   const previous = $("project-select").value;
   const select = $("project-select");
   const all = node("option", "", "全部项目（含未归属）"); all.value = "all";
@@ -380,6 +436,7 @@ async function saveProject() {
 }
 async function analyze() {
   if (!state.ledger) throw new Error("请先加载本地资料。");
+  state.syncPreviewPending = false;
   invalidate("正在更新预览…");
   const generation = state.filterGeneration; const request = ++state.analysisRequest;
   const isCurrent = () => generation === state.filterGeneration && request === state.analysisRequest && !state.stopped;
@@ -876,17 +933,23 @@ async function scanMetadata() {
 async function initialize() {
   const status = await api("/api/status");
   state.csrf = status.csrf_token; state.today = status.today; state.now = status.now; state.ledger = status.ledger;
+  const currentSync = status.sync || status.startup_sync;
+  const initialSyncGeneration = state.syncGeneration;
+  state.sync = currentSync || null; state.syncBusy = syncStatus(currentSync) === "running";
   $("app-version").textContent = `v${status.version}`;
   renderSource();
+  if (currentSync?.status === "running") {
+    const generation = ++state.syncGeneration;
+    void watchSync(currentSync, generation).catch((error) => {
+      if (generation !== state.syncGeneration || state.stopped) return;
+      state.syncBusy = false; handleSyncError(error); renderSource(); refreshPendingSyncPreview();
+    });
+  }
   await Promise.all([refreshProjects(), refreshReconciliations(), refreshBatches()]);
   await analyze();
-  const currentSync = status.sync || status.startup_sync;
-  if (currentSync) {
-    state.sync = currentSync; renderSource();
-    if (currentSync.status === "running") void watchSync(currentSync).catch((error) => {
-      state.syncBusy = false; state.sync = {status: "failed", message: error.message}; renderSource();
-    });
-  } else void loadSource("/api/sync", {trigger: "startup"});
+  if (!currentSync && initialSyncGeneration === state.syncGeneration) {
+    void loadSource("/api/sync", {trigger: "startup"});
+  }
 }
 async function openReconciliations() {
   await refreshReconciliations(); renderReconciliations(); $("reconciliation-dialog").showModal();

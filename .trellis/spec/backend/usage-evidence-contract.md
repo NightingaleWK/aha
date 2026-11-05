@@ -41,7 +41,7 @@ CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`�
 - 每次完整核对来源当前允许投影，仅新增/变化写本地。created_at 是事件时间，不是变更水位；来源删除不删已存历史，导入旧备份的时间不能成为覆盖当前值的理由。
 - `usage_records` 保存当前可索引事实，`usage_versions` 只追加实际内容修订，`record_evidence/record_aliases` 维护来源和经确认身份；来源 UUID/路径不能让同一消费变成新 key 绕过占用。
 - 源事务一致不等于整轮 CCS 重建完成。空源、明显缩水/汇总回退、未知来源和疑似重建必须保留旧事实并提示核对；未核实变化不能推进最近成功时间。
-- 同步按 run 暂存，一次发布事实、归属、可用状态、日/月统计与版本；失败不暴露半批次或清空旧本地数据。只在每次工具启动一次及手动同步，不增加定时采集、自启或关闭后的采集机制。
+- SQLite同步先完成受限白名单临时投影并释放源读锁，再按run规范化/暂存；两阶段独立预算与清理见[SQLite规范](./database-guidelines.md#sqlite-同步两阶段合同)。一次发布事实、归属、可用状态、日/月统计与版本；失败不暴露半批次或清空旧本地数据。只在每次工具启动一次及手动同步，不增加定时采集、自启或关闭后的采集机制。
 
 ### 核算、覆盖与归属
 
@@ -69,6 +69,7 @@ CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`�
 | 旧/未知应用资料 | unsupported_store，保留原件，要求受控重建 |
 | CCS 版本/字段不兼容 | unsupported_schema / incompatible_schema，不发布 |
 | 源忙/预算超时/取消/超限 | source_busy / sync_cancelled / source_too_large，旧数据和成功时间保留 |
+| 本地回放/暂存预算超时 | sync_processing_timeout，不能误报来源读取超时，旧数据和成功时间保留 |
 | 源缩水、覆盖/修订未核实 | needs_review 或核对候选，不冒充完整同步成功 |
 | 同时同步 | sync_in_progress 或复用有效运行，不产生重复事实 |
 | 预览/游标依据变化 | analysis_expired / classification_changed / availability_changed / invalid_cursor，409，刷新 |
@@ -114,5 +115,5 @@ package_path, filename = store.download(batch_id, version)
 
 - 日/月派生统计按相同project/model/kind/state精确口径，在事实、分类、覆盖和占用变更的同一事务更新。完整自然月读月表，首尾非完整月份读日表，段间不能重叠。聚合不经过REAL；冻结主体仍按其完整成员。
 - keyset除tuple严格比较外，还须显式收紧event_time标量范围。执行计划和VM工作量应证明直接seek，不能仅凭SQL中存在游标断言深页恒定。
-- 源事务内staging等待本机writer必须有界并检查取消；SQLite progress handler不能中断Python RLock等待。双线程测试需证明本机长写不延长CCS DELETE读锁。
+- SQLite来源事务内不进行本地staging；释放源后，本机writer等待仍有界并检查取消。双线程测试须证明本地慢处理不持有CCS DELETE读锁，详见[两阶段合同](./database-guidelines.md#sqlite-同步两阶段合同)。
 - 同源新key的旧语义成员缺席当前完整staging时才提示身份重建；本轮并存的同秒同Token不同key请求不能误合并。rollup代表量下降单独以已确认观察基线核对，不将降价误判为重建。
