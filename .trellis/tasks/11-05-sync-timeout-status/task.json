@@ -15,21 +15,22 @@
   "branch": "codex/sync-timeout-status",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
+  "commit": "117044fc70a7a1eb0a0f99ff63a43b70e44467dd",
   "pr_url": null,
   "subtasks": [],
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "2026-11-05 用户在具体提交计划及发版选项之后回复“补齐发版条件”；执行必要本地提交、回执、修复PR/CI及未合并发布PR准备，正式公开仍待最终确认。修复、原生验收、桌面交付和临时清理已完成。",
+  "notes": "修复与桌面交付完成，正式回执绑定117044f且专项门禁无缺项。用户选择补齐发版条件，继续普通修复PR/CI及未合并v0.4.1发布PR；最终HEAD/CI见GitHub及本机release-readiness-result.json。正式公开仍待授权。",
   "meta": {
     "planning_review": "approved",
     "task_creation_consent": "2026-11-05 建立任务并进入规划",
     "quality_gate": "passed",
     "delivery": "desktop_onefile_verified",
-    "local_commit": "authorized_by_release_preparation",
+    "local_commit": "completed",
     "release_decision": "prepare_conditions",
     "recommended_release": "v0.4.1",
-    "release_preparation": "in_progress"
+    "release_preparation": "manual_gates_ready",
+    "publication": "awaiting_final_authorization"
   }
 }

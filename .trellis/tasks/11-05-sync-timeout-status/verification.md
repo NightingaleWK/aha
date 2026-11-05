@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-产品实施、独立复核、Directory/OneFile、浏览器/Office/打印、桌面交付及临时文件清理均已完成。尚未提交、归档、推送或公开发布；用户已选择“补齐发版条件”，正在执行必要本地提交、正式回执和PR/CI准备。
+产品实施、独立复核、Directory/OneFile、浏览器/Office/打印、桌面交付及临时文件清理均已完成。修复源码已提交为 `117044fc70a7a1eb0a0f99ff63a43b70e44467dd`。用户选择“补齐发版条件”；正式回执已补齐，后续PR/CI按GitHub当前状态和本机 `release-readiness-result.json` 记录核对，正式公开仍待最终授权。
 
 ## 环境与源码依据
 
@@ -71,3 +71,11 @@
 - 任务内研究脚本用于复现原生规模和页面/Office验收；产品自动验收继续复用正式scripts入口。
 - 本次没有写真实CC Switch/aha资料、处理真实核对事项、远端推送或公开发版。
 - 发布建议及What’s New见 research/commit-plan.md 与 research/whats-new-preview.md；预览中的v0.4.1下载地址尚未发布，不作为当前可下载成品。
+
+## 发版条件补齐（2026-11-05）
+
+- 用户实际指令：“补齐发版条件”；范围包含必要本地提交、正式回执、普通修复PR/CI与未合并v0.4.1发布PR准备。公开Release不在本轮授权内。
+- 正式回执 `.release/acceptance/sync-timeout-status.json` 绑定修复提交117044f；42个产品/构建Git blob逐一匹配已验收快照。小型无个人路径证据见 research/release-evidence.json。
+- 独立Trellis check只读复核回执scope/摘要及来源绑定通过。实际调用当前门禁：相对v0.4.0需要excel、print，同运行时missing为空；没有把物理托盘或云端候选写成本轮通过。
+- 当前托盘和配方指纹与v0.4.0相同。若最终云端运行时变化，必须按真实门禁补验，不把当前missing为空当作未来候选自动获准。
+- 普通修复任务满足交付标准后可按流程归档；最终公开发布保持未执行。远端PR链接、最终HEAD/CI和公开状态在同一小型证据区 release-readiness-result.json 留存并在对话中交付。

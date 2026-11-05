@@ -43,3 +43,7 @@
 ## 确认依据
 
 `.trellis/workflow.md` Phase 3.4 明确要求“Present the plan once, ask for one-shot confirmation”。当前“开始实施”的授权已用于完成修复、检查、本机交付与临时文件清理；这个确认只用于执行上述具体本地提交批次及后续归档。
+
+## 后续必要记录提交
+
+`test(release): 记录同步修复的原生专项验收`：正式回执、无个人路径的小型证据、任务验收及用户选择记录。此提交不修改产品，回执source_sha绑定此前已验收并提交的117044f。
