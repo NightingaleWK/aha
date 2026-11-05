@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import tempfile
 import threading
 from collections.abc import Callable
 from contextlib import suppress
@@ -18,6 +19,7 @@ from .domain import (
     SUPPORTED_CCS_SCHEMA_VERSIONS,
     USAGE_PROJECTION_SCHEMA_VERSION,
     AppError,
+    canonical_bytes,
     content_hash,
     normalize_row,
     record_key,
@@ -27,6 +29,19 @@ from .domain import (
 
 if TYPE_CHECKING:
     from .storage import Store
+
+LOCAL_STAGING_TIMEOUT = 120.0
+
+
+class _CombinedCancel(threading.Event):
+    """Expose both independent cancellation signals to the source progress handler."""
+
+    def __init__(self, first: threading.Event, second: threading.Event | None) -> None:
+        super().__init__()
+        self.first, self.second = first, second
+
+    def is_set(self) -> bool:
+        return self.first.is_set() or (self.second is not None and self.second.is_set())
 
 
 def sync_status(store: Store, run_id: str | None = None) -> dict[str, Any] | None:
@@ -58,6 +73,41 @@ def _descriptor(store: Store, row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
+def _record_failure(store: Store, run_id: str, code: str, message: str) -> None:
+    """Finish a failed run and remove its staging in the current transaction."""
+    store._db.execute(
+        "UPDATE sync_runs SET state='failed',completed_at=?,error_code=?,error_message=? "
+        "WHERE id=? AND state='running'",
+        (store._now(), code, message, run_id),
+    )
+    for table in ("sync_stage", "sync_pricing"):
+        store._db.execute(
+            f"DELETE FROM {table} WHERE run_id=? AND EXISTS "
+            "(SELECT 1 FROM sync_runs WHERE id=? AND state='failed')",
+            (run_id, run_id),
+        )
+
+
+def _recover_failed_runs(store: Store) -> None:
+    """Commit deferred failures and expired leases before starting another run."""
+    with store._sync_failure_lock:
+        pending = dict(store._pending_sync_failures)
+    with store._staging_transaction(lambda: None):
+        for run_id, (code, message) in pending.items():
+            _record_failure(store, run_id, code, message)
+        expired = store._db.execute(
+            "SELECT id FROM sync_runs WHERE state='running' "
+            "AND julianday(heartbeat_at)<julianday('now')-120.0/86400"
+        ).fetchall()
+        for row in expired:
+            _record_failure(store, row[0], "sync_interrupted", "上次同步中断，未发布暂存资料。")
+    # Do not discard the in-memory recovery intent until the transaction commits.
+    with store._sync_failure_lock:
+        for run_id, failure in pending.items():
+            if store._pending_sync_failures.get(run_id) == failure:
+                del store._pending_sync_failures[run_id]
+
+
 def _begin(
     store: Store,
     source: dict[str, Any],
@@ -76,7 +126,8 @@ def _begin(
     identity = source_id or content_hash(
         [source.get("kind", "history"), source.get("location") or source.get("name", "历史用量")]
     )
-    with store._transaction():
+    _recover_failed_runs(store)
+    with store._staging_transaction(lambda: None):
         connection = store._db
         if startup_id:
             prior = connection.execute(
@@ -88,15 +139,6 @@ def _begin(
             ).fetchone()
             if prior:
                 return prior["id"], identity, _descriptor(store, prior)
-        # A crashed process never grants a second writer until the finite lease expires.
-        connection.execute(
-            (
-                "UPDATE sync_runs SET state='failed',completed_at=?,error_code='s"
-                "ync_interrupted',error_message='上次同步中断，未发布暂存资料。' WHERE state='ru"
-                "nning' AND julianday(heartbeat_at)<julianday('now')-120.0/86400"
-            ),
-            (store._now(),),
-        )
         active = connection.execute("SELECT id FROM sync_runs WHERE state='running'").fetchone()
         if active:
             raise AppError("sync_in_progress", "另一个窗口正在同步，请等待当前同步完成。", 409)
@@ -137,13 +179,13 @@ class _Stager:
         self.prices: list[tuple[str, str, str]] = []
         self.counts = {"detail": 0, "rollup": 0, "pricing": 0}
         self.timings: dict[str, float] = {}
-        self.source_deadline: float | None = None
+        self.processing_deadline: float | None = None
 
     def check(self) -> None:
         if self.store._sync_cancel.is_set() or (self.cancel and self.cancel.is_set()):
             raise AppError("sync_cancelled", "同步已取消。", 409)
-        if self.source_deadline is not None and monotonic() > self.source_deadline:
-            raise AppError("source_busy", "来源读取超过时限，请稍后重试。", 409)
+        if self.processing_deadline is not None and monotonic() >= self.processing_deadline:
+            raise AppError("sync_processing_timeout", "本地同步处理超过时限，请稍后重试。", 409)
 
     def add(self, table: str, row: dict[str, Any]) -> None:
         self.check()
@@ -184,7 +226,7 @@ class _Stager:
         if not self.rows and not self.prices:
             return
         try:
-            with self.store._staging_transaction(self.check, self.source_deadline):
+            with self.store._staging_transaction(self.check, self.processing_deadline):
                 self.store._db.executemany("INSERT INTO sync_stage VALUES(?,?,?,?,?)", self.rows)
                 self.store._db.executemany("INSERT INTO sync_pricing VALUES(?,?,?)", self.prices)
                 self.store._db.execute(
@@ -200,17 +242,17 @@ class _Stager:
 
 
 def _failed(store: Store, run_id: str, error: AppError) -> None:
+    failure = (error.code, error.message)
+    with store._sync_failure_lock:
+        store._pending_sync_failures[run_id] = failure
     with suppress(AppError, sqlite3.Error):
-        with store._transaction():
-            store._db.execute("DELETE FROM sync_stage WHERE run_id=?", (run_id,))
-            store._db.execute("DELETE FROM sync_pricing WHERE run_id=?", (run_id,))
-            store._db.execute(
-                (
-                    "UPDATE sync_runs SET state='failed',completed_at=?,error_code=?,"
-                    "error_message=? WHERE id=? AND state='running'"
-                ),
-                (store._now(), error.code, error.message, run_id),
-            )
+        # Cleanup is best effort while the database has another writer. Never let
+        # a long-held lock indefinitely delay the original error or cancellation.
+        with store._staging_transaction(lambda: None):
+            _record_failure(store, run_id, *failure)
+        with store._sync_failure_lock:
+            if store._pending_sync_failures.get(run_id) == failure:
+                del store._pending_sync_failures[run_id]
 
 
 def _metadata(store: Store, run_id: str, roots: list[Path] | None) -> dict[str, Any]:
@@ -641,10 +683,13 @@ def _execute(
     except AppError as exc:
         _failed(store, run_id, exc)
         raise
-    except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
+    except Exception as exc:
         error = AppError("sync_failed", "同步未完成，原本地数据保持不变，请重试。", 500)
         _failed(store, run_id, error)
         raise error from exc
+    except BaseException:
+        _failed(store, run_id, AppError("sync_interrupted", "同步中断，未发布暂存资料。", 500))
+        raise
 
 
 def sync_data(
@@ -729,11 +774,45 @@ def sync_sqlite(
     source = {"kind": "sqlite", "name": source_name(str(path)), "location": str(path.resolve())}
 
     def read(stager: _Stager) -> dict[str, Any]:
-        stager.source_deadline = monotonic() + sources.SNAPSHOT_TIMEOUT
-        try:
-            return sources.scan_sqlite(path, stager.add, cancel=cancel or store._sync_cancel)
-        finally:
-            stager.source_deadline = None
+        # Only the bounded, allowed projection is spooled; no normalization or
+        # application-database writes occur while the source transaction is open.
+        with tempfile.TemporaryFile(mode="w+b", dir=store.data_dir / "temporary") as projection:
+            def spool(table: str, row: dict[str, Any]) -> None:
+                encoded = table.encode("ascii") + b"\t" + canonical_bytes(row) + b"\n"
+                try:
+                    if projection.write(encoded) != len(encoded):
+                        raise OSError("incomplete temporary projection write")
+                except OSError as exc:
+                    raise AppError(
+                        "sync_failed", "本地同步暂存失败，请检查空间和目录权限。", 500
+                    ) from exc
+
+            scan_started = perf_counter()
+            observed = sources.scan_sqlite(
+                path, spool, cancel=_CombinedCancel(store._sync_cancel, cancel)
+            )
+            stager.timings["source_scan_ms"] = (perf_counter() - scan_started) * 1000
+
+            staging_started = perf_counter()
+            stager.processing_deadline = monotonic() + LOCAL_STAGING_TIMEOUT
+            try:
+                stager.check()
+                projection.seek(0)
+                for line in projection:
+                    stager.check()
+                    table_bytes, payload = line.split(b"\t", 1)
+                    table = table_bytes.decode("ascii")
+                    row = json.loads(payload)
+                    if table not in sources.TABLE_FIELDS or not isinstance(row, dict):
+                        raise ValueError("invalid temporary projection")
+                    stager.add(table, row)
+                # The tail must be committed and checked under the same budget.
+                stager.flush()
+                stager.check()
+            finally:
+                stager.processing_deadline = None
+            stager.timings["local_staging_ms"] = (perf_counter() - staging_started) * 1000
+            return observed
 
     return _execute(
         store,

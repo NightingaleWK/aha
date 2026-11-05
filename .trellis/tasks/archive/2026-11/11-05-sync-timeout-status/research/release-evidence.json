@@ -1,0 +1,358 @@
+{
+  "schema_version": 1,
+  "source_sha": "117044fc70a7a1eb0a0f99ff63a43b70e44467dd",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "source_binding": {
+    "product_input_count": 42,
+    "all_git_blobs_match_tested_snapshot": true,
+    "product_tree_sha256": "f87e884d7f5684fe2cd131946ed40953162e5e9da8e3d856a8c2e3f2a905eae3",
+    "method": "已验收工作树提交后逐文件核对产品/构建输入，没有将绑定动作表述为重新运行验收。"
+  },
+  "checks": {
+    "directory": {
+      "automatic": {
+        "schema_version": 1,
+        "verified": true,
+        "version": "0.4.0",
+        "executable_sha256": "e5a660aa57ea63b43fa91d7e5c4a7e5d16a9068b54b740de8e973c66b392696a",
+        "pe_version": {
+          "file_version_parts": [
+            0,
+            4,
+            0,
+            0
+          ],
+          "file_version": "0.4.0",
+          "product_version_parts": [
+            0,
+            4,
+            0,
+            0
+          ],
+          "product_version": "0.4.0"
+        },
+        "material_sha256": "388987bad229dfc58aeea0c30f98db2a2a5c94a6b1f9670ad70e51c00a6ed4eb",
+        "verified_at": "2026-11-05T17:48:15+08:00",
+        "scopes": [
+          "native-exe",
+          "pe-version",
+          "http-authentication",
+          "resource-bytes",
+          "ccs-23-24",
+          "sql-24",
+          "frozen-material",
+          "same-directory-reopen",
+          "persistent-restart",
+          "shutdown-cleanup"
+        ],
+        "tray_enabled": false,
+        "tray_physical_checked": false,
+        "browser_driven": false,
+        "office_checked": false,
+        "manual_checks": []
+      },
+      "scale": {
+        "schema_version": 1,
+        "executable_sha256": "e5a660aa57ea63b43fa91d7e5c4a7e5d16a9068b54b740de8e973c66b392696a",
+        "synthetic_rows": 30000,
+        "runs": [
+          {
+            "status": "completed",
+            "elapsed_ms": 38840.97,
+            "timings_ms": {
+              "compare_current_versions_ms": 21597.768800000267,
+              "derived_refresh_ms": 3244.9720999993588,
+              "local_staging_ms": 8597.587399999611,
+              "metadata_ms": 340.6747999997606,
+              "publish_before_commit_ms": 24842.82600000006,
+              "source_projection_and_staging_ms": 9600.176299998566,
+              "source_scan_ms": 999.4674999998097
+            },
+            "new_count": 30001
+          },
+          {
+            "status": "completed",
+            "elapsed_ms": 14245.75,
+            "timings_ms": {
+              "compare_current_versions_ms": 1373.789900000702,
+              "derived_refresh_ms": 0.020600000425474718,
+              "local_staging_ms": 9800.32889999893,
+              "metadata_ms": 314.54480000138574,
+              "publish_before_commit_ms": 1373.8248000008753,
+              "source_projection_and_staging_ms": 10794.706399999995,
+              "source_scan_ms": 990.5971999996837
+            },
+            "new_count": 0
+          },
+          {
+            "status": "failed",
+            "elapsed_ms": 105.04,
+            "timings_ms": null,
+            "new_count": null
+          },
+          {
+            "status": "completed",
+            "elapsed_ms": 13948.06,
+            "timings_ms": {
+              "compare_current_versions_ms": 1382.685099999435,
+              "derived_refresh_ms": 0.01230000088980887,
+              "local_staging_ms": 9714.340699998502,
+              "metadata_ms": 308.9343999999983,
+              "publish_before_commit_ms": 1382.7101000006223,
+              "source_projection_and_staging_ms": 10689.35650000094,
+              "source_scan_ms": 971.5787999994063
+            },
+            "new_count": 0
+          }
+        ],
+        "verified": true,
+        "summary": {
+          "record_count": 30000,
+          "detail_count": 30000,
+          "rollup_record_count": 0,
+          "rollup_count": 0,
+          "fresh_input_tokens": 1500000,
+          "output_tokens": 150000,
+          "cache_read_tokens": 1200000,
+          "cache_creation_tokens": 300000,
+          "total_tokens": 3150000,
+          "total_cost_usd": "5700.00003",
+          "detail_cost_usd": "5700.00003",
+          "rollup_cost_usd": "0",
+          "unpriced_count": 0,
+          "source_grain": "detail"
+        },
+        "shutdown_verified": true,
+        "verified_at": "2026-11-05T17:49:20.415861+08:00"
+      }
+    },
+    "onefile": {
+      "automatic": {
+        "schema_version": 1,
+        "verified": true,
+        "version": "0.4.0",
+        "executable_sha256": "ae59af57fab753b43a5c3e7f1aa585a24f46ae93a4910e274cc0aeea1866aa8e",
+        "pe_version": {
+          "file_version_parts": [
+            0,
+            4,
+            0,
+            0
+          ],
+          "file_version": "0.4.0",
+          "product_version_parts": [
+            0,
+            4,
+            0,
+            0
+          ],
+          "product_version": "0.4.0"
+        },
+        "material_sha256": "f0c8cbd8fac28e73353e4795b5666d7e89bf1f9b94045e07c292c4472ed9104f",
+        "verified_at": "2026-11-05T17:55:06+08:00",
+        "scopes": [
+          "native-exe",
+          "pe-version",
+          "http-authentication",
+          "resource-bytes",
+          "ccs-23-24",
+          "sql-24",
+          "frozen-material",
+          "same-directory-reopen",
+          "persistent-restart",
+          "shutdown-cleanup"
+        ],
+        "tray_enabled": false,
+        "tray_physical_checked": false,
+        "browser_driven": false,
+        "office_checked": false,
+        "manual_checks": []
+      },
+      "scale": {
+        "schema_version": 1,
+        "executable_sha256": "ae59af57fab753b43a5c3e7f1aa585a24f46ae93a4910e274cc0aeea1866aa8e",
+        "synthetic_rows": 30000,
+        "runs": [
+          {
+            "status": "completed",
+            "elapsed_ms": 42884.69,
+            "timings_ms": {
+              "compare_current_versions_ms": 23043.597699999737,
+              "derived_refresh_ms": 4092.611800000668,
+              "local_staging_ms": 10645.936000000802,
+              "metadata_ms": 313.828199999989,
+              "publish_before_commit_ms": 27136.293900000965,
+              "source_projection_and_staging_ms": 11672.907800000758,
+              "source_scan_ms": 1023.4866999999213
+            },
+            "new_count": 30001
+          },
+          {
+            "status": "completed",
+            "elapsed_ms": 13334.83,
+            "timings_ms": {
+              "compare_current_versions_ms": 1383.7720999999874,
+              "derived_refresh_ms": 0.02010000025620684,
+              "local_staging_ms": 9270.22500000021,
+              "metadata_ms": 299.675300000672,
+              "publish_before_commit_ms": 1383.8059999998222,
+              "source_projection_and_staging_ms": 10244.006900000386,
+              "source_scan_ms": 970.462100000077
+            },
+            "new_count": 0
+          },
+          {
+            "status": "failed",
+            "elapsed_ms": 105.12,
+            "timings_ms": null,
+            "new_count": null
+          },
+          {
+            "status": "completed",
+            "elapsed_ms": 12636.2,
+            "timings_ms": {
+              "compare_current_versions_ms": 1370.2372999996442,
+              "derived_refresh_ms": 0.01190000148199033,
+              "local_staging_ms": 8545.720500000243,
+              "metadata_ms": 300.0244000013481,
+              "publish_before_commit_ms": 1370.2608000003238,
+              "source_projection_and_staging_ms": 9517.5648000004,
+              "source_scan_ms": 968.8043999994989
+            },
+            "new_count": 0
+          },
+          {
+            "status": "failed",
+            "elapsed_ms": 105.39,
+            "timings_ms": null,
+            "new_count": null
+          }
+        ],
+        "verified": true,
+        "summary": {
+          "record_count": 30000,
+          "detail_count": 30000,
+          "rollup_record_count": 0,
+          "rollup_count": 0,
+          "fresh_input_tokens": 1500000,
+          "output_tokens": 150000,
+          "cache_read_tokens": 1200000,
+          "cache_creation_tokens": 300000,
+          "total_tokens": 3150000,
+          "total_cost_usd": "5700.00003",
+          "detail_cost_usd": "5700.00003",
+          "rollup_cost_usd": "0",
+          "unpriced_count": 0,
+          "source_grain": "detail"
+        },
+        "verified_at": "2026-11-05T17:56:09.293133+08:00",
+        "shutdown_verified": true
+      },
+      "desktop": {
+        "schema_version": 1,
+        "verified": true,
+        "version": "0.4.0",
+        "executable_sha256": "ae59af57fab753b43a5c3e7f1aa585a24f46ae93a4910e274cc0aeea1866aa8e",
+        "pe_version": {
+          "file_version_parts": [
+            0,
+            4,
+            0,
+            0
+          ],
+          "file_version": "0.4.0",
+          "product_version_parts": [
+            0,
+            4,
+            0,
+            0
+          ],
+          "product_version": "0.4.0"
+        },
+        "material_sha256": "09c42a2d000f4b37187c7677b561ec95741cfe14fbc5b9944af4a80b96c2c017",
+        "verified_at": "2026-11-05T18:04:16+08:00",
+        "scopes": [
+          "native-exe",
+          "pe-version",
+          "http-authentication",
+          "resource-bytes",
+          "ccs-23-24",
+          "sql-24",
+          "frozen-material",
+          "same-directory-reopen",
+          "persistent-restart",
+          "shutdown-cleanup"
+        ],
+        "tray_enabled": false,
+        "tray_physical_checked": false,
+        "browser_driven": false,
+        "office_checked": false,
+        "manual_checks": []
+      }
+    },
+    "browser": {
+      "browser": "native Microsoft Edge",
+      "browser_version": "156.0.4314.58",
+      "screens": [
+        {
+          "file": "failed-1440.png",
+          "width": 1440,
+          "horizontal_overflow": false
+        },
+        {
+          "file": "failed-1366.png",
+          "width": 1366,
+          "horizontal_overflow": false
+        },
+        {
+          "file": "failed-1280.png",
+          "width": 1280,
+          "horizontal_overflow": false
+        },
+        {
+          "file": "failed-430.png",
+          "width": 430,
+          "horizontal_overflow": false
+        },
+        {
+          "file": "failed-375.png",
+          "width": 375,
+          "horizontal_overflow": false
+        }
+      ],
+      "console_errors": [],
+      "browser_checks": [
+        "failed-with-history",
+        "five-viewports",
+        "refresh-failure",
+        "retry-running",
+        "retry-completed",
+        "refresh-success",
+        "needs-review",
+        "refresh-needs-review",
+        "failed-no-history",
+        "no-console-error"
+      ]
+    },
+    "excel": {
+      "version": "16.0",
+      "rows": 3,
+      "columns": 23,
+      "all_cells_match": true,
+      "numeric_cells_compared_as_decimal": 39,
+      "no_formulas": true,
+      "method": "Native Excel COM OpenText UTF8 comma; Excel infers numeric cells for .csv despite FieldInfo. Exact decimal/text comparisons; not physical UI inspection"
+    },
+    "print": {
+      "pages": 1,
+      "page_sizes_pt": [
+        [
+          594.95996,
+          841.91998
+        ]
+      ],
+      "amount_preserved": true,
+      "file_sha256": "c489090727eddeec8b7567e59067cc73ef40a73b53b90808c0bdccbb3fdb6236"
+    }
+  }
+}

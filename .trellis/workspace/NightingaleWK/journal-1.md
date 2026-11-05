@@ -467,3 +467,40 @@
 ### Next Steps
 
 - 常规新功能/修复随代码附中文片段，收尾给出累计范围、版本建议和发布/积累选择；本轮暂无新增用户待发内容，不另发空版本。
+
+
+## Session 16: 同步超时修复、桌面交付及发版准备
+<!-- trellis-session: v=2 fp=af2807167deebd0a -->
+
+**Date**: 2026-11-05
+**Task**: 同步超时修复、桌面交付及发版准备
+**Branch**: `codex/sync-timeout-status`
+
+### Summary
+
+完成两阶段同步与状态竞态修复；通过原生与页面验收并交付桌面EXE、清理临时物。用户选择补齐v0.4.1发版条件，正式专项回执已绑定被测提交，继续PR/CI准备；未公开发布。
+
+### Main Changes
+
+- 来源5秒快照与本地120秒暂存分离，失败有界恢复和页面状态优先级修复。
+- 单文件桌面交付SHA ae59af57fab753b43a5c3e7f1aa585a24f46ae93a4910e274cc0aeea1866aa8e，清理约710MiB任务临时物。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `117044f` | fix(sync): 修复同步误超时与失败状态提示 |
+| `faa67b2` | test(release): 记录同步修复的原生专项验收 |
+
+### Testing
+
+- [OK] 原生Windows unittest 266项（符号链接1项在Linux补验）、Node24项、lint/typecheck通过；新增HTTP锁竞争另行通过。
+- [OK] Directory/OneFile各3万条、桌面生命周期、Edge五宽度、Excel COM和一页A4 PDF通过；正式回执门禁无缺项。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 推进普通修复PR及未合并v0.4.1发布PR，核对最终HEAD CI；合并发布PR/正式公开仍需最终授权。

@@ -14,6 +14,7 @@ import threading
 import time
 import unittest
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +27,7 @@ from test_sources import database, detail, dump, price, rollup
 
 from aha import __version__
 from aha.server import JSON_LIMIT, create_server
+from aha.sync import _Stager
 
 
 class HTTPTests(unittest.TestCase):
@@ -219,16 +221,89 @@ class HTTPTests(unittest.TestCase):
                 "content_base64": base64.b64encode(b"invalid SQL").decode(),
             },
         )
-        self.assertEqual(self.wait_sync(job)["status"], "failed")
+        failed = self.wait_sync(job)
+        self.assertEqual(failed["status"], "failed")
         after = self.json("GET", "/api/ledger")
         self.assertEqual(before["data_revision"], after["data_revision"])
         self.assertEqual(before["counts"], after["counts"])
+        self.assertEqual(before["last_successful_sync_at"], after["last_successful_sync_at"])
+        self.assertEqual(after["last_attempt"]["state"], "failed")
+        self.assertEqual(after["last_attempt"]["error_message"], failed["message"])
+        self.assertEqual(self.json("GET", "/api/status")["sync"], failed)
         with patch.object(
             self.server.app.store, "sync_sqlite", side_effect=AssertionError("query read source")
         ):
             page = self.json("GET", f"/api/analysis/{analysis['analysis_id']}/details?kind=detail")
             self.assertEqual(len(page["rows"]), 50)
             self.json("GET", "/api/ledger")
+        recovered = self.load_usage()
+        self.assertEqual(self.json("GET", "/api/status")["sync"], recovered)
+        self.assertEqual(self.json("GET", "/api/ledger")["last_attempt"]["state"], "completed")
+
+    def test_failed_first_sync_has_recoverable_status_and_no_success_time(self) -> None:
+        failed = self.wait_sync(self.json("POST", "/api/sync", {}))
+        self.assertEqual(failed["status"], "failed")
+        status = self.json("GET", "/api/status")
+        self.assertEqual(status["sync"], failed)
+        self.assertIsNone(status["ledger"]["last_successful_sync_at"])
+        self.assertEqual(status["ledger"]["last_attempt"]["state"], "failed")
+        self.assertEqual(status["ledger"]["last_attempt"]["error_message"], failed["message"])
+
+    def test_job_reports_failure_while_database_cleanup_waits_for_writer(self) -> None:
+        self.load_usage(1)
+        analysis = self.analyze()
+        before = self.json("GET", "/api/ledger")
+        source = database(
+            self.root / "synthetic-source.db", [detail(request_id=f"new-{n}") for n in range(520)]
+        )
+        source.close()
+        trigger, locked, release = threading.Event(), threading.Event(), threading.Event()
+        original_flush = _Stager.flush
+        flushes = 0
+
+        def hold_writer() -> None:
+            self.assertTrue(trigger.wait(5))
+            with closing(sqlite3.connect(self.root / "data" / "aha.sqlite3")) as connection:
+                connection.execute("BEGIN IMMEDIATE")
+                locked.set()
+                try:
+                    self.assertTrue(release.wait(10))
+                finally:
+                    connection.rollback()
+
+        def blocked_flush(stager):
+            nonlocal flushes
+            flushes += 1
+            if flushes == 2:
+                trigger.set()
+                self.assertTrue(locked.wait(5))
+            return original_flush(stager)
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            writer = pool.submit(hold_writer)
+            try:
+                with patch.object(_Stager, "flush", blocked_flush):
+                    failed = self.wait_sync(self.json("POST", "/api/sync", {}))
+                self.assertEqual(failed["status"], "failed")
+                self.assertEqual(failed["code"], "store_busy")
+                self.assertFalse(writer.done())
+                status = self.json("GET", "/api/status")
+                self.assertEqual(status["sync"], failed)
+                self.assertEqual(status["ledger"]["last_attempt"]["state"], "running")
+                self.assertEqual(status["ledger"]["counts"], before["counts"])
+                self.assertEqual(
+                    status["ledger"]["last_successful_sync_at"], before["last_successful_sync_at"]
+                )
+                self.assertEqual(len(self.json(
+                    "GET", f"/api/analysis/{analysis['analysis_id']}/details?kind=detail"
+                )["rows"]), 1)
+            finally:
+                release.set()
+            writer.result(timeout=5)
+
+        self.assertEqual(self.wait_sync(self.json("POST", "/api/sync", {}))["status"], "completed")
+        with self.server.app.store.read_connection() as connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM sync_stage").fetchone()[0], 0)
 
     def test_both_source_versions_report_actual_version_and_unknown_keeps_local_data(self) -> None:
         for version in (23, 24):

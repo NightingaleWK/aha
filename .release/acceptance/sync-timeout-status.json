@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "source_sha": "117044fc70a7a1eb0a0f99ff63a43b70e44467dd",
+  "completed_at": "2026-11-05T18:04:49.411332+08:00",
+  "fingerprints": {
+    "full": "e730b2ec8e05d13d3c8a0b01b8029e6899326a2456cd8dc073e102df118a3128",
+    "tray": "6341e2a0ad0d1f303f463908ba4a0f3f4f640c1a9f62f9db1875d920e0e22019",
+    "materials": "7ac210f79eef5dd456f72db9749512c84b8033cb564c85f06a394ba9eba57fb4",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "checks": [
+    "directory",
+    "onefile",
+    "browser",
+    "excel",
+    "print"
+  ],
+  "evidence": [
+    {
+      "scope": "directory",
+      "sha256": "2bd9e67c7b71f2e4b4098afce5d0c49254fe6e9992830c36886c657537f4af23",
+      "description": "本机0.4.0修复目录构建：原生HTTP、资源、CCS23/24、材料、复开退出及3万条合成同步通过；无物理托盘声明。"
+    },
+    {
+      "scope": "onefile",
+      "sha256": "188556a8f57d1379c68f076859a8b8a89914f4f564c5fae96862cf27ad0233fa",
+      "description": "本机0.4.0修复单文件：原生业务、3万条合成同步及桌面同SHA副本复开/退出通过；不是云端0.4.1候选。"
+    },
+    {
+      "scope": "browser",
+      "sha256": "938c51f8ad480fb953785bfb46df468374fbd7dcdfd3d41915c572ed713a27c0",
+      "description": "同一单文件以原生Edge隔离上下文验证失败有无历史、实际旧数据、重试、待核对、刷新和五种宽度；无JS异常。"
+    },
+    {
+      "scope": "excel",
+      "sha256": "574e53fd84a9729b9e4b9b3d6b1ce11a5ecfdeed00dd38558d3e85661ea8d36b",
+      "description": "独立原生Excel16 COM以UTF8/逗号打开三条23列合成CSV，数值Decimal及文本逐值核对，无公式；不是物理界面点击。"
+    },
+    {
+      "scope": "print",
+      "sha256": "84c0343edc4431a0eb09dc035605126c0c5e70fd204e2ff3a265881bc8d4c660",
+      "description": "原生Edge输出一页A4 PDF，精确金额0.570000003保留；核对尺寸与最终栅格图，无纸质打印声明。"
+    }
+  ]
+}

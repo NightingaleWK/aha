@@ -395,8 +395,8 @@ class LedgerStorageTests(unittest.TestCase):
         try:
             for cancelled in (False, True):
                 with self.subTest(cancelled=cancelled):
-                    flushing, locked, release = (
-                        threading.Event(), threading.Event(), threading.Event()
+                    flushing, locked, release, flush_done = (
+                        threading.Event(), threading.Event(), threading.Event(), threading.Event()
                     )
                     cancel = threading.Event()
                     original_flush = _Stager.flush
@@ -416,6 +416,7 @@ class LedgerStorageTests(unittest.TestCase):
                             return original_flush(stager)
                         finally:
                             flush_seconds.append(time.perf_counter() - started)
+                            flush_done.set()
 
                     with ThreadPoolExecutor(max_workers=2) as pool:
                         holder = pool.submit(hold_writer)
@@ -427,6 +428,9 @@ class LedgerStorageTests(unittest.TestCase):
                                     cancel.set()
                                 source.execute("UPDATE proxy_request_logs SET output_tokens=11")
                                 source.commit()
+                                # Source commit no longer waits for staging. Keep the local
+                                # writer locked until the bounded flush or cancellation ends.
+                                self.assertTrue(flush_done.wait(5))
                             finally:
                                 release.set()
                             with self.assertRaises(AppError) as error:
@@ -447,7 +451,9 @@ class LedgerStorageTests(unittest.TestCase):
         path = self.root / "source.db"
         source = database(path, [detail(str(n)) for n in range(600)])
         source.execute("PRAGMA busy_timeout=1000")
-        flushing, locked, release = threading.Event(), threading.Event(), threading.Event()
+        flushing, locked, release, flush_done = (
+            threading.Event(), threading.Event(), threading.Event(), threading.Event()
+        )
         original_flush = _Stager.flush
         flush_seconds = []
 
@@ -470,6 +476,7 @@ class LedgerStorageTests(unittest.TestCase):
                 return original_flush(stager)
             finally:
                 flush_seconds.append(time.perf_counter() - started)
+                flush_done.set()
 
         try:
             with ThreadPoolExecutor(max_workers=2) as pool:
@@ -480,6 +487,7 @@ class LedgerStorageTests(unittest.TestCase):
                         self.assertTrue(locked.wait(5))
                         source.execute("UPDATE proxy_request_logs SET output_tokens=11")
                         source.commit()
+                        self.assertTrue(flush_done.wait(5))
                     finally:
                         release.set()
                     with self.assertRaises(AppError) as error:

@@ -1,0 +1,8 @@
+{
+  "id": "sync-timeout-status",
+  "kind": "fix",
+  "title": "修复同步超时和失败状态提示",
+  "description": "将来源读取与本地处理分开，减少正常同步被误判超时的情况；同步失败时显示原因和上次成功时间，仍可查询已保存用量。",
+  "highlight": true,
+  "upgrade_notes": []
+}
