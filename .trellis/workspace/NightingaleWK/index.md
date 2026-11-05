@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 16
+- **Total Sessions**: 17
 - **Last Active**: 2026-11-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~506 | Active |
+| `journal-1.md` | ~543 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-11-05 | v0.4.1正式发布与桌面官方成品验收 | `8898451`, `f8a3648` | `main` |
 | 16 | 2026-11-05 | 同步超时修复、桌面交付及发版准备 | `117044f`, `faa67b2` | `codex/sync-timeout-status` |
 | 15 | 2026-11-03 | v0.4.0首次正式发布与收尾 | `7f1c5ade26029f0b87ac723efd658dc7cb49200d`, `f7f548e` | `main` |
 | 14 | 2026-11-03 | 补齐0.4.0首版人工验收 | `34534b9c95cd40131c6a7f03dbff8acc58aebedc` | `codex/first-release-acceptance` |

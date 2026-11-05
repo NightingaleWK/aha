@@ -504,3 +504,40 @@
 ### Next Steps
 
 - 推进普通修复PR及未合并v0.4.1发布PR，核对最终HEAD CI；合并发布PR/正式公开仍需最终授权。
+
+
+## Session 17: v0.4.1正式发布与桌面官方成品验收
+<!-- trellis-session: v=2 fp=371da8c65c654dd0 -->
+
+**Date**: 2026-11-05
+**Task**: v0.4.1正式发布与桌面官方成品验收
+**Branch**: `main`
+
+### Summary
+
+用户授权后合并发布PR#8，按固定源码8898451构建并公开v0.4.1；公开下载及桌面官方EXE原生验收、独立来源复核和临时清理完成。
+
+### Main Changes
+
+- GitHub Release v0.4.1已公开，EXE SHA256为0c25c25da9df56f7b82e7fe4cbce9f20613e1e82172c2ac9b620c2b77b0e8f58。
+- 归档任务同步最终发布与桌面交付状态；本阶段清理约24.8MiB任务临时文件，无额外venv。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8898451` | Merge pull request #8 from NightingaleWK/release-please--branches--main--components--aha-usage |
+| `f8a3648` | docs(release): 记录0.4.1公开与桌面交付验收 |
+
+### Testing
+
+- [OK] 云端质量、Directory、OneFile、发布和状态回写全部成功；标签/源码/说明/构建信息/运行时/回执独立复核通过。
+- [OK] 公开下载包和桌面同SHA副本均通过原生HTTP、CCS23/24、SQL24、材料原包、重复启动、重启与退出清理；桌面自动启用托盘，不冒称物理菜单点击。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 本次产品内容全部包含于公开v0.4.1，无待发功能；维护主环境、真实资料与最终成品。
