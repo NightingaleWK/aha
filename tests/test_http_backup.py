@@ -115,7 +115,7 @@ class BackupHTTPTests(unittest.TestCase):
             {"destination": str(target)},
         ))
         self.assertEqual(restored["status"], "completed", restored)
-        self.assertEqual(Path(restored["result"]["destination"]), target)
+        self.assertEqual(Path(restored["result"]["destination"]), target.resolve(strict=True))
         self.assertEqual(restored["result"]["archive_sha256"], job["result"]["sha256"])
         self.assertTrue((target / "restore-info.json").is_file())
         with closing(Store(target)) as recovered:
@@ -126,7 +126,9 @@ class BackupHTTPTests(unittest.TestCase):
         self.assertEqual(self.json("GET", "/api/ledger")["counts"], before["counts"])
         with patch("aha.server.subprocess.Popen") as opened:
             self.json("POST", "/api/backups/" + restored["id"] + "/open", {})
-        self.assertEqual(opened.call_args.args[0][-2:], ["--data-dir", str(target)])
+        self.assertEqual(
+            opened.call_args.args[0][-2:], ["--data-dir", str(target.resolve(strict=True))]
+        )
         self.assertEqual(self.json("GET", "/api/status")["backup"]["id"], restored["id"])
 
     def test_binary_upload_requires_auth_origin_csrf_type_length_and_exact_offset(self) -> None:

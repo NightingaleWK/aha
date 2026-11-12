@@ -16,6 +16,8 @@ SQLite 必须通过 [运行时门禁](./database-guidelines.md)；版本不满�
 
 Linux 与 Windows 并行运行 mypy 时使用各自的 `--cache-dir`，避免共用仓库缓存。平台限定的标准库属性使用可被类型检查识别的 `sys.platform` 分支；运行时 `os.name` 判断未必能让 Windows 类型检查排除 Unix 属性。
 
+Windows 的临时目录可能含 `RUNNER~1` 等8.3短名，而恢复接口及后续启动参数按 `Path.resolve()` 返回规范路径。测试仍用原始目录发出请求，以覆盖短名输入；恢复完成后用 `target.resolve(strict=True)` 严格比较结果和 `--data-dir` 参数，保留目标存在、事实与原包SHA等断言。不能用未规范化字符串相等误判同一目录，也不能只改成包含末级文件名来放宽身份检查。
+
 ## 按修改选择验证
 
 | 范围 | 测试与断言 |
