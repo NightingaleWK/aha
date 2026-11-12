@@ -55,7 +55,7 @@ python scripts/release.py stage --candidate FILE [--assets DIR]
 - 人工回执含 `schema_version`、实际测试源码 `source_sha`、北京时间 `completed_at`、full/tray/materials/recipe指纹、实际生产/构建运行时 `runtime_sha256`、真实 `checks` 及小型证据摘要。首次公开还须绑定 `candidate_source_sha=M` 和确切云端EXE `artifact_sha256`；缺少真实托盘点击不能把tray列入已通过。指纹须从真实测试提交重算，与目标候选核对；不存在的源码或手填不符指纹不能放行。
 - 下载云端冻结EXE验收时，回执的 `runtime_sha256` 引用已独立核对EXE字节并按候选配方重算确认的 `build-info.runtime_sha256`，表示该被测产物的构建运行时，不冒称从无关本机QA解释器测得。Windows执行主机、浏览器/Office及QA环境另留真实证据；完整Python/SQLite/架构/固定构建依赖的相等及漂移重验要求不变。runtime命令记录当前解释器环境，不能探测冻结EXE内部；不为旧部分回执补填新候选字段冒充完成首版验收。
 - 构建依赖及实际使用的传递依赖全部固定在 `scripts/requirements-build.txt`。实际运行时摘要包含Python完整patch、SQLite、位数/平台及这些固定构建包的实际版本，排除不随产品打包的QA工具；运行时变化须重新验收，不能只核对配方文件未变。
-- 包版本清单按 `importlib.metadata.version(name)` 的活动provider解析；不能让后枚举的旧egg-info覆盖已安装dist-info，也不能删除主环境元数据来掩盖不一致。
+- 包版本清单按 `importlib.metadata.version(name)` 的活动provider解析；不能让后枚举的旧egg-info覆盖已安装dist-info，也不能删除主环境元数据来掩盖不一致。PEP660安装可能保留旧的源码egg-info，且`PYTHONPATH=src`会令它成为活动provider；按当前pyproject使用同一固定setuptools正常重新生成egg_info，再核对模块版本、活动provider及成品PE版本一致，不能手改版本或删除缓存伪造通过。
 - Git文本统一LF，发布JSON、Markdown和SHA256SUMS使用显式UTF-8/LF字节写入，避免Windows默认CRLF导致远端校验不一致。专项源码指纹允许规范化文本的CRLF/LF和唯一版本数字，二进制保持原字节；实际资产仍逐字节校验SHA256，不能借源码规范化放宽资产检查。
 - 首次全面本机验收包括Directory、OneFile、浏览器、托盘、Excel及A4打印预览/PDF；以后每版自动验证原生EXE/HTTP/资源/材料/复开/退出。相关代码变化使对应专项失效，构建配方/运行时或未知生产模块变化保守要求全项；仅版本数字可在专项指纹内规范化，不能掩盖其他改动。
 - 人工回执可后补到可信main，再恢复同一草稿M；它不改变打包源码。草稿EXE变化使其资产回执失效。CI只校验回执匹配，不声称自己重新执行Office或物理交互。
