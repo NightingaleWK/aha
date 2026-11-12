@@ -1,0 +1,47 @@
+{
+  "delivered_at": "2026-11-12T11:01:10.481156+08:00",
+  "version": "0.4.1",
+  "executable_sha256": "5f34fe26f9efda64c46aed32a8eacb90af4af9c54426650f4b1f48fa5fcef888",
+  "source_ref": "WORKTREE",
+  "source_fingerprints": {
+    "full": "5e5a934c156b8056b79a5596f85d40d20341c2f834e3a312025eee6c10f5c0f1",
+    "tray": "794dec52f405c19b2220c3e8de7b623092e43802c816044bd39256b1dffaa4d9",
+    "materials": "6b4b7590511a37a8257572273a618e82fe81fb6964d892ab7037d83bd1000d61",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime": {
+    "windows": true,
+    "isolated": true,
+    "bits": 64,
+    "python": [
+      3,
+      12,
+      16
+    ],
+    "machine": "AMD64",
+    "sqlite": [
+      3,
+      53,
+      1
+    ],
+    "sqlite_version": "3.53.1",
+    "packages": {
+      "pyinstaller": "6.22.3",
+      "setuptools": "84.2.1",
+      "wheel": "0.48.0",
+      "zstandard": "0.25.0",
+      "altgraph": "0.17.5",
+      "packaging": "26.3",
+      "pefile": "2024.8.26",
+      "pyinstaller-hooks-contrib": "2026.9",
+      "pywin32-ctypes": "0.2.3"
+    }
+  },
+  "runtime_sha256": "1f8c0f27921d8b77671ced7ac224119085e0abd4517c638e1b06e8dafe4ac6d4",
+  "desktop": "C:\\Users\\djsyw\\Desktop\\aha.exe",
+  "existing_program": "D:\\Program Files\\aha.exe",
+  "recovery_archive": "D:\\aha-backups\\20261112-device-continuity\\aha-before-continuity-20261112.aha-backup",
+  "old_executable": "D:\\aha-backups\\20261112-device-continuity\\aha-0.4.1-before-continuity.exe",
+  "desktop_started_and_verified": true,
+  "primary_continuation_verified": true
+}

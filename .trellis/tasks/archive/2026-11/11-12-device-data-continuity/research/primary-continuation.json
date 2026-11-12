@@ -1,0 +1,76 @@
+{
+  "verified": true,
+  "old_fact_count": 39463,
+  "source_program": "C:\\Users\\djsyw\\Desktop\\aha.exe",
+  "executable_sha256": "5f34fe26f9efda64c46aed32a8eacb90af4af9c54426650f4b1f48fa5fcef888",
+  "fresh_prechange_backup": {
+    "archive_path": "D:\\aha-backups\\20261112-device-continuity\\aha-latest-before-continuity-836ce844.aha-backup",
+    "sha256": "b225af73cebcb2f42baabeb74049484f6cf84ddfc3e2ea5fa9cd08f62f0e467d",
+    "size": 41778692,
+    "created_at": "2026-11-12T11:04:38+08:00",
+    "format_version": 1,
+    "store_schema_version": 3,
+    "counts": {
+      "usage_records": 39463,
+      "usage_versions": 39463,
+      "projects": 5,
+      "sessions": 360,
+      "batches": 0,
+      "revisions": 0,
+      "usage_claims": 0,
+      "reconciliation_cases": 8
+    }
+  },
+  "actual_data_directory": "C:\\Users\\djsyw\\AppData\\Local\\aha",
+  "sync": {
+    "new_count": 2757,
+    "revised_count": 0,
+    "unchanged_count": 368,
+    "pending_count": 0,
+    "source_schema_version": 25,
+    "observed": {
+      "detail": 3125,
+      "pricing": 2,
+      "rollup": 0
+    }
+  },
+  "repeat_sync": {
+    "new_count": 0,
+    "revised_count": 0,
+    "pending_count": 0,
+    "source_schema_version": 25
+  },
+  "all_preexisting_facts_and_project_assignments_preserved": true,
+  "projects_unchanged": true,
+  "ledger": {
+    "counts": {
+      "detail_count": 42103,
+      "rollup_count": 110,
+      "record_count": 77603,
+      "pending_count": 0
+    },
+    "coverage": {
+      "start_date": "2026-06-17",
+      "end_date": "2026-11-12"
+    },
+    "last_successful_sync_at": "2026-11-12T03:04:56.395740+00:00"
+  },
+  "open_case_types": [],
+  "all_history": {
+    "record_count": 77603,
+    "detail_count": 42103,
+    "rollup_record_count": 35500
+  },
+  "today": {
+    "record_count": 605,
+    "detail_count": 605,
+    "rollup_record_count": 0
+  },
+  "after_backup": {
+    "path": "D:\\aha-backups\\20261112-device-continuity\\aha-after-continuity-20261112-110508-ee88dc.aha-backup",
+    "size": 41473855,
+    "sha256": "3cf244a9fbf861308909c2e2115319c6d35c3f234ff32d034882d3efa512f068"
+  },
+  "same_instance_reopened": true,
+  "completed_at": "2026-11-12T11:05:09.399154+08:00"
+}

@@ -1,0 +1,35 @@
+{
+  "verified": true,
+  "executable_sha256": "04ddf6b7e59ec0af3784de4ddea0aebc70fad4825ca1033fc329ea984f72e3f9",
+  "sync": {
+    "new_count": 329,
+    "revised_count": 0,
+    "unchanged_count": 2695,
+    "pending_count": 0,
+    "source_schema_version": 25
+  },
+  "all_original_facts_and_assignments_preserved": true,
+  "streamed_backup": {
+    "size": 41386494,
+    "sha256": "7631e406dc89d687f7b7eade27dd291229e8e3aa0c2bb3ef5a337bf344828bd9"
+  },
+  "restore_transfer": {
+    "chunks": 10,
+    "bytes": 41386494,
+    "all_tables_identical": true
+  },
+  "ledger": {
+    "counts": {
+      "detail_count": 42002,
+      "rollup_count": 110,
+      "record_count": 77502,
+      "pending_count": 0
+    },
+    "coverage": {
+      "start_date": "2026-06-17",
+      "end_date": "2026-11-12"
+    }
+  },
+  "original_ledger_unchanged": true,
+  "completed_at": "2026-11-12T10:46:39.461983+08:00"
+}

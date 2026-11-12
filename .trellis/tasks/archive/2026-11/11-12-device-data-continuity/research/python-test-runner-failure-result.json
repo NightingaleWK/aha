@@ -1,0 +1,24 @@
+{
+  "verified": false,
+  "tests_run": 301,
+  "failures": [],
+  "errors": [
+    {
+      "test": "test_same_key_processes_return_same_persisted_version (test_claim_concurrency.ClaimConcurrencyTests.test_same_key_processes_return_same_persisted_version)",
+      "traceback": "Traceback (most recent call last):\n  File \"\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\tests\\test_claim_concurrency.py\", line 145, in test_same_key_processes_return_same_persisted_version\n    result = self.run_children(preview, same_key=True)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\tests\\test_claim_concurrency.py\", line 83, in run_children\n    ready.get(timeout=20)\n  File \"C:\\Users\\djsyw\\AppData\\Roaming\\uv\\python\\cpython-3.12.16-windows-x86_64-none\\Lib\\multiprocessing\\queues.py\", line 114, in get\n    raise Empty\n_queue.Empty\n"
+    },
+    {
+      "test": "test_two_processes_have_one_winner_for_distinct_requests (test_claim_concurrency.ClaimConcurrencyTests.test_two_processes_have_one_winner_for_distinct_requests)",
+      "traceback": "Traceback (most recent call last):\n  File \"\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\tests\\test_claim_concurrency.py\", line 127, in test_two_processes_have_one_winner_for_distinct_requests\n    result = self.run_children(preview)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\tests\\test_claim_concurrency.py\", line 83, in run_children\n    ready.get(timeout=20)\n  File \"C:\\Users\\djsyw\\AppData\\Roaming\\uv\\python\\cpython-3.12.16-windows-x86_64-none\\Lib\\multiprocessing\\queues.py\", line 114, in get\n    raise Empty\n_queue.Empty\n"
+    },
+    {
+      "test": "test_rebuild_trial_data (unittest.loader._FailedTest.test_rebuild_trial_data)",
+      "traceback": "ImportError: Failed to import test module: test_rebuild_trial_data\nTraceback (most recent call last):\n  File \"C:\\Users\\djsyw\\AppData\\Roaming\\uv\\python\\cpython-3.12.16-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 396, in _find_test_path\n    module = self._get_module_from_name(name)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\djsyw\\AppData\\Roaming\\uv\\python\\cpython-3.12.16-windows-x86_64-none\\Lib\\unittest\\loader.py\", line 339, in _get_module_from_name\n    __import__(name)\n  File \"\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\tests\\test_rebuild_trial_data.py\", line 21, in <module>\n    from scripts import build_windows\nImportError: cannot import name 'build_windows' from 'scripts' (unknown location)\n\n"
+    }
+  ],
+  "skipped": [],
+  "python": "3.12.16 (main, Oct 26 2026, 14:10:56) [MSC v.1944 64 bit (AMD64)]",
+  "sqlite": "3.53.1",
+  "duration_seconds": 501.219,
+  "completed_at": "2026-11-12T10:40:59.916397+08:00"
+}

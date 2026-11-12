@@ -1,0 +1,22 @@
+{
+  "tag_name": "v0.4.1",
+  "html_url": "https://github.com/NightingaleWK/aha/releases/tag/v0.4.1",
+  "published_at": "2026-11-05T14:37:15Z",
+  "draft": false,
+  "prerelease": false,
+  "target_commitish": "8898451cde00956d32edd0585b8b68690ea3307d",
+  "assets": [
+    {
+      "name": "aha-0.4.1-windows-x64.exe",
+      "size": 12738437
+    },
+    {
+      "name": "build-info.json",
+      "size": 3665
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 174
+    }
+  ]
+}

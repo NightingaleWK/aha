@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "verified": true,
+  "version": "0.4.1",
+  "executable_sha256": "15584053afb94eac3e614e46001710093772129e0985b451a1c196be4419d171",
+  "pe_version": {
+    "file_version_parts": [
+      0,
+      4,
+      1,
+      0
+    ],
+    "file_version": "0.4.1",
+    "product_version_parts": [
+      0,
+      4,
+      1,
+      0
+    ],
+    "product_version": "0.4.1"
+  },
+  "material_sha256": "a967bcd222178b265b5f2a3d1c9f6cb61907259b4b29a0e3b91374c07d417ff4",
+  "complete_backup": {
+    "sha256": "6b9133b13ff3b273fdbea46b90ed6fdbd4909c63e0749fd33d5f9afddfc9930f",
+    "size": 21663,
+    "restored_source_rebound": true,
+    "facts": 3,
+    "active_claims": 3,
+    "original_material_sha256": "a967bcd222178b265b5f2a3d1c9f6cb61907259b4b29a0e3b91374c07d417ff4"
+  },
+  "verified_at": "2026-11-12T10:33:55+08:00",
+  "scopes": [
+    "native-exe",
+    "pe-version",
+    "http-authentication",
+    "resource-bytes",
+    "ccs-23-24-25",
+    "sql-25",
+    "unsupported-26-history-preserved",
+    "usage-projection-23",
+    "full-backup-download",
+    "chunked-backup-upload",
+    "new-directory-restore",
+    "restored-source-rebinding",
+    "restored-repeat-sync-idempotence",
+    "frozen-material",
+    "same-directory-reopen",
+    "persistent-restart",
+    "shutdown-cleanup"
+  ],
+  "tray_enabled": true,
+  "tray_physical_checked": false,
+  "browser_driven": false,
+  "office_checked": false,
+  "manual_checks": []
+}

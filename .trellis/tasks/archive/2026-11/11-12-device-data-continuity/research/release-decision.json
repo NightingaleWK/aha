@@ -1,0 +1,21 @@
+{
+  "recorded_at": "2026-11-12T11:20:27.099880+08:00",
+  "user_decision": "积累到下一版",
+  "commit_and_archive_authorized": true,
+  "work_commit": "c7c6acc87531df6ebb8ed5bc346a624490e8ac0a",
+  "last_public_release": "v0.4.1",
+  "candidate_version_recommendation": "v0.5.0",
+  "pending_changes": [
+    "完整aha台账备份与独立目录还原",
+    "新电脑保留历史并接续用量",
+    "CCS结构25兼容"
+  ],
+  "remaining_release_conditions": [
+    "云端固定3.15.2配方与本地实际验收3.12.16运行时对齐",
+    "对应云端候选构建和门禁验证",
+    "物理托盘点击专项验收"
+  ],
+  "push_authorized": false,
+  "public_release_authorized": false,
+  "release_notes_retained": true
+}
