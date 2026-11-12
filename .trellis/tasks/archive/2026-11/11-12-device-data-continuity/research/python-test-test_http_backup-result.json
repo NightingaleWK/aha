@@ -1,0 +1,11 @@
+{
+  "verified": true,
+  "tests_run": 11,
+  "failures": [],
+  "errors": [],
+  "skipped": [],
+  "python": "3.12.16 (main, Oct 26 2026, 14:10:56) [MSC v.1944 64 bit (AMD64)]",
+  "sqlite": "3.53.1",
+  "duration_seconds": 8.735,
+  "completed_at": "2026-11-12T10:48:56.081736+08:00"
+}

@@ -21,6 +21,8 @@
 | `GET /api/projects` | 项目配置与分类 revision |
 | `POST /api/projects`、`/api/projects/{id}` | `name/description/directories`，名称最多160字符 |
 | `POST /api/assignments` | `project_id` 加 keys 或 session_ids；rollup 按整条记录处理 |
+| `GET /api/project-associations`、`/records` | 项目费用/待归属分组及修订绑定的keyset记录清单 |
+| `POST /api/project-associations/preview`、`/apply` | 全筛选/逐条/整会话的归属影响预览与原子幂等应用；协议见[项目归属合同](../backend/project-association-contract.md) |
 | `GET /api/reconciliations` | `{cases}`，来源重建、版本或覆盖的待核对事项 |
 | `POST /api/reconciliations/{id}` | `choice/reason/expected_generation/idempotency_key`，按实际候选确认 |
 | `POST /api/analysis` | project、time_range意图或旧起止日期（二者互斥）、`availability_mode=available|all`；只查本地库 |
@@ -66,6 +68,12 @@
 
 来源/协议细节放按需帮助；不向产品流程加入内部 epoch、迁移协议或助手旁白。成功提示短浮动，操作错误持续可见并进入当前弹窗。
 
+项目页首先回答项目费用、成员数量与待归属进度，目录维护作为辅助入口。批量须明确“当前页/所选记录/全部筛选/整个会话及未来”范围；有效关系保存在aha中。查看全部费用仍是all只读口径，申请报销切回可用用量。同期未归属单独说明，不能混算成某项目或假称全部已完成；覆盖与冻结合同见[项目归属合同](../backend/project-association-contract.md)。
+
 ## 6. 验证
 
 运行 [前端质量检查](./quality-guidelines.md)。真实浏览器覆盖启动去重、手动成功/失败/needs_review、游标、目录归属、候选核对、占用失效、current/frozen 修订、提交/撤回/报销/作废重用、原包下载与退出。验证1440/1366/1280/430/375布局、CSV Excel 打开和 A4 打印。Store 测试不能替代界面请求或 DOM 验证。
+
+## 换机与完整恢复入口
+
+完整备份/分块还原、本机来源绑定及独立资料目录的签名、限额和错误以[恢复合同](../backend/recovery-and-device-contract.md)为准。原“导入备份”明确为CCS用量导入；本地界面显示资料位置，不能把完整恢复包当费用材料或把默认EXE位置当资料位置。恢复结果提供独立台账打开方式，明确默认双击仍打开原默认目录；不在线换当前库。

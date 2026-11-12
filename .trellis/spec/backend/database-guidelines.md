@@ -2,7 +2,7 @@
 
 ## 所有权与连接
 
-本地应用 schema3，外部 CCS 支持结构版本 23、24，内部规范化投影仍为 23；版本与指纹合同见 [CCS 来源兼容](./ccs-source-compatibility.md)。职责分别在 [storage.py](../../../src/aha/storage.py)、[migrations.py](../../../src/aha/migrations.py)、[sources.py](../../../src/aha/sources.py)。新库创建，不运行旧试用业务迁移；旧资料须按清单工具先保全用量再重建。
+本地应用 schema4，外部 CCS 支持结构版本 23、24、25，内部规范化投影仍为 23；版本与指纹合同见 [CCS 来源兼容](./ccs-source-compatibility.md)。职责分别在 [storage.py](../../../src/aha/storage.py)、[migrations.py](../../../src/aha/migrations.py)、[sources.py](../../../src/aha/sources.py)。schema3 先完整备份再无损升级，结构、失败回滚与旧备份独立恢复见[项目归属合同](./project-association-contract.md)。旧试用schema1/2仍须单独保全再重建，不能对schema3/4误用试用清理工具。
 
 Store 检查实际 sqlite3.sqlite_version_info：3.51.3+，或核实的3.50.7/3.44.6回补分支。不要放宽为“所有大于3.44的版本”。测试和打包使用任务隔离运行时，不修改全局 SQLite。
 
@@ -15,7 +15,7 @@ Store 检查实际 sqlite3.sqlite_version_info：3.51.3+，或核实的3.50.7/3.
 - 数值用参数绑定，动态表/列仅来自代码允许集合。
 - 原成本与 Token 文本保持精确；decimal_sum/integer_sum 返回规范字符串，避免 SQLite SUM 溢出/浮点误差和自定义聚合返回超 int64。
 - 当前事实是 usage_records，内容修订是 usage_versions；新旧指针、来源观察和候选核对分开。未变化同步只增加必要 run 摘要。
-- 可用性存当前事实派生列，日统计在 daily_usage_stats；规则、元数据、覆盖、成本或占用变化都更新受影响范围。
+- 可用性存当前事实派生列，日统计在 daily_usage_stats；生效归属、覆盖、成本或占用变化更新受影响范围。保存目录规则本身不重写已接受历史关系；显式追溯、人工归属和恢复与统计同事务提交。
 - 列表使用 event_time/record_key 组合游标与项目/可用性索引；claims 按 key/scope/semantic 查相关候选，不读全表构建 Python 字典。
 - 先检查 EXPLAIN 与返回行/访问范围，再优化；基准播种可以延迟二级索引，但测量前须恢复完整生产索引与连接设置，不能以删除索引后的不同模型冒充产品。
 

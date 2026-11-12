@@ -1,0 +1,53 @@
+{
+  "verified": true,
+  "completed_at": "2026-11-12T11:14:47.227291+08:00",
+  "removed_root": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-device-continuity-20261112",
+  "removed_entries": [
+    "build",
+    "mypy-backup",
+    "mypy-backup-review",
+    "mypy-final-check",
+    "mypy-http-ui",
+    "mypy-source",
+    "mypy-verifier",
+    "qa",
+    "qa-profile",
+    "qa312",
+    "real-copy-182a68e7cf",
+    "real-frozen-restored-37826fb7",
+    "real-size-transfer-a51927b9.aha-backup",
+    "task-ownership.json",
+    "verify-desktop-final",
+    "verify-directory",
+    "verify-directory-final",
+    "verify-onefile",
+    "verify-onefile-final"
+  ],
+  "removed_file_count": 8099,
+  "removed_logical_bytes_lower_bound": 700132647,
+  "earlier_partial_cleanup_unmeasured": true,
+  "deletion_seconds": 3.156,
+  "processes_using_root": [],
+  "cache_junctions_unlinked_without_following": [],
+  "protected_files_verified": {
+    "desktop": "C:\\Users\\djsyw\\Desktop\\aha.exe",
+    "existing_program": "D:\\Program Files\\aha.exe",
+    "old_program": "D:\\aha-backups\\20261112-device-continuity\\aha-0.4.1-before-continuity.exe",
+    "before_backup": "D:\\aha-backups\\20261112-device-continuity\\aha-latest-before-continuity-836ce844.aha-backup",
+    "after_backup": "D:\\aha-backups\\20261112-device-continuity\\aha-after-continuity-20261112-110508-ee88dc.aha-backup"
+  },
+  "primary_service_ready": true,
+  "primary_source_bound": true,
+  "primary_counts": {
+    "detail_count": 42103,
+    "rollup_count": 110,
+    "record_count": 77603,
+    "pending_count": 0
+  },
+  "base_interpreter_preserved": "C:\\Users\\djsyw\\AppData\\Roaming\\uv\\python\\cpython-3.12.16-windows-x86_64-none\\python.exe",
+  "prior_cleanup_notes": [
+    "The initial validated pass unlinked only the synthetic IE Content.IE5 cache junction, whose target remained inside the QA root.",
+    "Deletion then stopped on a read-only synthetic release-test Git object; the completed retry cleared only READONLY within the same inventoried QA tree.",
+    "The reported Windows byte count is a lower bound, excluding files removed before that retry."
+  ]
+}

@@ -9,16 +9,16 @@ import unittest
 from pathlib import Path
 
 from aha.domain import AppError
-from aha.migrations import initialize_query_indexes, sqlite_wal_safe
+from aha.migrations import SCHEMA_VERSION, initialize_query_indexes, sqlite_wal_safe
 from aha.storage import Store
 
 
 class FreshSchemaTests(unittest.TestCase):
-    def test_new_empty_database_is_schema3_and_reopens(self) -> None:
+    def test_new_empty_database_uses_current_schema_and_reopens(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             store = Store(root)
-            self.assertEqual(store._db.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(store._db.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
             names = {
                 row[0]
                 for row in store._db.execute("SELECT name FROM sqlite_master WHERE type='table'")

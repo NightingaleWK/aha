@@ -1,0 +1,113 @@
+{
+  "verified": true,
+  "original_counts": {
+    "batch_events": 0,
+    "batches": 0,
+    "billing_sequence": 1,
+    "coverage_groups": 151,
+    "daily_usage_stats": 151,
+    "idempotency": 0,
+    "monthly_usage_stats": 26,
+    "overrides": 0,
+    "pricing": 9,
+    "projects": 5,
+    "reconciliation_cases": 8,
+    "reconciliation_events": 8,
+    "reconciliation_idempotency": 8,
+    "record_aliases": 0,
+    "record_evidence": 117803,
+    "revision_members": 0,
+    "revisions": 0,
+    "session_metadata_versions": 707,
+    "sessions": 360,
+    "settings": 3,
+    "source_epochs": 1,
+    "source_profiles": 7,
+    "source_rollup_observations": 781,
+    "sync_pricing": 0,
+    "sync_runs": 39,
+    "sync_stage": 0,
+    "usage_claims": 0,
+    "usage_records": 39463,
+    "usage_versions": 39463
+  },
+  "backup": {
+    "archive_path": "C:\\Users\\djsyw\\AppData\\Local\\Packages\\OpenAI.Codex_2p2nqsd0c76g0\\LocalCache\\Local\\aha-recovery\\aha-before-continuity-20261112-100821.aha-backup",
+    "sha256": "5279dfdc7b35e43a7324dc52177a94c71bb984b96c46257bc989e3ce9c5cb7b3",
+    "size": 41778691,
+    "created_at": "2026-11-12T10:08:26+08:00",
+    "format_version": 1,
+    "store_schema_version": 3,
+    "counts": {
+      "usage_records": 39463,
+      "usage_versions": 39463,
+      "projects": 5,
+      "sessions": 360,
+      "batches": 0,
+      "revisions": 0,
+      "usage_claims": 0,
+      "reconciliation_cases": 8
+    }
+  },
+  "restore": {
+    "destination": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-device-continuity-20261112\\real-copy-182a68e7cf",
+    "archive_sha256": "5279dfdc7b35e43a7324dc52177a94c71bb984b96c46257bc989e3ce9c5cb7b3",
+    "restored_at": "2026-11-12T10:08:35+08:00",
+    "format_version": 1,
+    "store_schema_version": 3,
+    "counts": {
+      "usage_records": 39463,
+      "usage_versions": 39463,
+      "projects": 5,
+      "sessions": 360,
+      "batches": 0,
+      "revisions": 0,
+      "usage_claims": 0,
+      "reconciliation_cases": 8
+    },
+    "interrupted_runs": 0
+  },
+  "all_tables_identical_after_restore": true,
+  "historical_summary": {
+    "record_count": 74846,
+    "detail_count": 39346,
+    "rollup_record_count": 35500
+  },
+  "missing_old_sessions_preserves_all_directories_and_projects": true,
+  "continuation": {
+    "state": "completed",
+    "new_count": 2327,
+    "revised_count": 0,
+    "unchanged_count": 368,
+    "pending_count": 0,
+    "source_schema_version": 25,
+    "observed": {
+      "detail": 2695,
+      "pricing": 2,
+      "rollup": 0
+    },
+    "timings": null
+  },
+  "all_original_facts_and_project_assignments_preserved": true,
+  "repeat_sync": {
+    "state": "completed",
+    "new_count": 0,
+    "revised_count": 0,
+    "pending_count": 0
+  },
+  "ledger": {
+    "counts": {
+      "detail_count": 41673,
+      "rollup_count": 110,
+      "record_count": 77173,
+      "pending_count": 0
+    },
+    "coverage": {
+      "start_date": "2026-06-17",
+      "end_date": "2026-11-12"
+    }
+  },
+  "open_case_types": [],
+  "original_ledger_unchanged": true,
+  "completed_at": "2026-11-12T10:08:45.795824+08:00"
+}

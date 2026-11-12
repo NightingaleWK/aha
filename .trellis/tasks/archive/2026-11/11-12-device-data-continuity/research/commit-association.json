@@ -1,0 +1,15 @@
+{
+  "verified": true,
+  "recorded_at": "2026-11-12T11:20:27.099880+08:00",
+  "work_commit": "c7c6acc87531df6ebb8ed5bc346a624490e8ac0a",
+  "build_original_source_ref": "WORKTREE",
+  "committed_fingerprints": {
+    "full": "5e5a934c156b8056b79a5596f85d40d20341c2f834e3a312025eee6c10f5c0f1",
+    "tray": "794dec52f405c19b2220c3e8de7b623092e43802c816044bd39256b1dffaa4d9",
+    "materials": "6b4b7590511a37a8257572273a618e82fe81fb6964d892ab7037d83bd1000d61",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "matches_built_source_fingerprints": true,
+  "executable_sha256": "5f34fe26f9efda64c46aed32a8eacb90af4af9c54426650f4b1f48fa5fcef888",
+  "desktop_and_existing_program_rechecked": true
+}

@@ -253,6 +253,21 @@ def _warnings(analysis: dict[str, Any]) -> list[str | dict[str, Any]]:
     return result
 
 
+def _assignment_basis(analysis: dict[str, Any]) -> dict[str, Any] | None:
+    """Share counts only; other projects' amounts and metadata remain local."""
+    coverage = analysis.get("assignment_coverage")
+    if not isinstance(coverage, dict):
+        return None
+    return {
+        key: coverage[key]
+        for key in (
+            "scope", "availability_mode", "status", "unassigned_detail_count",
+            "unassigned_rollup_count", "unassigned_record_count",
+        )
+        if key in coverage
+    }
+
+
 def _write_csv(path: Path, columns: tuple[str, ...], rows: Iterable[dict[str, Any]]) -> int:
     count = 0
     with path.open("w", encoding="utf-8-sig", newline="") as output:
@@ -317,6 +332,30 @@ def _write_report(
         days = "、".join(coverage["omitted_days"])
         notes.append(f"统计不完整：{days} 的 {coverage['omitted_rollup_count']} 条历史日汇总"
                      "没有逐笔时间，未计入当前时间范围；其全天金额不代表本范围内费用。")
+    assignment = _assignment_basis(analysis)
+    if assignment is None:
+        notes.append("沿用冻结成员；原记录未保存同期项目归属覆盖信息，不补判为全部已归属。")
+    elif assignment.get("status") == "incomplete":
+        counts_note = (
+            "同期同用量口径仍有 "
+            f"{assignment.get('unassigned_detail_count', 0)} 条明细、"
+            f"{assignment.get('unassigned_rollup_count', 0)} 条历史日汇总未归属项目"
+            f"（合计代表 {assignment.get('unassigned_record_count', 0)} 次请求）。"
+        )
+        if analysis.get("project_id", "all") not in {"all", "unassigned"}:
+            notes.append(
+                "本材料只包含所选项目及范围内已确认的消费。" + counts_note
+                + "未归属消费未计入所选项目；本项目结果不表示所有相关消费已经分配完成。"
+            )
+        else:
+            notes.append(
+                "本材料按所选范围保存成员。" + counts_note
+                + "未归属部分不能作为某个项目的完整费用依据。"
+            )
+    elif assignment.get("status") == "complete":
+        notes.append("同期同用量口径的已核实消费均已归属项目；本材料仅包含所选范围成员。")
+    else:
+        notes.append("原记录未确定同期项目归属覆盖状态，不补判为全部已归属。")
     if summary.get("rollup_record_count"):
         notes.append("历史日汇总按来源完整记录纳入，没有补成逐条调用。")
     if summary.get("unpriced_count"):
@@ -458,6 +497,7 @@ def build_evidence(
         },
         "summary": _summary(analysis["summary"]),
         "time_coverage": analysis.get("time_coverage"),
+        "assignment_coverage": _assignment_basis(analysis),
         "summary_complete": analysis.get("summary_complete"),
         "pending_count": analysis.get("pending_count"),
         "claim": claim,
@@ -467,6 +507,8 @@ def build_evidence(
         "rollup_timezone_assumption": "历史日汇总缺少原始时区，以 Asia/Shanghai 整日解释。",
         "status_basis": "生成时为草稿；后续本地人工状态变化不改本包，不构成支付确认。",
     }
+    if "ledger_schema_version" in analysis:
+        metadata["ledger"]["schema_version"] = analysis["ledger_schema_version"]
     basis = _availability_basis(analysis)
     if basis is not None:
         metadata["availability"] = basis

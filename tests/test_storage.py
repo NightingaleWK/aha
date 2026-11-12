@@ -18,6 +18,7 @@ from test_sources import database, dump
 from test_storage_helpers import claim, detail, metadata, rollup, source_data
 
 from aha.domain import AppError, record_key
+from aha.migrations import SCHEMA_VERSION
 from aha.storage import Store
 from aha.sync import _Stager
 
@@ -27,6 +28,9 @@ class LedgerStorageTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.store = Store(self.root)
+        self.enterContext(patch(
+            "aha.source_bindings.installation_id", return_value="synthetic-storage-installation"
+        ))
 
     def tearDown(self) -> None:
         self.store.close()
@@ -63,17 +67,19 @@ class LedgerStorageTests(unittest.TestCase):
             before = tuple(db.execute(
                 "SELECT record_key,content_hash,project_id,assignment_origin FROM usage_records"
             ).fetchone())
-        with closing(sqlite3.connect(path)) as connection:
-            connection.execute("PRAGMA user_version=24")
-            connection.commit()
-        upgraded = self.store.sync_sqlite(path, roots)
-        self.assertEqual(upgraded["source_schema_version"], 24)
-        self.assertEqual(upgraded["new_count"], 0)
-        self.assertEqual(upgraded["revised_count"], 0)
-        self.assertEqual(upgraded["unchanged_count"], 1)
-        self.assertEqual(self.query()["summary"]["record_count"], 0)
+        for version in (24, 25):
+            with self.subTest(version=version):
+                with closing(sqlite3.connect(path)) as connection:
+                    connection.execute(f"PRAGMA user_version={version}")
+                    connection.commit()
+                upgraded = self.store.sync_sqlite(path, roots)
+                self.assertEqual(upgraded["source_schema_version"], version)
+                self.assertEqual(upgraded["new_count"], 0)
+                self.assertEqual(upgraded["revised_count"], 0)
+                self.assertEqual(upgraded["unchanged_count"], 1)
+                self.assertEqual(self.query()["summary"]["record_count"], 0)
         with self.store.read_connection() as db:
-            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM usage_records").fetchone()[0], 1)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM usage_versions").fetchone()[0], 1)
             self.assertEqual(tuple(db.execute(
@@ -83,7 +89,7 @@ class LedgerStorageTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(original.read_bytes()).hexdigest(), package_sha)
         self.store.close()
         self.store = Store(self.root)
-        self.assertEqual(self.store.sync_status(upgraded["id"])["source_schema_version"], 24)
+        self.assertEqual(self.store.sync_status(upgraded["id"])["source_schema_version"], 25)
         self.assertEqual(self.store.sync_status(first["id"])["source_schema_version"], 23)
 
     def test_sql24_failure_and_unknown_sql_version_do_not_publish_staged_rows(self) -> None:
@@ -91,7 +97,7 @@ class LedgerStorageTests(unittest.TestCase):
         self.assertEqual(initial["source_schema_version"], 24)
         before = self.store.ledger_status()
         for raw, code in (
-            (dump([detail("new")], version=25), "unsupported_schema"),
+            (dump([detail("new")], version=26), "unsupported_schema"),
             (dump([detail("new"), detail("invalid", input_tokens=-1)], version=24),
              "invalid_number"),
             (dump([detail("new")], version=24) + b"\nPRAGMA user_version=23;",
@@ -338,7 +344,7 @@ class LedgerStorageTests(unittest.TestCase):
         self.assertEqual(self.query()["pending_count"], 0)
         self.assertEqual(self.store.list_reconciliations(), [])
 
-    def test_rollup_request_count_regression_keeps_old_fact_until_source_confirmation(self) -> None:
+    def test_source_confirmation_does_not_accept_a_regressed_fact_revision(self) -> None:
         self.store.sync_data(source_data([], [rollup(request_count=100)]), trust="live")
         before = self.store.ledger_status()["last_successful_sync_at"]
         regressed = source_data([], [rollup(request_count=10)])
@@ -354,7 +360,17 @@ class LedgerStorageTests(unittest.TestCase):
         self.store.resolve_reconciliation(source["id"], "current", "已核对来源重建基线")
         repeated = self.store.sync_data(regressed, trust="live")
         self.assertEqual(repeated["state"], "completed")
-        self.assertEqual(self.query()["summary"]["record_count"], 10)
+        self.assertEqual(repeated["revised_count"], 0)
+        self.assertEqual(self.store._db.execute(
+            "SELECT request_count FROM usage_records WHERE kind='rollup'"
+        ).fetchone()[0], "100")
+        revision = self.store.list_reconciliations()[0]
+        self.assertEqual(revision["type"], "revision")
+        self.store.resolve_reconciliation(revision["id"], "current", "保留旧设备已核实历史")
+        self.assertEqual(self.query()["summary"]["record_count"], 100)
+        repeated = self.store.sync_data(regressed, trust="live")
+        self.assertEqual(repeated["revised_count"], 0)
+        self.assertEqual(self.query()["summary"]["record_count"], 100)
         self.assertEqual(self.store.list_reconciliations(), [])
 
     def test_rollup_row_loss_is_reviewed_even_when_detail_count_is_unchanged(self) -> None:

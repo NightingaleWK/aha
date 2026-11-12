@@ -29,12 +29,13 @@
     <main id="main" tabindex="-1">
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
       <section id="page-usage" class="page">
-        <div class="page-heading"><div><h1>用量与费用</h1><p>选择项目和时间，查看可用用量。</p></div><button id="source-options" class="button">数据来源 <span aria-hidden="true">↗</span></button></div>
+        <div class="page-heading"><div><h1>用量与费用</h1><p>选择项目和时间，查看可用用量。</p></div><div class="page-heading-actions"><button id="backup-options" class="button">备份与还原</button><button id="source-options" class="button">数据来源 <span aria-hidden="true">↗</span></button></div></div>
         <section class="source-card" aria-label="当前数据来源">
           <div class="source-icon" aria-hidden="true">▤</div>
           <div class="source-description"><div class="source-title"><strong id="source-name">本地用量台账</strong><span id="source-mode" class="tag">尚未同步</span></div><p id="source-description">正在读取本地资料。</p><p id="sync-error" class="sync-error" role="alert" hidden></p></div>
-          <div class="source-actions"><button id="load-default" class="button primary" data-sync-control>立即同步</button><button id="review-data" class="button">数据核对 <span id="reconciliation-count">0</span></button><button id="import-sql" class="button" data-sync-control>导入备份</button><input id="sql-file" type="file" accept=".sql" hidden></div>
+          <div class="source-actions"><button id="load-default" class="button primary" data-sync-control>立即同步</button><button id="review-data" class="button">数据核对 <span id="reconciliation-count">0</span></button><button id="import-sql" class="button" data-sync-control>导入 CCS 用量备份</button><input id="sql-file" type="file" accept=".sql" hidden></div>
         </section>
+        <section id="source-binding-note" class="warning source-binding-note" role="status" hidden><div><strong>确认当前电脑的数据来源</strong><p>已保存的历史仍可查询。将当前 CC Switch 作为新来源接续后，只补充新用量；不同的历史值保留供核对。</p></div><button id="bind-default-source" class="button">确认来源，保留历史</button></section>
         <section class="panel filter-panel" aria-label="筛选条件">
           <div class="filter-grid">
             <label class="field project-select-field">项目<select id="project-select" data-searchable="true"><option value="all">全部项目（含未归属）</option><option value="unassigned">未归属</option></select></label>
@@ -44,6 +45,7 @@
           </div>
           <div class="filter-footer"><span>北京时间 · 手动设置包含结束分钟 · 全部用量仅供查看</span><span id="filter-status" class="muted" role="status">查询本地台账</span></div>
         </section>
+        <section id="empty-range-note" class="history-note" role="status" hidden><p id="empty-range-description"></p><button id="view-all-history" class="button small">查看全部历史</button></section>
         <div class="metric-grid" aria-label="期间汇总">
           <section class="metric metric-main"><div class="metric-label"><span id="metric-cost-label">可用参考成本</span> <span class="tag">USD</span></div><strong id="metric-cost">—</strong><p>按 CC Switch 历史金额汇总</p></section>
           <section class="metric"><div id="metric-count-label" class="metric-label">可用用量</div><strong id="metric-count">—</strong><p id="metric-count-note">明细与历史汇总分别统计</p></section>
@@ -57,6 +59,7 @@
           <div id="availability-groups" class="availability-groups"></div>
         </section>
         <div id="reconciliation-note" class="warning" role="status" hidden></div>
+        <section id="assignment-coverage-note" class="history-note" role="status" hidden><p id="assignment-coverage-description"></p><button id="manage-unassigned" class="button small">处理待归属记录</button></section>
         <div id="token-strip" class="token-strip" hidden><span>输入 <strong id="token-input">0</strong></span><span>输出 <strong id="token-output">0</strong></span><span>缓存读取 <strong id="token-read">0</strong></span><span>缓存写入 <strong id="token-write">0</strong></span></div>
         <section class="panel claim-panel">
           <div class="claim-heading"><div><h2>报销信息</h2><p id="claim-explanation">申请报销金额由你填写。</p></div><span class="tag">保存后下载材料</span></div>
@@ -69,7 +72,7 @@
         </section>
         <section id="usage-preview" class="panel preview-panel">
           <div class="panel-heading"><div><h2>用量预览</h2><p id="preview-caption">选择条件后更新预览。</p></div><div class="tabs" role="tablist" aria-label="预览粒度"><button class="tab active" data-tab="daily" role="tab" aria-selected="true">每日</button><button class="tab" data-tab="models" role="tab" aria-selected="false">模型</button><button class="tab" data-tab="details" role="tab" aria-selected="false">明细</button><button class="tab" data-tab="rollups" role="tab" aria-selected="false">历史日汇总</button></div></div>
-          <div id="assignment-bar" class="assignment-bar" hidden><span id="selection-count">已选 0 条</span><label class="field inline-field"><span class="sr-only">分配项目</span><select id="assignment-project" data-searchable="true"><option value="">清除人工指定</option></select></label><label id="session-scope-label" class="checkbox-label"><input type="checkbox" id="session-scope">包括这些会话的全部明细</label><button id="assign" class="button small">分配项目</button><button id="clear-selection" class="text-button">取消选择</button></div>
+          <div id="assignment-bar" class="assignment-bar" hidden><span id="selection-count">已选 0 条</span><label class="field inline-field"><span class="sr-only">分配项目</span><select id="assignment-project" data-searchable="true"><option value="">取消逐条人工例外</option></select></label><label id="session-scope-label" class="checkbox-label"><input type="checkbox" id="session-scope">整个会话（含后续新增明细）</label><button id="assign" class="button small">分配项目</button><button id="clear-selection" class="text-button">取消选择</button><p id="assignment-mode-description" class="field-help"></p></div>
           <div id="preview-table" class="table-wrap"><div class="empty-state"><span class="empty-icon" aria-hidden="true">▤</span><h3>本地台账暂无用量</h3><p>同步 CC Switch 数据，或导入备份。</p></div></div>
           <div id="pagination" class="pagination" hidden><span id="page-label"></span><div><button id="prev-page" class="button small">上一页</button><button id="next-page" class="button small">下一页</button></div></div>
         </section>
@@ -77,9 +80,33 @@
         <p class="page-footnote"><a href="/licenses" target="_blank" rel="noopener">开源说明</a></p>
       </section>
       <section id="page-projects" class="page" hidden>
-        <div class="page-heading"><div><h1>项目管理</h1><p>为项目选择工作目录，用量会自动归类。</p></div><button id="new-project" class="button primary">＋ 新建项目</button></div>
+        <div class="page-heading"><div><h1>项目管理</h1><p>把消费记到对应项目，核对项目费用与报销依据。</p></div><div class="page-heading-actions"><button id="refresh-associations" class="button">刷新项目费用</button><button id="new-project" class="button primary">＋ 新建项目</button></div></div>
+        <div id="association-overview" class="association-overview" aria-label="全历史归属进度" hidden></div>
         <div id="project-list" class="project-list"></div>
-        <section class="panel metadata-panel"><div class="panel-heading"><div><h2>已发现的工作目录</h2><p>可在新建或编辑项目时选择。</p></div><button id="refresh-metadata" class="button">刷新目录识别</button></div><div id="directory-summary" class="directory-summary">加载用量后显示工作目录。</div><div id="directory-list" class="directory-list"></div><details class="scope-details metadata-help"><summary>如何分配未归属的用量</summary><p>在“用量与费用”的明细表中选择记录，再指定项目。历史日汇总按完整记录分配。</p></details></section>
+        <section id="association-panel" class="panel association-panel" aria-labelledby="association-heading">
+          <div class="panel-heading"><div><h2 id="association-heading" tabindex="-1">记录归属</h2><p>按目录、会话或时间批量处理；确认后的历史归属持续保留。</p></div><button id="recover-associations" class="button">检查历史关联恢复</button></div>
+          <div id="association-groups" class="association-groups" aria-label="待归属原因"></div>
+          <form id="association-filter-form" class="association-filters">
+            <div class="association-filter-grid">
+              <label class="field">当前项目<select id="association-filter-project" data-searchable="true"><option value="unassigned">待归属记录</option><option value="all">全部项目（含未归属）</option></select></label>
+              <label class="field">待处理原因<select id="association-filter-reason"><option value="all">全部原因</option><option value="recoverable">历史依据可恢复</option><option value="directory_unbound">有目录，待确认归属</option><option value="missing">缺少目录依据</option><option value="conflict">目录依据存在冲突</option></select></label>
+              <label class="field">工作目录<input id="association-filter-directory" maxlength="8192" placeholder="完整目录，可从原因分组选择"></label>
+              <label class="field">会话<input id="association-filter-session" maxlength="256" placeholder="按完整会话 ID 筛选"></label>
+              <label class="field">开始日期（北京时间）<input id="association-filter-start" type="date"></label>
+              <label class="field">结束日期（北京时间）<input id="association-filter-end" type="date"></label>
+            </div>
+            <div class="association-filter-actions"><span id="association-status" class="field-help" role="status">打开项目管理后读取本地归属。</span><button id="search-associations" type="submit" class="button">查询记录</button></div>
+          </form>
+          <div class="association-bulk">
+            <label class="checkbox-label"><input id="association-all-filtered" type="checkbox">选择全部筛选结果（含其他分页）</label>
+            <p id="association-selection-description" class="field-help" role="status">选择记录后，先预览影响，再确认归属。</p>
+            <div class="association-bulk-fields"><label class="field">分配到项目<select id="association-target-project" data-searchable="true"><option value="">请选择项目</option></select></label><label class="checkbox-label"><input id="association-bind-sessions" type="checkbox">按整个会话分配（含其他现存明细和后续新增）</label></div>
+            <div class="association-bulk-actions"><button id="preview-assignment" class="button primary">预览项目分配</button><button id="preview-reclassification" class="button">按现有目录规则重新归属</button><button id="clear-association-selection" class="text-button">取消选择</button></div>
+          </div>
+          <div id="association-records" class="table-wrap"><div class="empty-state"><h3>读取记录后即可批量分配</h3><p>已确认的项目关系保存在 aha 中，旧电脑日志缺失不会撤销归属。</p></div></div>
+          <div id="association-pagination" class="pagination" hidden><span id="association-page-label"></span><div><button id="association-prev-page" class="button small">上一页</button><button id="association-next-page" class="button small">下一页</button></div></div>
+        </section>
+        <details class="panel metadata-panel"><summary class="metadata-toggle">工作目录与自动识别</summary><div class="panel-heading"><div><h2>已保存的工作目录依据</h2><p>为新会话提供自动归属线索；修改目录不回写已确认的历史关系。</p></div><button id="refresh-metadata" class="button">刷新目录识别</button></div><div id="directory-summary" class="directory-summary">加载用量后显示工作目录。</div><div id="directory-list" class="directory-list"></div></details>
       </section>
       <section id="page-batches" class="page" hidden>
         <div class="page-heading"><div><h1>报销记录</h1><p>查看报销状态、修改历史和已保存材料。</p></div><button id="refresh-batches" class="button">刷新记录</button></div>
@@ -88,12 +115,29 @@
     </main>
   </div>
   <dialog id="source-dialog" class="dialog">
-    <form id="sqlite-form"><div class="dialog-heading"><h2>数据来源</h2><button type="button" class="icon-button" data-close="source-dialog" aria-label="关闭">×</button></div><p class="dialog-intro">只读同步 CC Switch 数据库，或导入一份历史备份。查询始终使用本地台账。</p><label class="field">其他 CC Switch 数据库<input id="sqlite-path" type="text" maxlength="4096" placeholder="留空使用默认数据库，或粘贴文件完整路径"></label><div class="dialog-actions"><button type="button" class="button" id="dialog-import-sql" data-sync-control>选择备份文件（.sql）</button><button type="submit" id="sync-other-source" class="button primary" data-sync-control>同步数据库</button></div></form>
+    <form id="sqlite-form"><div class="dialog-heading"><h2>数据来源</h2><button type="button" class="icon-button" data-close="source-dialog" aria-label="关闭">×</button></div><p class="dialog-intro">只读同步 CC Switch 数据库，或导入 CCS 历史用量。查询始终使用本地台账。完整 aha 备份与还原请使用首页对应入口。</p><label class="field">当前 aha 资料目录<output id="source-data-directory" class="path-output"></output><span class="field-help">台账、项目和报销材料保存在这里，与程序文件的位置分开。</span></label><label class="field">其他 CC Switch 数据库<input id="sqlite-path" type="text" maxlength="4096" placeholder="留空使用默认数据库，或粘贴文件完整路径"></label><div class="dialog-actions"><button type="button" class="button" id="dialog-import-sql" data-sync-control>导入 CCS 用量备份（.sql）</button><button type="submit" id="sync-other-source" class="button primary" data-sync-control>同步数据库</button></div></form>
     <div class="dialog-divider"></div>
     <form id="metadata-form"><h3>目录识别</h3><label class="field">Codex 数据目录（每行一个）<textarea id="metadata-roots" rows="3" placeholder="留空使用默认 .codex 目录"></textarea><span class="field-help">用于识别会话的工作目录。</span></label><div class="dialog-actions"><button type="submit" id="scan-metadata" class="button">刷新目录识别</button></div></form>
   </dialog>
+  <dialog id="source-binding-dialog" class="dialog">
+    <form id="source-binding-form"><div class="dialog-heading"><h2>接续当前电脑的用量</h2><button type="button" class="icon-button" data-close="source-binding-dialog" aria-label="关闭">×</button></div><p id="source-binding-description" class="dialog-intro">原台账完整保留，当前 CC Switch 作为新的来源接续。相同消费不会重复计入；不同历史值会保留供核对。</p><label class="field">接续说明<textarea id="source-binding-reason" rows="3" maxlength="4000" required></textarea></label><div class="dialog-actions"><button type="button" class="button" data-close="source-binding-dialog">暂不接续</button><button type="submit" class="button primary">保留历史并接续</button></div></form>
+  </dialog>
+  <dialog id="backup-dialog" class="dialog wide-dialog">
+    <div class="dialog-heading"><h2>完整 aha 备份与还原</h2><button type="button" class="icon-button" data-close="backup-dialog" aria-label="关闭">×</button></div>
+    <p class="dialog-intro">完整备份包含台账、项目、归属、报销记录和所有版本的原始材料，可用于换机或恢复。它包含个人资料，请自行妥善保管。</p>
+    <label class="field">当前资料目录<output id="backup-data-directory" class="path-output"></output></label>
+    <section class="backup-section"><h3>备份当前资料</h3><p>生成一致的完整备份，再下载保存到你选择的位置。</p><div class="dialog-actions"><button id="create-full-backup" class="button primary">生成完整备份</button></div></section>
+    <div class="dialog-divider"></div>
+    <form id="restore-form"><h3>从完整备份还原</h3><p>还原到一个新的资料目录，当前台账继续保留。还原完成后可直接打开新台账。</p><label class="field">完整备份文件<input id="restore-file" type="file" accept=".aha-backup,.zip" required><span class="field-help">CCS 的 .sql 用量备份请通过“数据来源”导入。</span></label><label class="field">新的还原目录（选填）<input id="restore-destination" type="text" maxlength="4096" placeholder="留空在当前资料目录旁新建，或填写不存在的绝对目录"></label><div class="dialog-actions"><button id="restore-backup" type="submit" class="button">校验并还原到新目录</button></div></form>
+    <section id="unfinished-uploads" class="backup-result" hidden><p>有尚未完成的备份上传。重新选择文件前可清理；这也会取消其他页面的对应上传。</p><button id="clear-unfinished-uploads" class="button small">清理未完成上传</button></section>
+    <div id="backup-progress" class="backup-progress" role="status" aria-live="polite" hidden><p id="backup-progress-text"></p><progress id="backup-progress-bar" max="100"></progress><button id="cancel-backup" class="button small" data-backup-cancel>取消此次操作</button></div>
+    <div id="backup-result" class="backup-result" role="status" hidden></div>
+  </dialog>
   <dialog id="project-dialog" class="dialog wide-dialog">
-    <form id="project-form"><div class="dialog-heading"><h2 id="project-dialog-title">新建项目</h2><button type="button" class="icon-button" data-close="project-dialog" aria-label="关闭">×</button></div><input type="hidden" id="edit-project-id"><div class="two-column"><label class="field">项目名称<input id="edit-project-name" maxlength="160" required placeholder="例如：liuying-流萤-运维管理平台"></label><label class="field">说明（选填）<input id="edit-project-description" maxlength="4000" placeholder="项目用途"></label></div><h3>选择工作目录</h3><div id="project-candidates" class="candidate-list"></div><label class="field">补充目录（每行一个）<textarea id="edit-project-directories" rows="4" placeholder="可填写 Windows 或 Linux 路径"></textarea><span class="field-help">目录及其子目录归入此项目，更具体的目录设置优先。</span></label><div class="dialog-actions"><button type="button" class="button" data-close="project-dialog">取消</button><button type="submit" class="button primary">保存项目</button></div></form>
+    <form id="project-form"><div class="dialog-heading"><h2 id="project-dialog-title">新建项目</h2><button type="button" class="icon-button" data-close="project-dialog" aria-label="关闭">×</button></div><input type="hidden" id="edit-project-id"><div class="two-column"><label class="field">项目名称<input id="edit-project-name" maxlength="160" required placeholder="例如：liuying-流萤-运维管理平台"></label><label class="field">说明（选填）<input id="edit-project-description" maxlength="4000" placeholder="项目用途"></label></div><h3>选择工作目录</h3><div id="project-candidates" class="candidate-list"></div><label class="field">补充目录（每行一个）<textarea id="edit-project-directories" rows="4" placeholder="可填写 Windows 或 Linux 路径"></textarea><span class="field-help">用于新会话的自动归属，更具体的目录优先。历史已确认归属保留；需要调整时，在“记录归属”中单独预览并应用。</span></label><div class="dialog-actions"><button type="button" class="button" data-close="project-dialog">取消</button><button type="submit" class="button primary">保存项目</button></div></form>
+  </dialog>
+  <dialog id="association-dialog" class="dialog wide-dialog">
+    <form id="association-apply-form"><div class="dialog-heading"><h2 id="association-dialog-title">确认项目归属</h2><button type="button" class="icon-button" data-close="association-dialog" aria-label="关闭归属预览">×</button></div><p id="association-preview-caption" class="dialog-intro"></p><div id="association-preview-summary" class="association-preview-summary"></div><div id="association-preview-projects" class="table-wrap"></div><div id="association-preview-warnings" class="analysis-warnings"></div><label class="field">归属依据或调整说明<textarea id="association-reason" rows="3" maxlength="4000" required placeholder="说明这些消费属于该项目的依据"></textarea></label><p class="field-help">确认后保存归属并更新项目费用。消费原金额、已有报销记录和旧版材料继续保留。</p><div class="dialog-actions"><button type="button" class="button" data-close="association-dialog">返回调整</button><button id="apply-associations" type="submit" class="button primary" disabled>确认保存归属</button></div></form>
   </dialog>
   <dialog id="overlap-dialog" class="dialog">
     <div class="dialog-heading"><h2>用量已变化</h2><button class="icon-button" data-close="overlap-dialog" aria-label="关闭">×</button></div><p class="dialog-intro">部分用量已被其他报销记录占用，请更新预览。</p><div id="overlap-list" class="overlap-list"></div><div class="dialog-actions"><button class="button" data-close="overlap-dialog">返回</button><button id="confirm-batch" class="button primary">更新预览</button></div>

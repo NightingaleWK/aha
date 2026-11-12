@@ -8,7 +8,7 @@ from pathlib import Path
 
 from test_storage_helpers import detail, metadata, rollup, source_data
 
-from aha.domain import AppError
+from aha.domain import AppError, record_key
 from aha.projects import canonical_path, classify
 from aha.storage import Store
 
@@ -48,6 +48,13 @@ class ProjectTests(unittest.TestCase):
             self.project("conflict", ["/work/a/"])
         self.assertEqual(self.store.config(), before)
         self.store.save_project(child, "child", "", ["/other"])
+        self.assertEqual(self.row()["project_id"], child)
+        preview = self.store.preview_associations({
+            "action": "reclassify", "filters": {"project_id": child},
+        })
+        self.store.apply_associations(
+            preview["preview_id"], "明确按当前目录规则调整历史", "project-rule-reclassification",
+        )
         self.assertEqual(self.row()["project_id"], parent)
 
     def test_manual_assignment_bound_to_content_and_persists_restart(self) -> None:
@@ -97,3 +104,14 @@ class ProjectTests(unittest.TestCase):
         self.assertIsNone(
             classify(detail(), metadata(r"\\server\share\a"), self.store.config())["project_id"]
         )
+
+    def test_pure_classifier_shares_retained_record_and_session_priority(self) -> None:
+        project = self.project("持久项目", [])
+        later = self.project("新目录项目", ["/work/a"])
+        config = {**self.store.config(), "record_links": {
+            record_key(detail()): {"project_id": project, "basis": "history_restore"},
+        }, "session_bindings": {"s1": {"project_id": later, "basis": "manual"}}}
+        result = classify(detail(), metadata(), config)
+        self.assertEqual(result["project_id"], project)
+        config["record_links"][record_key(detail())] = {"project_id": None, "basis": "unassigned"}
+        self.assertIsNone(classify(detail(), metadata(), config)["project_id"])

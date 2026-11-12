@@ -1,0 +1,14 @@
+{
+  "verified": true,
+  "removed": [
+    ".aha-data/device-continuity/directory-ui",
+    ".aha-data/device-continuity/onefile-ui",
+    ".trellis/tasks/11-12-device-data-continuity/research/__pycache__",
+    ".trellis/tasks/11-12-device-data-continuity/research/inspect-synthetic-excel.py"
+  ],
+  "removed_logical_bytes": 1813836,
+  "preserved_final_ui_evidence": [
+    ".aha-data/device-continuity/directory-ui-final",
+    ".aha-data/device-continuity/onefile-ui-final"
+  ]
+}

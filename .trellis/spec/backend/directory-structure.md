@@ -10,10 +10,12 @@
 | instance.py / runtime.py / tray_windows.py | 资料运行锁、私有描述符/身份核验、统一退出和 Windows 托盘；Store 不负责生产启动互斥 |
 | domain.py / decimal_sql.py | 允许字段、身份、归一、AppError、精确十进制/大整数聚合 |
 | sources.py / sql_dump.py | 同一只读源事务的分块投影、SQL字面量流式解析 |
+| source_bindings.py / backup.py | 本机安装与CCS实例绑定、一致完整备份及新目录校验还原 |
 | session_meta.py | 普通/zstd会话头目录线索，不读取正文 |
-| storage.py / migrations.py | Store门面、全部连接/事务/文件、干净schema3初始化与运行时门禁 |
+| storage.py / migrations.py | Store门面、全部连接/事务/文件、schema4初始化/schema3受控升级与运行时门禁 |
 | sync.py | run/staging、来源/修订核对、差异写与成功进度 |
 | ledger.py / projects.py | 当前事实、覆盖/核对、派生可用性/日统计、目录规则与人工归属 |
+| project_links.py / associations.py | 持久逐笔关系/会话默认、待归属清单、批量影响预览/审核、历史依据恢复及显式追溯 |
 | queries.py / analysis.py | SQL筛选、摘要、游标、冻结迭代；analysis仅再导出新查询入口 |
 | time_ranges.py | 北京时间意图解析、半开秒边界、完整/部分日分段与旧冻结元数据兼容 |
 | claims.py / batches.py | 索引冲突、行式冻结、单有效版/占用/状态/幂等/事件 |

@@ -10,7 +10,7 @@ RequestHandler.log_message 和 LocalHTTPServer.handle_error 关闭原始访问/t
 
 ## 库内事件
 
-batches.py 的 batch_events 与 ledger.py 的 reconciliation_events 记录原因、主体、时间和结果。批次事件与有效版、占用、幂等、统计一起提交；当前状态仍由业务表管理，不声称仅靠事件回放。
+batches.py 的 batch_events、ledger.py 的 reconciliation_events，以及逐笔归属的 project_assignment_events 记录原因、主体、时间和结果。归属事件与持久关系/投影、批次事件与有效版/占用、各自幂等和统计在同一权威事务提交；当前状态仍由业务表管理，不声称仅靠事件回放。
 
 事件只写本地，分享包使用 evidence 的允许投影，不导出整份事件表、目录规则或源配置。同步无变化时不为每条事实追加重复观察，避免运行频率使本地资料成倍膨胀。
 

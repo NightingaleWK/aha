@@ -157,18 +157,23 @@ class Client:
         self.csrf = self.json("GET", "/api/status")["csrf_token"]
 
     def request(
-        self, method: str, path: str, body: dict[str, Any] | None = None,
-        *, expected: int = 200,
+        self, method: str, path: str, body: dict[str, Any] | bytes | None = None,
+        *, expected: int = 200, headers: dict[str, str] | None = None,
     ) -> tuple[int, dict[str, str], bytes]:
         connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=15)
-        headers = {"Cookie": self.cookie} if self.cookie else {}
+        request_headers = {"Cookie": self.cookie} if self.cookie else {}
         payload = None
         if body is not None:
-            payload = json.dumps(body).encode("utf-8")
-            headers.update({"Content-Type": "application/json", "Origin": self.origin,
-                            "X-AHA-CSRF": self.csrf})
+            payload = body if isinstance(body, bytes) else json.dumps(body).encode("utf-8")
+            content_type = (
+                "application/octet-stream" if isinstance(body, bytes) else "application/json"
+            )
+            request_headers.update({"Content-Type": content_type, "Origin": self.origin,
+                                    "X-AHA-CSRF": self.csrf})
+        if headers:
+            request_headers.update(headers)
         try:
-            connection.request(method, path, body=payload, headers=headers)
+            connection.request(method, path, body=payload, headers=request_headers)
             response = connection.getresponse()
             raw = response.read(8 * 1024 * 1024 + 1)
             require(response.status == expected, "Unexpected HTTP status during artifact check.")
@@ -195,6 +200,41 @@ class Client:
             time.sleep(0.05)
             job = self.json("GET", "/api/sync/" + job_id)
         return job
+
+    def transfer(self, job: dict[str, Any]) -> dict[str, Any]:
+        job_id = job["id"]
+        deadline = time.monotonic() + 30
+        while job["status"] == "running":
+            require(time.monotonic() < deadline,
+                    "Synthetic backup or restore did not reach its terminal job.")
+            time.sleep(0.05)
+            job = self.json("GET", "/api/backups/" + job_id)
+            require(job.get("id") == job_id, "Backup or restore polling changed job identity.")
+        require(job["status"] == "completed", "Synthetic backup or restore failed.")
+        return job
+
+    def upload_backup(self, raw: bytes) -> str:
+        upload = self.json("POST", "/api/restore-uploads", {"size": len(raw)})
+        chunk_size = upload.get("chunk_bytes")
+        if (
+            not isinstance(chunk_size, int) or isinstance(chunk_size, bool)
+            or not 0 < chunk_size <= 4 * 1024 * 1024
+        ):
+            raise VerificationError("Backup upload did not advertise a bounded chunk size.")
+        # Even a small synthetic bundle must exercise a nonzero upload offset.
+        chunk_size = min(chunk_size, max(1, len(raw) // 2))
+        for offset in range(0, len(raw), chunk_size):
+            chunk = raw[offset:offset + chunk_size]
+            response = self.request(
+                "POST", "/api/restore-uploads/" + upload["id"] + "/chunks", chunk,
+                headers={"X-AHA-Upload-Offset": str(offset)},
+            )
+            progress = json.loads(response[2])
+            require(progress.get("id") == upload["id"]
+                    and progress.get("received") == offset + len(chunk)
+                    and progress.get("size") == len(raw),
+                    "Backup upload did not preserve its exact chunk progress.")
+        return str(upload["id"])
 
 
 def wait_descriptor(path: Path, process: subprocess.Popen[bytes]) -> dict[str, Any]:
@@ -277,6 +317,138 @@ def check_material(raw: bytes, version: str, output: Path) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def ledger_basis(data_dir: Path) -> dict[str, Any]:
+    """Compare published synthetic facts and owners independently of HTTP summaries."""
+    path = (data_dir / "aha.sqlite3").resolve()
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=2)) as connection:
+        connection.execute("PRAGMA query_only=ON")
+        connection.execute("PRAGMA trusted_schema=OFF")
+        connection.execute("BEGIN")
+        try:
+            counts = {
+                table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                for table in ("usage_records", "usage_versions", "projects", "batches", "revisions",
+                              "revision_members", "usage_claims")
+            }
+            facts = connection.execute(
+                "SELECT record_key,version_id,content_hash,project_id,availability_state,"
+                "suppressed "
+                "FROM usage_records ORDER BY record_key"
+            ).fetchall()
+            claims = connection.execute(
+                "SELECT record_key,batch_id,owner_version FROM usage_claims ORDER BY record_key"
+            ).fetchall()
+            return {"counts": counts, "facts": facts, "claims": claims}
+        finally:
+            connection.rollback()
+
+
+def restored_executable(
+    executable: Path, data_dir: Path, profile: Path, env: dict[str, str],
+    *, batch_id: str, material_sha: str, expected_basis: dict[str, Any], with_tray: bool,
+) -> None:
+    """A restored EXE must keep history usable while requiring a fresh source binding."""
+    command = [str(executable), "--data-dir", str(data_dir), "--no-browser"]
+    if not with_tray:
+        command.append("--no-tray")
+    descriptor = data_dir / "runtime.json"
+    process = subprocess.Popen(command, cwd=profile, env=env,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    client = None
+    try:
+        client = Client(wait_descriptor(descriptor, process))
+        binding = client.json("GET", "/api/source/binding")
+        require(binding["required"] and not binding["bound"],
+                "Restored ledger reused the original machine's binding.")
+        raw = client.request("GET", f"/api/batches/{batch_id}/revisions/1/download")[2]
+        require(hashlib.sha256(raw).hexdigest() == material_sha,
+                "Restored EXE could not download the unchanged original evidence.")
+        history = client.json("POST", "/api/analysis", {
+            "start_date": "2026-10-26", "end_date": "2026-10-26",
+            "project_id": "all", "availability_mode": "all",
+        })
+        require(history["summary"]["record_count"] == ROW_COUNT
+                and Decimal(history["summary"]["total_cost_usd"]) == EXPECTED_COST,
+                "Restored history was not queryable before connecting the current source.")
+        blocked = client.sync({"trigger": "startup"})
+        require(blocked["status"] == "failed" and blocked.get("code") == "source_binding_required",
+                "Restored ledger accepted startup sync without a new source confirmation.")
+        require(ledger_basis(data_dir) == expected_basis,
+                "Blocked restored sync changed published facts or existing owners.")
+        confirmed = client.json("POST", "/api/source/binding", {
+            "reason": "合成验收：独立还原后连接当前电脑，保留历史和原报销占用。",
+        })
+        require(confirmed["bound"] and not confirmed["required"],
+                "Restored ledger did not accept the explicit source confirmation.")
+        for _ in range(2):
+            job = client.sync({})
+            require(job["status"] == "completed"
+                    and job["result"]["source_schema_version"] == 25
+                    and job["result"]["new_count"] == 0
+                    and job["result"]["revised_count"] == 0
+                    and job["result"]["unchanged_count"] == ROW_COUNT,
+                    "Restored CCS25 repeat sync duplicated or revised known usage.")
+        require(ledger_basis(data_dir) == expected_basis,
+                "Restored source binding or repeat sync changed facts or existing claims.")
+        raw = client.request("GET", f"/api/batches/{batch_id}/revisions/1/download")[2]
+        require(hashlib.sha256(raw).hexdigest() == material_sha,
+                "Restored evidence changed after source binding and repeat sync.")
+        check_shutdown(client, process, descriptor)
+    finally:
+        stop_process(process, client)
+
+
+def check_backup_roundtrip(
+    client: Client, executable: Path, data_root: Path, profile: Path, env: dict[str, str],
+    *, batch_id: str, material_sha: str, with_tray: bool,
+) -> dict[str, Any]:
+    from aha.migrations import SCHEMA_VERSION
+
+    original_dir, recovered_dir = data_root / "store", data_root / "restored-store"
+    before = ledger_basis(original_dir)
+    require(before["counts"]["usage_records"] == ROW_COUNT
+            and before["counts"]["usage_claims"] == ROW_COUNT,
+            "The backup fixture does not contain the expected facts and active claims.")
+    job = client.transfer(client.json("POST", "/api/backups", {}))
+    result = job["result"]
+    require(result["store_schema_version"] == SCHEMA_VERSION
+            and result["counts"]["usage_records"] == ROW_COUNT
+            and result["counts"]["usage_claims"] == ROW_COUNT,
+            "Complete backup did not include synthetic facts and existing owners.")
+    _, headers, raw = client.request("GET", "/api/backups/" + job["id"] + "/download")
+    backup_sha = hashlib.sha256(raw).hexdigest()
+    require(backup_sha == result["sha256"] and len(raw) == result["size"]
+            and ".aha-backup" in headers.get("content-disposition", ""),
+            "Complete backup download differs from its verified descriptor.")
+    (data_root / "complete.aha-backup").write_bytes(raw)
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        names = set(archive.namelist())
+        require("aha.sqlite3" in names and "manifest.json" in names
+                and "runtime.json" not in names and ".instance.lock" not in names
+                and not any(name.startswith("temporary/") for name in names),
+                "Complete backup omitted the database or included private runtime files.")
+    uploaded = client.upload_backup(raw)
+    recovered = client.transfer(client.json(
+        "POST", "/api/restore-uploads/" + uploaded + "/restore",
+        {"destination": str(recovered_dir.resolve())},
+    ))
+    require(Path(recovered["result"]["destination"]) == recovered_dir.resolve()
+            and recovered["result"]["archive_sha256"] == backup_sha
+            and (recovered_dir / "restore-info.json").is_file(),
+            "Complete backup did not restore into the requested independent directory.")
+    require(ledger_basis(recovered_dir) == before and ledger_basis(original_dir) == before,
+            "Backup roundtrip changed source facts or failed to preserve restored claims.")
+    restored_executable(
+        executable, recovered_dir, profile, env, batch_id=batch_id, material_sha=material_sha,
+        expected_basis=before, with_tray=with_tray,
+    )
+    require(ledger_basis(original_dir) == before,
+            "Running the restored EXE changed the original ledger or its owners.")
+    return {"sha256": backup_sha, "size": len(raw), "restored_source_rebound": True,
+            "facts": ROW_COUNT, "active_claims": ROW_COUNT,
+            "original_material_sha256": material_sha}
+
+
 def verify(
     executable: Path, source_root: Path, data_root: Path, *, with_tray: bool = False,
 ) -> dict[str, Any]:
@@ -304,6 +476,7 @@ def verify(
     if not with_tray:
         command.append("--no-tray")
     batch_id, material_sha = "", ""
+    full_backup: dict[str, Any] = {}
     for iteration in range(2):
         process = subprocess.Popen(command, cwd=profile, env=env,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -327,26 +500,66 @@ def verify(
                 require(job["status"] == "completed"
                         and job["result"]["source_schema_version"] == 23,
                         "Synthetic CCS23 startup sync failed.")
-                with closing(sqlite3.connect(source)) as connection:
-                    connection.execute("PRAGMA user_version=24")
-                    connection.commit()
-                job = client.sync({})
-                require(job["status"] == "completed"
-                        and job["result"]["source_schema_version"] == 24
-                        and job["result"]["new_count"] == 0,
-                        "Synthetic CCS24 sync did not preserve existing usage.")
-                raw_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=24)
-                job = client.sync({"name": "synthetic-24.sql",
+                for schema_version in (24, 25):
+                    with closing(sqlite3.connect(source)) as connection:
+                        connection.execute(f"PRAGMA user_version={schema_version}")
+                        connection.commit()
+                    job = client.sync({})
+                    require(job["status"] == "completed"
+                            and job["result"]["source_schema_version"] == schema_version
+                            and job["result"]["new_count"] == 0
+                            and job["result"]["revised_count"] == 0
+                            and job["result"]["unchanged_count"] == ROW_COUNT,
+                            f"Synthetic CCS{schema_version} sync did not preserve existing usage.")
+                raw_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=25)
+                job = client.sync({"name": "synthetic-25.sql",
                                    "content_base64": base64.b64encode(raw_sql).decode()}, sql=True)
                 require(job["status"] == "completed"
-                        and job["result"]["source_schema_version"] == 24,
-                        "Synthetic SQL24 import failed.")
+                        and job["result"]["source_schema_version"] == 25,
+                        "Synthetic SQL25 import failed.")
+                for sql in (False, True):
+                    before = client.json("GET", "/api/ledger")
+                    with closing(sqlite3.connect(source)) as connection:
+                        connection.execute("PRAGMA user_version=26")
+                        connection.commit()
+                    unknown_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=26)
+                    invalid = ({"name": "synthetic-26.sql",
+                                "content_base64": base64.b64encode(unknown_sql).decode()}
+                               if sql else {})
+                    failed = client.sync(invalid, sql=sql)
+                    require(failed["status"] == "failed"
+                            and failed.get("code") == "unsupported_schema"
+                            and "26" in failed.get("message", ""),
+                            "Unknown CCS26/SQL26 was not explicitly rejected.")
+                    after = client.json("GET", "/api/ledger")
+                    require(after["counts"] == before["counts"]
+                            and after["last_successful_sync_at"]
+                            == before["last_successful_sync_at"],
+                            "Unknown source changed historical totals or the last success time.")
+                    retained = client.json("POST", "/api/analysis", {
+                        "start_date": "2026-10-26", "end_date": "2026-10-26",
+                        "project_id": "all", "availability_mode": "available",
+                    })
+                    require(retained["summary"]["record_count"] == ROW_COUNT
+                            and Decimal(retained["summary"]["total_cost_usd"]) == EXPECTED_COST,
+                            "Known local history was not queryable after the unsupported source.")
+                    with closing(sqlite3.connect(source)) as connection:
+                        connection.execute("PRAGMA user_version=25")
+                        connection.commit()
+                    recovered_sync = client.sync({})
+                    require(recovered_sync["status"] == "completed"
+                            and recovered_sync["result"]["source_schema_version"] == 25
+                            and recovered_sync["result"]["new_count"] == 0,
+                            "CCS25 did not recover after the unknown source failure.")
                 analysis = client.json("POST", "/api/analysis", {
                     "start_date": "2026-10-26", "end_date": "2026-10-26",
                     "project_id": "all", "availability_mode": "available",
                 })
                 require(analysis["summary"]["record_count"] == ROW_COUNT,
                         "Version changes or SQL import duplicated synthetic usage.")
+                require(analysis["schema_version"] == 23
+                        and analysis["usage_projection_schema_version"] == 23,
+                        "External CCS25 changed the internal usage projection version.")
                 saved = client.json("POST", "/api/batches", {
                     "analysis_id": analysis["analysis_id"],
                     "claim": {"purpose": "合成成品验收", "amount": "", "currency": "CNY",
@@ -357,6 +570,17 @@ def verify(
                 require(bool(batch_id), "Save did not return an evidence batch.")
                 raw = client.request("GET", f"/api/batches/{batch_id}/revisions/1/download")[2]
                 material_sha = check_material(raw, version, data_root / "material")
+                with zipfile.ZipFile(io.BytesIO(raw)) as material:
+                    material_manifest = json.loads(material.read("导出信息.json"))
+                require(material_manifest["usage_projection_schema_version"] == 23
+                        and material_manifest["source_schema_version"] == 23
+                        and material_manifest["source_schema_version_scope"]
+                        == "normalized_usage_projection",
+                        "Frozen material mislabeled the internal projection as the CCS version.")
+                full_backup = check_backup_roundtrip(
+                    client, executable, data_root, profile, env, batch_id=batch_id,
+                    material_sha=material_sha, with_tray=with_tray,
+                )
                 reopened = subprocess.run(command, cwd=profile, env=env,
                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                           timeout=30, check=False)
@@ -377,10 +601,15 @@ def verify(
         "schema_version": 1, "verified": True, "version": version,
         "executable_sha256": digest(executable), "pe_version": resource,
         "material_sha256": material_sha,
+        "complete_backup": full_backup,
         "verified_at": datetime.now(BEIJING).isoformat(timespec="seconds"),
         "scopes": ["native-exe", "pe-version", "http-authentication", "resource-bytes",
-                   "ccs-23-24", "sql-24", "frozen-material", "same-directory-reopen",
-                   "persistent-restart", "shutdown-cleanup"],
+                   "ccs-23-24-25", "sql-25", "unsupported-26-history-preserved",
+                   "usage-projection-23",
+                   "full-backup-download", "chunked-backup-upload", "new-directory-restore",
+                   "restored-source-rebinding", "restored-repeat-sync-idempotence",
+                   "frozen-material", "same-directory-reopen", "persistent-restart",
+                   "shutdown-cleanup"],
         "tray_enabled": with_tray, "tray_physical_checked": False,
         "browser_driven": False, "office_checked": False, "manual_checks": [],
     }

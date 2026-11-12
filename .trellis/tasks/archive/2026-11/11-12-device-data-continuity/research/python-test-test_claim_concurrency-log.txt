@@ -1,0 +1,10 @@
+test_failed_final_commit_preserves_old_version_claims_and_original_zip (test_claim_concurrency.ClaimConcurrencyTests.test_failed_final_commit_preserves_old_version_claims_and_original_zip) ... ok
+test_same_key_processes_return_same_persisted_version (test_claim_concurrency.ClaimConcurrencyTests.test_same_key_processes_return_same_persisted_version) ... ok
+test_same_request_committed_between_replay_check_and_freezing_is_replayed (test_claim_concurrency.ClaimConcurrencyTests.test_same_request_committed_between_replay_check_and_freezing_is_replayed) ... ok
+test_two_connections_have_one_winner_for_distinct_requests (test_claim_concurrency.ClaimConcurrencyTests.test_two_connections_have_one_winner_for_distinct_requests) ... ok
+test_two_processes_have_one_winner_for_distinct_requests (test_claim_concurrency.ClaimConcurrencyTests.test_two_processes_have_one_winner_for_distinct_requests) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 4.087s
+
+OK

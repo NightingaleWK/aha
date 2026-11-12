@@ -541,3 +541,41 @@
 ### Next Steps
 
 - 本次产品内容全部包含于公开v0.4.1，无待发功能；维护主环境、真实资料与最终成品。
+
+
+## Session 18: 换机数据接续、完整备份与CCS25兼容交付
+<!-- trellis-session: v=2 fp=37b34602bec9f4b1 -->
+
+**Date**: 2026-11-12
+**Task**: 换机数据接续、完整备份与CCS25兼容交付
+**Branch**: `codex/device-data-continuity`
+
+### Summary
+
+完成真实台账接续、完整备份还原和Windows桌面单文件交付；按用户确认本地提交并归档父子任务。发布选择积累到下一版，未推送或公开发布。
+
+### Main Changes
+
+- 保留旧39463条事实与5项目，接续2757条明细，重复同步新增0、待核对0；接续前后完整备份及原程序留D盘。
+- 交付最终桌面和原D程序，OneFile SHA256为5f34fe26f9efda64c46aed32a8eacb90af4af9c54426650f4b1f48fa5fcef888；提交源码与构建指纹相同。
+- 清理本任务隔离环境、构建物及重复验收资料，确认移除至少701946483字节；保留真实资料、恢复副本、成品和必要证据。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c7c6acc87531df6ebb8ed5bc346a624490e8ac0a` | feat: 完善换机接续与完整备份还原 |
+
+### Testing
+
+- [OK] 最终Windows Python317项、Node34项、Ruff、strict mypy、JS语法及源码冻结检查通过。
+- [OK] Directory、OneFile和实际桌面副本独立原生验收通过；真实Edge、完整备份还原、Excel16 COM及A4材料通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 用户已选择积累到下一版，保留完整备份、换机接续、CCS25三条中文待发片段，建议候选v0.5.0；本次不继续发版准备。
+- 后续发布前对齐云端构建运行时并验证候选，补物理托盘点击验收；本轮未把托盘已启用或HTTP验证冒充物理点击。

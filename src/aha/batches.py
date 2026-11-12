@@ -189,6 +189,7 @@ def _revision_result(
 ) -> dict[str, Any]:
     batch = _batch(connection, row["batch_id"])
     analysis = time_ranges.frozen_metadata(_decoded_object(row["analysis_json"]))
+    analysis.setdefault("assignment_coverage", None)
     claim = _decoded_object(row["claim_json"])
     effective = batch["lifecycle"] == "active" and batch["active_version"] == row["version"]
     draft = effective and row["status"] == "draft"
@@ -213,6 +214,7 @@ def _revision_result(
         "end_date": analysis["end_date"],
         "time_range": analysis.get("time_range"),
         "time_coverage": analysis.get("time_coverage"),
+        "assignment_coverage": analysis.get("assignment_coverage"),
         "summary_complete": analysis.get("summary_complete"),
         "pending_count": analysis.get("pending_count"),
         "warnings": analysis.get("warnings", []),
@@ -443,7 +445,8 @@ def _prepare_selection(
                         "invalid_analysis", "冻结时间范围已变化，请重新打开报销记录。", 409
                     )
                 for key in ("start_date", "end_date", "project_id", "project_name", "summary",
-                            "time_coverage", "summary_complete", "pending_count", "warnings"):
+                            "time_coverage", "assignment_coverage", "summary_complete",
+                            "pending_count", "ledger_schema_version", "warnings"):
                     if analysis.get(key) != saved_analysis.get(key):
                         raise AppError(
                             "invalid_analysis", "冻结依据已变化，请重新打开报销记录。", 409
@@ -573,6 +576,7 @@ def _prepare_selection(
                 "end_date",
                 "time_range",
                 "time_coverage",
+                "assignment_coverage",
                 "summary_complete",
                 "pending_count",
                 "project_id",
@@ -581,6 +585,7 @@ def _prepare_selection(
                 "data_revision",
                 "classification_revision",
                 "claim_revision",
+                "ledger_schema_version",
                 "warnings",
                 "availability",
             )
@@ -789,7 +794,12 @@ def create_batch(
                 )
                 if active["status"] != "draft":
                     raise AppError("batch_not_editable", "请先撤回已提交记录，再修改。", 409)
-                if active["business_hash"] == business_hash:
+                # Identical members can still have a new frozen assignment-coverage statement.
+                active_analysis = _decoded_object(active["analysis_json"])
+                same_assignment_basis = canonical_bytes(
+                    active_analysis.get("assignment_coverage")
+                ) == canonical_bytes(selection.analysis.get("assignment_coverage"))
+                if active["business_hash"] == business_hash and same_assignment_basis:
                     store._db.execute(
                         "INSERT INTO idempotency VALUES(?,?,?,?,?)",
                         (idempotency_key, "create", signature, batch_id, active["version"]),

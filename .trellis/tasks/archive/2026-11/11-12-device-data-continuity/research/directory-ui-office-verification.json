@@ -1,0 +1,57 @@
+{
+  "verified": true,
+  "executable_sha256": "23bded8a1d8324b456ed029c79ae2083c4375b1c58bcca21162c0be0bd16f348",
+  "console_errors": [],
+  "screens": [
+    {
+      "file": "backup-1440.png",
+      "width": 1440
+    },
+    {
+      "file": "backup-1366.png",
+      "width": 1366
+    },
+    {
+      "file": "backup-1280.png",
+      "width": 1280
+    },
+    {
+      "file": "backup-430.png",
+      "width": 430
+    },
+    {
+      "file": "backup-375.png",
+      "width": 375
+    }
+  ],
+  "ui_checks": [
+    "empty-current-range-and-all-history-readonly",
+    "generate-download-upload-restore-through-ui",
+    "restored-binding-ui-deduplication-and-original-package",
+    "escape-focus-return",
+    "reconciliation-repreview-and-visible-combobox-focus"
+  ],
+  "browser_version": "157.0.4341.46",
+  "print": {
+    "pages": 1,
+    "page_sizes_pt": [
+      [
+        594.95996,
+        841.91998
+      ]
+    ],
+    "precise_amount_preserved": true
+  },
+  "excel": {
+    "version": "16.0",
+    "rows": 3,
+    "columns": 23,
+    "numeric_cells": 39,
+    "all_cells_match": true,
+    "no_formulas": true,
+    "method": "native COM"
+  },
+  "completed_at": "2026-11-12T10:59:19.838157+08:00",
+  "tray_enabled": true,
+  "tray_physical_checked": false
+}

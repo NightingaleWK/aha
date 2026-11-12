@@ -1,0 +1,29 @@
+{
+  "id": "device-data-continuity",
+  "name": "device-data-continuity",
+  "title": "换机数据衔接、备份还原与 CCS 25 兼容",
+  "description": "已完成唯一历史保全、新电脑来源接续、CCS25兼容、完整备份还原和实际Windows桌面交付，待提交确认与归档。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "NightingaleWK",
+  "assignee": "NightingaleWK",
+  "createdAt": "2026-11-12",
+  "completedAt": "2026-11-12",
+  "branch": "codex/device-data-continuity",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": "c7c6acc87531df6ebb8ed5bc346a624490e8ac0a",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-12-full-backup-restore",
+    "11-12-ccs25-device-recovery"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "实施、317项最终Windows测试及桌面EXE交付完成；真实默认台账已接续，旧事实/5项目保留，新明细2757，待核对0，前后完整备份留D盘。用户已确认按36文件清单本地提交归档，工作提交c7c6acc87531df6ebb8ed5bc346a624490e8ac0a。发布选择：积累到下一版，保留3条中文待发片段，建议候选v0.5.0；运行时对齐/云端候选及物理托盘为后续发布条件。本次不推送、不发版。",
+  "meta": {}
+}

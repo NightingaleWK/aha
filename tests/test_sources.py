@@ -207,7 +207,7 @@ class SqlDumpTests(unittest.TestCase):
     def test_version_declarations_are_real_comments_or_literal_pragma(self) -> None:
         raw = dump([detail()])
         for modified in (
-            raw.replace(b"user_version: 23", b"user_version: 25"),
+            raw.replace(b"user_version: 23", b"user_version: 26"),
             raw.replace(b"-- user_version: 23", b""),
             raw + b"\nPRAGMA user_version=22;",
             raw + b"\nPRAGMA user_version=24;",
@@ -228,7 +228,7 @@ class SqlDumpTests(unittest.TestCase):
         original = [detail(input_token_semantics=value, request_id=f"r{value}")
                     for value in range(3)]
         projected = []
-        for version in (23, 24):
+        for version in (23, 24, 25):
             for declaration in ("comment", "pragma"):
                 with self.subTest(version=version, declaration=declaration):
                     raw = dump(original, [rollup()], [price()], version=version)
@@ -247,10 +247,10 @@ class SqlDumpTests(unittest.TestCase):
 
     def test_unknown_version_reports_actual_version_and_supported_range(self) -> None:
         with self.assertRaises(AppError) as error:
-            load_sql_dump(dump([detail()], version=25), "versions.sql")
+            load_sql_dump(dump([detail()], version=26), "versions.sql")
         self.assertEqual(error.exception.code, "unsupported_schema")
-        self.assertIn("25", error.exception.message)
-        self.assertIn("23、24", error.exception.message)
+        self.assertIn("26", error.exception.message)
+        self.assertIn("23、24、25", error.exception.message)
 
     def test_missing_columns_malformed_values_and_truncation_fail(self) -> None:
         raw = dump([detail()])
@@ -373,33 +373,39 @@ class SqliteSourceTests(unittest.TestCase):
         for key in ("details", "rollups", "pricing"):
             self.assertEqual(left[key], right[key])
 
-    def test_23_to_24_keeps_projection_identity_and_both_fingerprints(self) -> None:
+    def test_23_to_24_to_25_keeps_projection_identity_and_both_fingerprints(self) -> None:
         connection = database(self.path, [detail()])
         self.addCleanup(connection.close)
         original = load_sqlite(self.path)
         streamed = scan_sqlite(self.path, lambda table, row: None)
-        connection.execute("PRAGMA user_version=24")
-        connection.commit()
-        before = hashlib.sha256(self.path.read_bytes()).hexdigest()
-        upgraded = load_sqlite(self.path)
-        streamed_after = scan_sqlite(self.path, lambda table, row: None)
-        self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(), before)
-        self.assertEqual(original["source"]["source_schema_version"], 23)
-        self.assertEqual(upgraded["source"]["source_schema_version"], 24)
-        self.assertEqual(upgraded["schema_version"], 23)
-        for key in ("schema_version", "details", "rollups", "pricing"):
-            self.assertEqual(upgraded[key], original[key])
-        self.assertEqual(upgraded["source"]["fingerprint"], original["source"]["fingerprint"])
-        self.assertEqual(streamed_after["fingerprint"], streamed["fingerprint"])
-        self.assertEqual(record_key(upgraded["details"][0]), record_key(original["details"][0]))
-        self.assertEqual(
-            row_fingerprint(upgraded["details"][0]), row_fingerprint(original["details"][0])
-        )
+        for version in (24, 25):
+            with self.subTest(version=version):
+                connection.execute(f"PRAGMA user_version={version}")
+                connection.commit()
+                before = hashlib.sha256(self.path.read_bytes()).hexdigest()
+                upgraded = load_sqlite(self.path)
+                streamed_after = scan_sqlite(self.path, lambda table, row: None)
+                self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(), before)
+                self.assertEqual(original["source"]["source_schema_version"], 23)
+                self.assertEqual(upgraded["source"]["source_schema_version"], version)
+                self.assertEqual(upgraded["schema_version"], 23)
+                for key in ("schema_version", "details", "rollups", "pricing"):
+                    self.assertEqual(upgraded[key], original[key])
+                self.assertEqual(
+                    upgraded["source"]["fingerprint"], original["source"]["fingerprint"]
+                )
+                self.assertEqual(streamed_after["fingerprint"], streamed["fingerprint"])
+                self.assertEqual(
+                    record_key(upgraded["details"][0]), record_key(original["details"][0])
+                )
+                self.assertEqual(
+                    row_fingerprint(upgraded["details"][0]), row_fingerprint(original["details"][0])
+                )
 
     def test_unknown_versions_fail_before_projecting_and_keep_field_checks(self) -> None:
         connection = database(self.path, [detail()])
         self.addCleanup(connection.close)
-        for version in (0, 22, 25):
+        for version in (0, 22, 26):
             with self.subTest(version=version):
                 connection.execute(f"PRAGMA user_version={version}")
                 connection.commit()
@@ -408,7 +414,7 @@ class SqliteSourceTests(unittest.TestCase):
                     scan_sqlite(self.path, lambda table, row: projected.append((table, row)))
                 self.assertEqual(error.exception.code, "unsupported_schema")
                 self.assertIn(str(version), error.exception.message)
-                self.assertIn("23、24", error.exception.message)
+                self.assertIn("23、24、25", error.exception.message)
                 self.assertEqual(projected, [])
         connection.execute("PRAGMA user_version=24")
         connection.execute("ALTER TABLE proxy_request_logs RENAME COLUMN input_tokens TO wrong")
@@ -423,7 +429,7 @@ class SqliteSourceTests(unittest.TestCase):
                 path = Path(self.temporary.name, action + ".sqlite")
                 connection = database(path, [detail()])
                 if action == "version":
-                    connection.execute("PRAGMA user_version=25")
+                    connection.execute("PRAGMA user_version=26")
                 elif action == "table":
                     connection.execute("DROP TABLE usage_daily_rollups")
                 else:

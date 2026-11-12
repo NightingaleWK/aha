@@ -1,0 +1,17 @@
+{
+  "windows": true,
+  "bits": 64,
+  "isolated": true,
+  "python": [
+    3,
+    12
+  ],
+  "machine": "AMD64",
+  "sqlite": [
+    3,
+    53,
+    1
+  ],
+  "sqlite_version": "3.53.1",
+  "application_version": "0.4.1"
+}

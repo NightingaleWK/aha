@@ -28,7 +28,7 @@ Store.create_batch(analysis, claim, idempotency_key, batch_id=None, **kwargs)
 Store.download(batch_id, version) -> tuple[Path, str]
 ```
 
-CCS 外部结构版本 23、24，内部用量投影版本 23，与应用 schema3 独立；来源观测、兼容边界和材料字段见 [CCS 来源兼容](./ccs-source-compatibility.md)。新库显式创建，旧 schema1/2 或未知资料拒绝自动打开/升级；试用资料经单独清单工具保全历史用量后重建，不接续旧报销。Windows 默认 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。开发测试必须独立 data-dir。
+CCS 外部结构版本 23、24、25，内部用量投影版本 23，与应用 schema4 独立；来源观测、兼容边界和材料字段见 [CCS 来源兼容](./ccs-source-compatibility.md)。新库显式创建，schema3 先完整备份再无损升级；旧 schema1/2 或未知资料仍拒绝自动打开/升级。试用资料经单独清单工具保全历史用量后重建，不接续旧报销。Windows 默认 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。完整备份/独立还原和来源重绑遵循[恢复合同](./recovery-and-device-contract.md)，持久归属/升级遵循[项目归属合同](./project-association-contract.md)。开发测试必须独立data-dir和机器设置profile。
 
 CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`；同目录单实例，复用不新增启动同步。runtime.json 含本次 PID/run_id/私有启动地址，不能加入材料或公开记录；持久锁文件退出后保留。详见 [实例与生命周期契约](./runtime-lifecycle-contract.md)。
 
@@ -49,13 +49,14 @@ CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`�
 - input_token_semantics 0 扣 cache read，1 扣 read+creation，2 已是 fresh；异常减成负数保留原 input 并标记。总 Token 对 fresh/output/read/creation 各计一次。
 - 新时间入口使用北京时间半开秒区间，固定分钟输入包含结束分钟；旧日期入口仍含起止两日。部分日汇总省略且独立提示，合法确定成员仍可保存；详见 [时间合同](./time-range-contract.md)。原 rollup 日期与时区依据保留，不能假称备份验证了历史时区或把无记录当成零消耗证明。
 - 明细/来源日汇总/本地日统计分层。数值匹配不是成员完整证明；部分/未知覆盖的双方可查且不可相加，不造差额明细、不比例拆分。核对选择要有原因、generation 和幂等，不能释放已占用成员。
-- [projects.py](../../../src/aha/projects.py) 依次采用内容指纹绑定的人工覆盖、最长完整目录前缀、未归属。Windows 路径忽略大小写，Linux 保留；普通/zstd 会话头只提供目录依据，不读正文。
+- 归属以有效内容指纹人工覆盖和持久逐笔关系为权威，会话默认/最长目录规则用于初次识别，未确定项进入待归属工作清单。保存目录或本机缺日志不能抹去关系；显式追溯先预览影响。Windows 路径忽略大小写，Linux 保留；普通/zstd 会话头只提供线索，不读正文。优先级、批量和恢复见[项目归属合同](./project-association-contract.md)。
 
 ### 本地查询与冻结材料
 
 - [queries.py](../../../src/aha/queries.py) 是 SQL 选择/核算入口，analysis.py 只再导出该入口。分析只保存条件、摘要和 data/classification/claim 依据，不保存全体行数组。
 - 明细、来源汇总、每日、模型四个视图均游标分页，size1–200；游标绑定筛选与版本。完整日/月从 `daily_usage_stats/monthly_usage_stats` 读取，部分日按事件秒读明细，段间不重叠；可用性在 `usage_records` 派生列中维护，不把全部 facts/claims/overrides fetchall 到 Python。
 - summary 仅合计已核实依据；pending_count/summary_complete 和核对入口说明未核实部分。available/all 区分申请与只读；all 或空选择不得保存报销。
+- assignment_coverage 单独说明同期未归属，不能混成时间/核对完整性；确定项目仍可报销。覆盖随预览冻结、分享只带计数不带未归属金额；覆盖变化时 current 修订不能当原 business_hash 无变化返回旧版，见[项目归属合同](./project-association-contract.md)。
 - 保存草稿即占用，单有效版本，lifecycle 为 active/voided；有效草稿可修订，已提交带原因撤回，已报销纠错先作废，作废终态仅释放自身。独占、版本、generation、幂等、事件及统计在权威事务内重检/提交。
 - current 修订使用专用目标预览，不能借给新建自身豁免；frozen_basis 保留目标有效版原成员，只改用途也不能被无关全局 data_revision 永久阻断。
 - `revision_members` 行式冻结；新材料 manifest_version4，四文件仍为使用明细.csv、每日汇总.csv、费用说明.html、导出信息.json。原 manifest3 包保留字节，旧 frozen 的完整性缺失保留未知。CSV BOM/公式保护、HTML 转义、允许分享投影、精确金额和成员摘要算法均保留。

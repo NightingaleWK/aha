@@ -1,0 +1,28 @@
+{
+  "root": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-device-continuity-20261112",
+  "ownership_verified": true,
+  "entries": [
+    "build",
+    "mypy-backup",
+    "mypy-backup-review",
+    "mypy-final-check",
+    "mypy-http-ui",
+    "mypy-source",
+    "mypy-verifier",
+    "qa",
+    "qa-profile",
+    "qa312",
+    "real-copy-182a68e7cf",
+    "real-frozen-restored-37826fb7",
+    "real-size-transfer-a51927b9.aha-backup",
+    "task-ownership.json",
+    "verify-desktop-final",
+    "verify-directory",
+    "verify-directory-final",
+    "verify-onefile",
+    "verify-onefile-final"
+  ],
+  "file_count": 8099,
+  "logical_bytes": 700132647,
+  "note": "A previous pass stopped on a read-only object in a synthetic release-test Git fixture. Earlier removed bytes are not counted."
+}

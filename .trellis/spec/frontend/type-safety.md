@@ -14,6 +14,10 @@ purpose/amount_note 最多4000字符，金额输入最长40字符，币种 CNY/U
 
 选中行使用稳定 record_key；分配发送 keys 或 session_ids，不发送 capture_id，不用显示名、页号或原始来源路径定义身份。服务端处理别名与内容修订。analysis 响应不附全量 details/members；聚合与明细按游标读取。
 
+归属新接口中 keys/session_ids 都空表示全部符合filters的记录，互斥且有服务端上限；不要把空数组误当“无选择”或只发送当前页。bind_sessions=true会展开所选会话的全部现存明细并建立未来默认，预览数量可能超出当前筛选；rollup无会话不能混作整会话处理。预览/apply身份是服务器opaque值，不能在前端推算。
+
+assignment_coverage与summary_complete分开：前者描述期间未归属，detail/rollup是物理行数，record_count是代表请求量，金额仍为十进制字符串。旧冻结coverage可能null，不得用零/complete补未知；分享包仅允许覆盖状态/计数，页面不要自行裁剪并重新求和材料数据。
+
 ## 验证
 
 UI 依据 can_* 展示动作，但不能绕过服务器状态；禁止在渲染中修改 payload 或将来源文本拼进 HTML。字段变化先查 producer/consumer，再用真实 HTTP 验证。测试入口为 test_http.py、test_analysis.py、test_evidence.py；真实浏览器覆盖同步终态、total=null 分页及打开的修订弹窗失效。

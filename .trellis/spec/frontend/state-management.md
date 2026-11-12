@@ -17,6 +17,12 @@
 | revision/lifecycle | 弹窗的目标批次、版本、generation、分析及操作身份 |
 | busy/noticeTimer/stopped | 普通串行操作、成功提示与退出状态 |
 | filterGeneration/analysisRequest；revision.filterGeneration/request | 首页及修订的筛选与预览请求身份，阻止迟到响应改变新状态 |
+| sourceBinding/bindingSelection/bindingRequest/dataDirectory | 当前来源绑定、待确认操作与请求身份、本机资料位置 |
+| backupBusy/backupGeneration/backupJob/backupUpload/backupController | 备份或还原任务、分块上传、取消与迟到响应保护 |
+| pendingBackupUploads | 状态恢复得到的遗留上传及显式清理入口 |
+| associations/associationGeneration/associationSummaryRequest/associationRecordsRequest | 项目费用/待归属摘要、筛选代际及独立读请求身份 |
+| associationSelected/associationAllFiltered/associationRows/associationCursor/associationCursors | 跨页逐条选择、全筛选意图及修订绑定分页；不保存全部筛选成员 |
+| associationPreview/associationPreviewRequest | 预览身份、请求/重试签名、已应用但待刷新状态与关闭/迟到保护 |
 
 ## 请求与同步
 
@@ -45,3 +51,21 @@ prepareBatch 对 `{payload,batchId}` 计算签名，内容未变沿用原幂等 
 ## 保存与生命周期
 
 先保存、刷新记录，再下载指定版本；下载失败显示已保存。动作由 is_effective/lifecycle/generation/can_* 决定。撤回保留占用，作废释放，旧版本原包仍可下载。前端提示不能代替写事务权威重检。完整接口和浏览器场景见 [页面契约](./local-web-contract.md)。
+
+## 换机确认、完整备份与历史入口
+
+来源绑定使用独立bindingRequest，关闭弹窗使旧请求失效；确认成功后按原请求继续有限同步，不能把旧来源确认当事实候选全部接受。旧历史仍可查。恢复与来源协议见[恢复合同](../backend/recovery-and-device-contract.md)。
+
+备份/上传/还原的backupGeneration独立于普通busy和同步代际。取消会推进代际并中断fetch；若旧创建请求稍后返回job/upload id，应立即取消对应后端资源，不能留下隐形上传或让旧finally清新任务busy。刷新后从status恢复transfer和未完成上传，提供清理入口；关闭弹窗不等于退出程序，任务仍可继续查看。
+
+核对提交成功先失效旧分析与保存身份，再按当前原时间意图重查；过时核对结果不能替换用户新筛选。空范围提示与台账全局日期分别呈现，“查看全部历史”明确切到全部项目/全部用量并禁保存，报销需切回可用模式；不得把源失败解释成真实零消耗。
+
+## 归属工作清单与批量提交
+
+打开项目页加载费用/归属摘要和记录清单。筛选变化清旧选择/预览并推进associationGeneration；同筛选翻页可保留逐条选择，全筛选只保存选择意图，由服务端有界处理全部成员。动态项目选项保留真实value并AhaForms.sync，不闭包捕获旧option。
+
+预览成功、失败、409和断连都检查请求身份；关闭弹窗或更换目标让旧响应失效。绑定/批量成功先失效分析及保存身份，再刷新config/ledger/归属摘要和当前筛选；同步成功也应使旧归属预览失效。只因刷新失败不能误报提交失败；operation.applied保留已提交身份，按钮改“刷新已保存结果”，重试不重复写入。响应丢失沿同preview/reason的原幂等key重试，明确过期则重新预览。
+
+不能以busy结束的旧finally清新状态；对话框错误留在当前弹窗，Escape关闭并还原触发焦点。真实浏览器覆盖超过一页的筛选全选、从一条展开整会话、未来继承及逐条例外，不能仅通过payload字符串断言宣称成功。
+
+新建/编辑项目API成功后立即保存服务端返回project.id，并使旧分析/保存身份及归属预览失效，再做依赖刷新。刷新失败明确“项目已保存”，保留已保存ID，重试不能再次创建同名新项目；项目/关联摘要两种刷新失败都要回归。metadata_scan_truncated与仅分组数超过1000分别说明：部分会话未检查时不显示伪造缺失分组，可缩小到具体会话继续，不能暗示待归属总量也被丢弃。

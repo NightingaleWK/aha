@@ -1,8 +1,9 @@
-"""Fresh schema3 only: trial business databases are deliberately not migrated."""
+"""Versioned local schemas and lossless project-association migration."""
 
 from __future__ import annotations
 
 import sqlite3
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from .domain import AppError
@@ -10,7 +11,8 @@ from .domain import AppError
 if TYPE_CHECKING:
     from .storage import Store
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
+SUPPORTED_BACKUP_SCHEMAS = (3, 4)
 MONTHLY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS monthly_usage_stats(month TEXT NOT NULL,
  project_id TEXT NOT NULL,model TEXT NOT NULL,kind TEXT NOT NULL,state TEXT NOT NULL,
@@ -111,12 +113,112 @@ CREATE TABLE sync_stage(run_id TEXT NOT NULL,record_key TEXT NOT NULL,kind TEXT 
 CREATE TABLE sync_pricing(run_id TEXT NOT NULL,model_id TEXT NOT NULL,payload_json TEXT NOT NULL,
  PRIMARY KEY(run_id,model_id));
 """
+SCHEMA_V3 = SCHEMA
+ASSOCIATION_SCHEMA = """
+CREATE TABLE record_project_links(record_key TEXT PRIMARY KEY REFERENCES usage_records(record_key),
+ project_id TEXT REFERENCES projects(id),basis TEXT NOT NULL,basis_json TEXT NOT NULL,
+ generation INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE INDEX record_links_project ON record_project_links(project_id,record_key);
+CREATE TABLE session_project_bindings(session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+ project_id TEXT NOT NULL REFERENCES projects(id),basis TEXT NOT NULL,basis_json TEXT NOT NULL,
+ generation INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE project_assignment_events(id INTEGER PRIMARY KEY,operation_id TEXT NOT NULL,
+ record_key TEXT,session_id TEXT,old_project_id TEXT,project_id TEXT,basis TEXT NOT NULL,
+ reason TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE INDEX assignment_events_record ON project_assignment_events(record_key,id);
+CREATE INDEX assignment_events_operation ON project_assignment_events(operation_id,id);
+"""
+SCHEMA = SCHEMA_V3 + ASSOCIATION_SCHEMA
+
+
+@lru_cache(maxsize=2)
+def schema_definition(
+    version: int,
+) -> tuple[dict[str, list[tuple[object, ...]]], dict[str, str]]:
+    """Build each supported definition from its production, versioned DDL."""
+    if version not in SUPPORTED_BACKUP_SCHEMAS:
+        raise AppError("unsupported_backup_store", "这份 aha 资料版本不受支持。", 409)
+    connection = sqlite3.connect(":memory:")
+    try:
+        connection.executescript(SCHEMA_V3 if version == 3 else SCHEMA)
+        initialize_monthly(connection)
+        initialize_source_observations(connection)
+        initialize_query_indexes(connection)
+        from . import batches
+
+        batches.initialize_schema(connection)
+        tables = {
+            str(row[0]): [tuple(column) for column in connection.execute(
+                f'PRAGMA table_info("{row[0]}")'
+            )]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        definitions = {
+            str(kind) + ":" + str(name): " ".join(str(sql).split())
+            for kind, name, sql in connection.execute(
+                "SELECT type,name,sql FROM sqlite_master WHERE type IN ('table','index','trigger')"
+            )
+        }
+        return tables, definitions
+    finally:
+        connection.close()
+
+
+def validate_structure(connection: sqlite3.Connection, version: int) -> None:
+    expected, definitions = schema_definition(version)
+    tables = {
+        str(row[0]) for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        )
+    }
+    actual = {
+        str(kind) + ":" + str(name): " ".join(str(sql).split())
+        for kind, name, sql in connection.execute(
+            "SELECT type,name,sql FROM sqlite_master WHERE type IN ('table','index','trigger')"
+        )
+    }
+    if (tables != set(expected) or actual != definitions or connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='view' LIMIT 1"
+    ).fetchone() is not None):
+        raise AppError("invalid_backup", "资料结构不完整或不兼容，未执行升级或还原。", 409)
+    for table, columns in expected.items():
+        if [tuple(row) for row in connection.execute(f'PRAGMA table_info("{table}")')] != columns:
+            raise AppError("invalid_backup", "资料字段不兼容，未执行升级或还原。", 409)
+
+
+def upgrade_schema3(connection: sqlite3.Connection, now: str) -> None:
+    """Run only inside the caller's transaction, after preserving the schema3 source."""
+    validate_structure(connection, 3)
+    for statement in ASSOCIATION_SCHEMA.split(";"):
+        if statement.strip():
+            connection.execute(statement)
+    connection.execute(
+        """INSERT INTO record_project_links(record_key,project_id,basis,basis_json,
+        created_at,updated_at) SELECT r.record_key,
+        CASE WHEN r.assignment_origin='directory_rule' THEN NULLIF(r.project_id,'') END,
+        CASE WHEN r.assignment_origin='directory_rule' THEN 'directory_rule' ELSE 'unassigned' END,
+        json_object('cwd',r.cwd,'migration',3),?,? FROM usage_records r""",
+        (now, now),
+    )
+    connection.execute(
+        """INSERT INTO session_project_bindings(session_id,project_id,basis,basis_json,
+        created_at,updated_at) SELECT r.session_id,MIN(r.project_id),'directory_rule',
+        json_object('migration',3),?,? FROM usage_records r JOIN sessions s ON s.id=r.session_id
+        WHERE r.assignment_origin='directory_rule' AND r.project_id!=''
+        GROUP BY r.session_id HAVING COUNT(DISTINCT r.project_id)=1""", (now, now),
+    )
+    connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+    if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
+        raise AppError("storage_damaged", "资料关联校验失败，升级未完成。", 409)
 
 
 def initialize(store: Store, base_schema: str = "") -> None:
     connection = store._db
     version = int(connection.execute("PRAGMA user_version").fetchone()[0])
     if version == SCHEMA_VERSION:
+        return
+    if version == 3:
+        upgrade_schema3(connection, store._now())
         return
     if (
         version != 0

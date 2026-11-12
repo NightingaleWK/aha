@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import webbrowser
@@ -95,11 +96,37 @@ def main() -> None:
     parser.add_argument(
         "--no-tray", action="store_true", help="不显示 Windows 托盘（供命令行使用）"
     )
+    recovery = parser.add_mutually_exclusive_group()
+    recovery.add_argument("--backup", type=Path, help="将现有资料完整备份到新的文件后退出")
+    recovery.add_argument("--restore-backup", type=Path, help="将完整 aha 备份还原到新目录后退出")
+    parser.add_argument("--restore-dir", type=Path, help="还原目标资料目录，必须尚不存在")
     args = parser.parse_args()
     if not 0 <= args.port <= 65535:
         parser.error("端口应在 0 至 65535 之间。")
+    if args.restore_backup and (args.restore_dir is None or args.data_dir is not None):
+        parser.error("还原请同时指定 --restore-dir 新目录，不使用 --data-dir。")
+    if args.restore_dir is not None and args.restore_backup is None:
+        parser.error("--restore-dir 只能与 --restore-backup 一起使用。")
     data_dir = args.data_dir or default_data_dir()
     try:
+        if args.backup is not None or args.restore_backup is not None:
+            from .backup import create_backup, restore_backup
+
+            result = (
+                create_backup(data_dir, args.backup)
+                if args.backup is not None
+                else restore_backup(args.restore_backup, args.restore_dir)
+            )
+            if sys.stdout is not None:
+                print(json.dumps(result, ensure_ascii=False), flush=True)
+            elif sys.platform == "win32":
+                import ctypes
+
+                location = result.get("archive_path", result.get("destination", ""))
+                getattr(ctypes, "windll").user32.MessageBoxW(
+                    None, "操作完成。\n" + str(location), "aha · 备份与还原", 0x40
+                )
+            return
         _launch(data_dir, args.port, no_browser=args.no_browser, no_tray=args.no_tray)
     except AppError as error:
         startup_error(parser, error.message)
