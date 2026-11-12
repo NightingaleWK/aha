@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "version": "0.5.0",
+  "base_sha": "8898451cde00956d32edd0585b8b68690ea3307d",
+  "previous_tag": "v0.4.1",
+  "fragment_ids": [
+    "ccs25-compatibility",
+    "device-data-continuity",
+    "full-backup-restore",
+    "project-record-continuity"
+  ],
+  "notes_sha256": "2e3c7c5f976b2326842f6abebc8e774ecbe7650d0321f36714acc56410ea0e77"
+}
