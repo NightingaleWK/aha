@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/NightingaleWK/aha/compare/v0.4.1...v0.5.0) (2026-11-12)
+
+
+### 新增功能
+
+* 完善换机接续与完整备份还原 ([c7c6acc](https://github.com/NightingaleWK/aha/commit/c7c6acc87531df6ebb8ed5bc346a624490e8ac0a))
+* 完善换机数据接续、项目归属与完整备份 ([cb8c6da](https://github.com/NightingaleWK/aha/commit/cb8c6da0f4996a6370fa016b08236b4d607f5506))
+* 持久保存项目归属并完善费用核对 ([da826a7](https://github.com/NightingaleWK/aha/commit/da826a723b81e76f805e3d8e13e0679dff9bbddf))
+
 ## [0.4.1](https://github.com/NightingaleWK/aha/compare/v0.4.0...v0.4.1) (2026-11-05)
 
 
