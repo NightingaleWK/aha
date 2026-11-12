@@ -10,6 +10,7 @@
 | instance.py / runtime.py / tray_windows.py | 资料运行锁、私有描述符/身份核验、统一退出和 Windows 托盘；Store 不负责生产启动互斥 |
 | domain.py / decimal_sql.py | 允许字段、身份、归一、AppError、精确十进制/大整数聚合 |
 | sources.py / sql_dump.py | 同一只读源事务的分块投影、SQL字面量流式解析 |
+| source_bindings.py / backup.py | 本机安装与CCS实例绑定、一致完整备份及新目录校验还原 |
 | session_meta.py | 普通/zstd会话头目录线索，不读取正文 |
 | storage.py / migrations.py | Store门面、全部连接/事务/文件、干净schema3初始化与运行时门禁 |
 | sync.py | run/staging、来源/修订核对、差异写与成功进度 |

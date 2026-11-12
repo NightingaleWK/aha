@@ -267,6 +267,24 @@ class Store:
 
         return ledger_status(self)
 
+    def create_backup(
+        self, destination: Path, *, cancel: threading.Event | None = None
+    ) -> dict[str, Any]:
+        from .backup import create_backup
+
+        self._ensure_open()
+        return create_backup(
+            self.data_dir, destination, cancel=cancel, shutdown=self._sync_cancel
+        )
+
+    @staticmethod
+    def restore_backup(
+        archive: Path, destination: Path, *, cancel: threading.Event | None = None
+    ) -> dict[str, Any]:
+        from .backup import restore_backup
+
+        return restore_backup(archive, destination, cancel=cancel)
+
     def sync_status(self, run_id: str | None = None) -> dict[str, Any] | None:
         from .sync import sync_status
 
@@ -297,6 +315,16 @@ class Store:
         from .sync import refresh_metadata
 
         return refresh_metadata(self, roots)
+
+    def source_binding_status(self, path: Path, **kwargs: Any) -> dict[str, Any]:
+        from .source_bindings import binding_status
+
+        return binding_status(self, path, **kwargs)
+
+    def bind_source(self, path: Path, reason: str, **kwargs: Any) -> dict[str, Any]:
+        from .source_bindings import bind_source
+
+        return bind_source(self, path, reason, **kwargs)
 
     def config(self) -> dict[str, Any]:
         from .projects import configuration

@@ -148,6 +148,13 @@ class BatchTests(unittest.TestCase):
             source_id="rebuilt",
             trust="live",
         )
+        revision = next(c for c in self.store.list_reconciliations() if c["type"] == "revision")
+        self.assertEqual(revision["current_cost_usd"], "0.1234567")
+        self.assertEqual(revision["candidate_cost_usd"], "9.9900000001")
+        self.assertEqual(old_path.read_bytes(), old_bytes)
+        self.store.resolve_reconciliation(
+            revision["id"], "candidate", "已核对重建来源的费用修订", revision["generation"]
+        )
         query = self.store.analyze("2026-10-26", "2026-10-26", availability_mode="all")
         self.assertEqual(query["summary"]["record_count"], 1)
         self.assertEqual(query["summary"]["total_cost_usd"], "9.9900000001")

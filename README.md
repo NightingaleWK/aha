@@ -10,7 +10,7 @@ aha 是 Windows 本机 Codex 用量台账与报销材料工具。双击 `aha.exe
 
 ## 使用
 
-1. 每次打开程序自动同步一次 `%USERPROFILE%\.cc-switch\cc-switch.db`；也可点“立即同步”、填写其他 SQLite 路径或导入 SQL 备份。SQLite 与 SQL 备份支持 CCS 结构版本 23、24，仅统计 `codex_session`。同步不要求抢在 CCS 前启动。
+1. 每次打开程序自动同步一次 `%USERPROFILE%\.cc-switch\cc-switch.db`；也可点“立即同步”、填写其他 SQLite 路径或导入 SQL 备份。SQLite与SQL用量备份支持CCS结构版本23、24、25，仅统计 `codex_session`。同步不要求抢在CCS前启动。旧台账换机或还原后会先提示确认本机来源，历史保持可查询。
 2. 页面先显示已有本地资料。来源正忙、无法读取或同步失败时仍可查询旧资料，并显示上次成功时间；需要核对的来源变化单独提示。程序只在打开和手动操作时读取来源，没有周期采集、关闭后同步或开机自启。
 3. 在“项目管理”新建项目，绑定发现的工作目录或手填 Windows/Linux 路径。一个项目可绑定多个目录，更具体的目录优先；未匹配保持“未归属”，也可人工分配。
 4. 在“用量与费用”搜索选择项目，打开时间面板，可选当天、近24小时、近7/14/30天、本月或全部，也可用日历和时间输入精确到分钟。确认后直接更新预览，取消保留原结果。全部按北京时间，手动结束时间包含该分钟；勾选跟随当前时刻后，每次更新预览才推进结束时刻。明细、历史日汇总、每日和模型使用游标翻页，查询不依赖原 CCS 文件仍存在。
@@ -32,6 +32,24 @@ aha 是 Windows 本机 Codex 用量台账与报销材料工具。双击 `aha.exe
 同步对 CCS 使用有界只读事务，包含已提交 WAL，也支持 DELETE 日志模式；遇锁冲突有限等待后失败，可稍后手动重试。不会修改 CCS 的索引、日志模式、数据、设置或 Codex 会话文件。
 
 来源结构版本与 aha 内部用量投影版本分别记录：每次成功读取的同步结果保留实际 CCS 结构版本；内部历史投影仍为 23，应用库仍为 schema3。未知 CCS 版本会明确提示实际版本和当前支持范围，不会忽略必要字段检查。新分析和材料通过 `usage_projection_schema_version` 标明内部投影版本；材料的旧兼容字段 `source_schema_version=23` 由 `source_schema_version_scope=normalized_usage_projection` 说明其含义，不代表所有历史记录都来自 CCS 23。旧投影未记录的真实来源版本保留未知，已有下载包保持原字节。
+
+## 换电脑与完整备份还原
+
+“导入CCS用量备份”只补入CCS的SQL用量，不包含aha项目、人工归属或报销材料。“备份与还原”生成完整`.aha-backup`，包含一致台账、项目/目录依据、核对、报销占用和全部版本原包；请下载后保存在自己选择的备份位置。完整备份含个人资料，不能当费用分享包发送。换机、还原或重要资料调整前先保存一份完整备份，平时定期另存到不同存储；仅留在同一块磁盘不能防磁盘损坏。
+
+换机保留现有aha历史，把新电脑CCS确认为新来源再同步。相同消费不重复计入；不同历史值和来源汇总重叠保留核对。源库为空、较小或不支持时不会清空旧历史；当前时段为空时可点“查看全部历史”，申请报销再切回“可用用量”。新电脑没有旧会话日志不会清除原目录依据，新目录可作为原项目的附加规则。
+
+还原先校验数据库、索引、文件和原包SHA，再生成**新的资料目录**，不在线覆盖当前台账。完成后点“打开还原台账”；恢复结果也提供再次打开命令。默认双击EXE仍打开原默认目录，两个目录各自独立；在恢复台账中确认本机来源后再接续。只有日汇总的旧历史仍按整日使用，不还原为并不存在的逐条明细。
+
+离线操作也可使用同一个EXE（目标备份文件和还原目录都必须尚不存在）：
+
+```text
+aha.exe --data-dir EXISTING_DATA --backup NEW.aha-backup
+aha.exe --restore-backup SAVED.aha-backup --restore-dir NEW_DATA_DIRECTORY
+aha.exe --data-dir NEW_DATA_DIRECTORY
+```
+
+不要在程序运行时只复制`aha.sqlite3`而遗漏WAL或历史原包。不要用试用库重建/清理工具处理正式schema3账本。完整恢复不是两个独立aha业务库的自动合并，报销占用只在同一账本内协调。
 
 ## 报销记录与冻结材料
 
@@ -114,4 +132,4 @@ $BuildPython = Join-Path $BuildRoot 'venv\Scripts\python.exe'
 
 ## 数据解释依据
 
-CCS 的 Token 语义、会话来源、历史日汇总和结构 23→24 兼容行为参考 [farion1231/cc-switch 的固定提交 c0189078](https://github.com/farion1231/cc-switch/tree/c0189078aacdd80fd2462f59b345f55f62b41cf2)，上游采用 [MIT License](https://github.com/farion1231/cc-switch/blob/c0189078aacdd80fd2462f59b345f55f62b41cf2/LICENSE)。aha 为独立实现；没有复制上游配置、凭据或原始个人数据。金额沿用来源历史保存值，不按当前价格表重算。
+CCS 的 Token 语义、会话来源、历史日汇总和结构23→24→25兼容行为参考[farion1231/cc-switch固定提交efbec38f](https://github.com/farion1231/cc-switch/tree/efbec38f0e1ecaee2a488d619190b7ec4075238b)，上游采用 [MIT License](https://github.com/farion1231/cc-switch/blob/efbec38f0e1ecaee2a488d619190b7ec4075238b/LICENSE)。aha 为独立实现；没有复制上游配置、凭据或原始个人数据。金额沿用来源历史保存值，不按当前价格表重算。

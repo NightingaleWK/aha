@@ -422,7 +422,9 @@ def list_reconciliations(store: Store) -> list[dict[str, Any]]:
                 ["detail", "rollup"]
                 if row["type"] == "coverage"
                 else ["current", "candidate"]
-                if row["type"] == "revision"
+                if row["type"] in {"revision", "directory"} and (
+                    row["type"] != "directory" or info.get("candidate_cwd")
+                )
                 else ["same", "independent"]
                 if row["type"] == "identity"
                 else ["current"]
@@ -618,7 +620,48 @@ def resolve_reconciliation(
                             "candidate_cost_usd": candidate["total_cost_usd"],
                         }, key=canonical, source_id=case["source_id"],
                     )
-        else:
+        elif case["type"] == "directory":
+            if choice not in {"current", "candidate"}:
+                raise AppError("invalid_choice", "请选择保留原目录或采用候选目录。")
+            session = connection.execute(
+                "SELECT * FROM sessions WHERE id=?", (info.get("session_id"),)
+            ).fetchone()
+            if session is None or session["content_hash"] != info.get("current_metadata_hash"):
+                raise AppError("stale_case", "目录依据已变化，请刷新核对事项。", 409)
+            if choice == "candidate":
+                version = connection.execute(
+                    "SELECT * FROM session_metadata_versions WHERE id=? AND session_id=?",
+                    (info.get("candidate_metadata_version_id"), info["session_id"]),
+                ).fetchone()
+                payload = store._decode(version["payload_json"]) if version else {}
+                if payload.get("status") != "matched" or not payload.get("cwd"):
+                    raise AppError("invalid_candidate", "没有唯一可采用的新目录依据。", 409)
+                connection.execute(
+                    "UPDATE sessions SET cwd=?,status='matched',parent_id=?,content_hash=? "
+                    "WHERE id=?",
+                    (payload["cwd"], payload.get("parent_id"), version["content_hash"],
+                     info["session_id"]),
+                )
+                connection.execute(
+                    "UPDATE reconciliation_cases SET state='superseded',generation=generation+1 "
+                    "WHERE type='directory' AND record_key=? AND state='open' AND id!=?",
+                    (case["record_key"], case_id),
+                )
+            scopes.update(
+                row[0] for row in connection.execute(
+                    "SELECT DISTINCT scope_key FROM usage_records WHERE session_id=?",
+                    (info["session_id"],),
+                )
+            )
+        elif case["type"] == "rollup_origin":
+            if choice != "current":
+                raise AppError("invalid_choice", "请确认来源重叠后保留既有日汇总。")
+            current = connection.execute(
+                "SELECT scope_key FROM usage_records WHERE record_key=?", (case["record_key"],)
+            ).fetchone()
+            if current:
+                scopes.add(current[0])
+        elif case["type"] == "source":
             if choice != "current":
                 raise AppError("invalid_choice", "请选择保留本地事实并确认该来源。")
             observed = connection.execute(
@@ -632,9 +675,12 @@ def resolve_reconciliation(
                     VALUES(?,?,'confirmed',?) ON CONFLICT(id) DO NOTHING""",
                     (observed[0], case["source_id"], store._now()),
                 )
+        else:
+            raise AppError("invalid_case", "核对事项类型无法处理，请刷新后重试。", 409)
         connection.execute(
-            "UPDATE reconciliation_cases SET state='resolved',generation=generation+1 WHERE id=?",
-            (case_id,),
+            "UPDATE reconciliation_cases SET state='resolved',generation=generation+1,"
+            "info_json=json_set(info_json,'$.resolved_choice',?) WHERE id=?",
+            (choice, case_id),
         )
         connection.execute(
             "INSERT INTO reconciliation_events(case_id,choice,reason,created_at) VALUES(?,?,?,?)",

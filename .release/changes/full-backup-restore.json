@@ -1,0 +1,8 @@
+{
+  "id": "full-backup-restore",
+  "kind": "feature",
+  "title": "完整备份 aha 台账并安全还原",
+  "description": "新增完整台账备份与独立目录还原，保留项目、归属、核对历史、报销占用和各版本原始材料；校验数据库与文件完整性，清楚区分完整 aha 备份和 CCS 用量导入。",
+  "highlight": true,
+  "upgrade_notes": ["完整备份包含个人台账资料，请自行妥善保管；还原会生成新的资料目录，不在线覆盖当前台账。"]
+}

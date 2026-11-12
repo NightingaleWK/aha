@@ -8,6 +8,10 @@ const state = {
   rows: [], total: 0, cursor: null, nextCursor: null, cursors: [null], selected: new Map(), batches: [], batch: null,
   busy: false, pendingBatch: null, revision: null, lifecycle: null, noticeTimer: null, stopped: false,
   filterGeneration: 0, analysisRequest: 0,
+  sourceBinding: null, bindingSelection: null, bindingRequest: 0, dataDirectory: "",
+  backupBusy: false, backupGeneration: 0, backupJob: null, backupUpload: null, backupController: null,
+  pendingBackupUploads: [],
+  backupLimits: {archive_bytes: 4 * 1024 ** 3, chunk_bytes: 4 * 1024 ** 2},
 };
 const labels = {draft: "草稿", submitted: "已提交", reimbursed: "已报销", voided: "已作废"};
 const origins = {manual: "手动分配", directory_rule: "目录匹配", unassigned: "未归属"};
@@ -97,7 +101,7 @@ async function run(label, action, {rethrow = false} = {}) {
   $("busy-label").textContent = label;
   $("busy").hidden = false;
   const focused = document.activeElement;
-  const controls = [...document.querySelectorAll("button:not([data-sync-control]),input,textarea,select")];
+  const controls = [...document.querySelectorAll("button:not([data-sync-control]):not([data-backup-cancel]),input,textarea,select")];
   const previous = controls.map((control) => control.disabled);
   controls.forEach((control) => { control.disabled = true; });
   AhaForms.closeAll(); AhaForms.sync();
@@ -138,6 +142,14 @@ function syncActions() {
   $("prev-page").disabled = state.busy || state.page <= 1;
   $("next-page").disabled = state.busy || !state.nextCursor;
   $("revision-analyze").disabled = state.busy || !state.revision || !state.ledger;
+  $("view-all-history").disabled = state.busy || !state.ledger?.coverage?.start_date;
+  $("bind-default-source").disabled = state.busy || state.syncBusy;
+  $("create-full-backup").disabled = state.busy || state.backupBusy;
+  $("restore-backup").disabled = state.busy || state.backupBusy;
+  $("restore-file").disabled = state.busy || state.backupBusy;
+  $("restore-destination").disabled = state.busy || state.backupBusy;
+  $("cancel-backup").disabled = !state.backupBusy;
+  $("clear-unfinished-uploads").disabled = state.busy || state.backupBusy;
   timeRange.setDisabled(state.busy || !state.now);
   revisionTimeRange.setDisabled(state.busy || !state.now || !state.revision || $("revision-basis").value !== "current");
   AhaForms.sync();
@@ -171,6 +183,7 @@ function invalidate(message = "条件已更改，请更新预览") {
   timeRange.markPending();
   $("reconciliation-note").hidden = true;
   $("time-coverage-note").hidden = true;
+  $("empty-range-note").hidden = true;
   ["metric-cost", "metric-count", "metric-tokens", "metric-unassigned"].forEach((id) => { $(id).textContent = "—"; });
   $("availability-panel").hidden = true;
   $("token-strip").hidden = true;
@@ -247,12 +260,14 @@ function renderSource() {
   const last = ledger?.last_successful_sync_at ||
     (["completed", "succeeded", "success"].includes(syncStatus(ledger?.last_sync)) ? ledger.last_sync.finished_at || ledger.last_sync.completed_at : null);
   $("source-name").textContent = "本地用量台账";
-  $("source-mode").textContent = running ? "同步中" : failed ? "同步失败" : needsReview ? "需要核对" : last ? "已同步" : "本地资料";
+  const bindingRequired = state.sourceBinding?.required;
+  $("source-mode").textContent = running ? "同步中" : bindingRequired ? "待确认本机来源" : failed ? "同步失败" : needsReview ? "需要核对" : last ? "已同步" : "本地资料";
   const period = coverage.start_date ? ` · ${coverage.start_date} 至 ${coverage.end_date}` : "";
   $("source-description").textContent = ledger
     ? `${counts(amount.detail_count)} 条明细 · ${counts(amount.rollup_count)} 条来源日汇总${period} · ${last ? `上次成功 ${dateTime(last)}` : "尚无成功同步"}${needsReview ? " · 本次来源需要核对" : ""}`
     : "正在读取本地资料。";
-  $("load-default").textContent = state.syncBusy ? "正在同步…" : "立即同步";
+  $("load-default").textContent = state.syncBusy ? "正在同步…" : bindingRequired ? "接续本机来源" : "立即同步";
+  $("source-binding-note").hidden = !bindingRequired;
   $("sync-error").hidden = !failed;
   const reason = attempt?.result?.error_message || attempt?.message || attempt?.error_message || "同步未完成，请稍后重试。";
   const saved = last || amount.detail_count > 0 || amount.rollup_count > 0;
@@ -310,6 +325,11 @@ async function watchSync(job, generation = state.syncGeneration) {
 }
 async function loadSource(path = "/api/sync", body = {}) {
   if (state.syncBusy || state.stopped) return;
+  if (path !== "/api/source/sql" && (body.path || state.sourceBinding?.required)) {
+    try {
+      if (await openSourceBinding(body.path || "", {path, body})) return;
+    } catch (error) { notify(error.message, "error"); return; }
+  }
   const generation = ++state.syncGeneration;
   const isCurrent = () => generation === state.syncGeneration && !state.stopped;
   state.syncBusy = true; state.sync = {status: "running"}; renderSource();
@@ -318,6 +338,9 @@ async function loadSource(path = "/api/sync", body = {}) {
     if (!isCurrent()) return;
     $("source-dialog").close();
     await watchSync(job, generation);
+    if (isCurrent() && state.sync?.code === "source_binding_required") {
+      await openSourceBinding(body.path || "", {path, body});
+    }
   } catch (error) {
     if (isCurrent()) handleSyncError(error);
   } finally {
@@ -454,6 +477,7 @@ async function analyze() {
   renderAvailability(result);
   renderTimeCoverage($("time-coverage-note"), result, () => { void applyTimeRange(AhaTimeRange.wholeDays(result)).catch(() => {}); });
   const summary = result.summary;
+  renderEmptyRange(result);
   const availableOnly = result.availability_mode === "available";
   const pending = result.pending_count || 0;
   $("reconciliation-note").hidden = !pending;
@@ -930,9 +954,241 @@ async function scanMetadata() {
   invalidate("目录依据已更新，请重新预览");
   $("source-dialog").close(); notify("已更新目录识别。");
 }
+function renderEmptyRange(result) {
+  const coverage = state.ledger?.coverage;
+  const show = !hasUsage(result.summary) && result.time_coverage?.complete !== false && coverage?.start_date;
+  $("empty-range-note").hidden = !show;
+  if (show) $("empty-range-description").textContent = `当前筛选没有可计入的用量。历史数据仍保留，覆盖 ${coverage.start_date} 至 ${coverage.end_date}；同步失败也不会清空这些历史。`;
+}
+async function viewAllHistory() {
+  $("project-select").value = "all";
+  $("availability-mode").value = "all";
+  AhaForms.sync();
+  timeRange.setIntent({kind: "preset", preset: "all", follow_now: false});
+  await analyze();
+  notify("已显示全部历史。需要申请报销时，请切换到“可用用量”。", "info");
+}
+async function openSourceBinding(location = "", continuation = {path: "/api/sync", body: {}}) {
+  const request = ++state.bindingRequest;
+  const isCurrent = () => request === state.bindingRequest && !state.stopped;
+  const binding = await api(`/api/source/binding${location ? `?path=${encodeURIComponent(location)}` : ""}`, undefined, isCurrent);
+  if (!isCurrent()) return true;
+  if (!location) state.sourceBinding = binding;
+  if (!binding.required) return false;
+  state.bindingSelection = {location, continuation, request};
+  $("source-binding-description").textContent = binding.message || "原台账及项目完整保留。将当前 CC Switch 作为新来源接续，相同消费不重复计入，不同历史值保留供核对。";
+  $("source-binding-reason").value = "将当前 CC Switch 作为新来源接续，保留已保存的历史资料。";
+  $("source-dialog").close();
+  if (!$("source-binding-dialog").open) $("source-binding-dialog").showModal();
+  renderSource();
+  return true;
+}
+async function saveSourceBinding() {
+  const selection = state.bindingSelection;
+  if (!selection) throw new Error("请重新选择本机来源。");
+  const reason = $("source-binding-reason").value.trim();
+  if (!reason) throw new Error("请填写接续说明。");
+  const result = await api("/api/source/binding", {path: selection.location, reason});
+  if (selection !== state.bindingSelection || state.stopped) return;
+  if (!selection.location) state.sourceBinding = {...result, required: false};
+  state.bindingSelection = null;
+  $("source-binding-dialog").close();
+  invalidate("已确认本机来源，正在接续用量");
+  renderSource();
+  await loadSource(selection.continuation.path, selection.continuation.body);
+}
+function backupActive(generation) { return generation === state.backupGeneration && !state.stopped; }
+function backupProgress(message, percentage = null) {
+  $("backup-progress").hidden = false;
+  $("backup-progress-text").textContent = message;
+  if (percentage === null) $("backup-progress-bar").removeAttribute("value");
+  else $("backup-progress-bar").value = percentage;
+}
+function renderBackupResult(job) {
+  const target = $("backup-result"); target.replaceChildren(); target.hidden = false;
+  if (job.status === "cancelled") {
+    target.append(node("p", "", "此次操作已取消，当前台账保持不变。")); return;
+  }
+  if (job.kind === "backup") {
+    target.append(node("strong", "", "完整备份已生成，请下载保存"),
+      node("p", "", "下载后请保存到你的备份位置。退出程序前完成下载。"),
+      actionButton("下载完整备份", () => { void downloadBackup(job.id).catch((error) => notify(error.message, "error")); }, "button primary"));
+  } else {
+    target.append(node("strong", "", "已还原到新目录，当前台账未被替换"),
+      node("p", "path-output", job.result.destination),
+      actionButton("打开还原台账", () => run("正在打开还原台账…", async () => {
+        const result = await api(`/api/backups/${encodeURIComponent(job.id)}/open`, {});
+        notify(result.message, "info");
+      }), "button primary"),
+      node("p", "field-help", "请在新打开的页面确认本机来源，再接续当前电脑的用量。默认双击程序仍打开原资料目录；下次继续使用还原台账，可运行以下打开命令。"));
+    if (job.result.open_command) target.append(node("code", "path-output", job.result.open_command),
+      actionButton("复制打开命令", () => {
+        if (!navigator.clipboard?.writeText) { notify("请选择上方打开命令，手动复制后使用。", "info"); return; }
+        void navigator.clipboard.writeText(job.result.open_command).then(() => notify("打开命令已复制。"))
+          .catch(() => notify("请选中打开命令，手动复制后使用。", "info"));
+      }));
+  }
+}
+async function downloadBackup(id) {
+  const path = `/api/backups/${encodeURIComponent(id)}/download`;
+  let response;
+  try { response = await fetch(path, {method: "HEAD", credentials: "same-origin", cache: "no-store"}); }
+  catch { throw new Error("连接中断，完整备份尚未下载，请重试。"); }
+  if (!response.ok) throw new Error("此完整备份暂时无法下载，请重新生成或重试。");
+  const anchor = node("a"); anchor.href = path; anchor.download = "";
+  document.body.append(anchor); anchor.click(); anchor.remove();
+}
+async function watchBackup(job, generation) {
+  if (!backupActive(generation)) return;
+  state.backupJob = job;
+  while (backupActive(generation) && job.status === "running") {
+    backupProgress(job.kind === "backup" ? "正在生成并校验完整备份…" : "正在校验备份并还原到新目录…");
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    if (!backupActive(generation)) return;
+    job = await api(`/api/backups/${encodeURIComponent(job.id)}`, undefined, () => backupActive(generation));
+    if (!backupActive(generation)) return;
+    state.backupJob = job;
+  }
+  if (!backupActive(generation)) return;
+  if (job.status === "failed") throw new Error(job.message || "备份或还原未完成，当前台账保持不变。");
+  renderBackupResult(job);
+  notify(job.status === "cancelled" ? "此次备份或还原已取消。" : job.kind === "backup" ? "完整备份已生成，请下载保存。" : "已还原到独立新目录。", "info");
+}
+function finishBackupOperation(generation) {
+  if (!backupActive(generation)) return;
+  state.backupBusy = false; state.backupController = null;
+  $("backup-progress").hidden = true; syncActions();
+}
+async function createFullBackup() {
+  if (state.backupBusy || state.stopped) return;
+  const generation = ++state.backupGeneration;
+  state.backupBusy = true; state.backupJob = null; state.backupUpload = null;
+  clearFeedback(); $("backup-result").hidden = true;
+  backupProgress("正在准备完整备份…"); syncActions();
+  try {
+    const job = await api("/api/backups", {});
+    if (!backupActive(generation)) { void api(`/api/backups/${encodeURIComponent(job.id)}/cancel`, {}).catch(() => {}); return; }
+    await watchBackup(job, generation);
+  } catch (error) { if (backupActive(generation)) notify(error.message, "error"); }
+  finally { finishBackupOperation(generation); }
+}
+async function uploadBackupChunk(id, offset, chunk, signal) {
+  let response;
+  try {
+    response = await fetch(`/api/restore-uploads/${encodeURIComponent(id)}/chunks`, {
+      method: "POST", credentials: "same-origin", cache: "no-store", signal,
+      headers: {"Content-Type": "application/octet-stream", "X-AHA-CSRF": state.csrf, "X-AHA-Upload-Offset": String(offset)},
+      body: chunk,
+    });
+  } catch (error) {
+    if (error.name === "AbortError") throw error;
+    throw new Error("备份上传中断，当前台账未被修改，请重试。");
+  }
+  let result;
+  try { result = await response.json(); }
+  catch { throw new Error("无法读取备份上传结果，请重新上传。"); }
+  if (!response.ok) throw new Error(result.message || "备份上传未完成，请重试。");
+  return result;
+}
+async function restoreFullBackup() {
+  if (state.backupBusy || state.stopped) return;
+  const file = $("restore-file").files?.[0];
+  if (!file) { notify("请选择完整 aha 备份文件。", "error"); return; }
+  if (!file.size || file.size > state.backupLimits.archive_bytes) { notify("完整备份包大小无效或超过 4 GiB。", "error"); return; }
+  const destination = $("restore-destination").value.trim();
+  const generation = ++state.backupGeneration;
+  state.backupBusy = true; state.backupJob = null; state.backupUpload = null;
+  const controller = new AbortController(); state.backupController = controller;
+  clearFeedback(); $("backup-result").hidden = true;
+  backupProgress("正在准备上传完整备份…", 0); syncActions();
+  let upload;
+  try {
+    upload = await api("/api/restore-uploads", {size: file.size});
+    if (!backupActive(generation)) { void api(`/api/restore-uploads/${encodeURIComponent(upload.id)}/cancel`, {}).catch(() => {}); return; }
+    state.backupUpload = upload.id;
+    const chunkBytes = Math.min(upload.chunk_bytes, state.backupLimits.chunk_bytes);
+    for (let offset = 0; offset < file.size;) {
+      const chunk = file.slice(offset, Math.min(file.size, offset + chunkBytes));
+      const result = await uploadBackupChunk(upload.id, offset, chunk, controller.signal);
+      if (!backupActive(generation)) return;
+      const expected = offset + chunk.size;
+      if (result.received !== expected) throw new Error("备份上传进度不一致，请重新上传。");
+      offset = result.received;
+      backupProgress(`正在上传完整备份：${Math.floor(offset / file.size * 100)}%`, offset / file.size * 100);
+    }
+    const job = await api(`/api/restore-uploads/${encodeURIComponent(upload.id)}/restore`, {destination});
+    if (!backupActive(generation)) { void api(`/api/backups/${encodeURIComponent(job.id)}/cancel`, {}).catch(() => {}); return; }
+    state.backupUpload = null;
+    await watchBackup(job, generation);
+  } catch (error) {
+    if (upload && !state.backupJob) void api(`/api/restore-uploads/${encodeURIComponent(upload.id)}/cancel`, {}).catch(() => {});
+    if (backupActive(generation) && error.name !== "AbortError") notify(error.message, "error");
+  } finally { finishBackupOperation(generation); }
+}
+async function cancelBackupOperation() {
+  if (!state.backupBusy || state.stopped) return;
+  const job = state.backupJob, upload = state.backupUpload;
+  const generation = ++state.backupGeneration;
+  state.backupController?.abort(); state.backupUpload = null;
+  backupProgress("正在取消此次操作…");
+  try {
+    const result = job ? await api(`/api/backups/${encodeURIComponent(job.id)}/cancel`, {})
+      : upload ? await api(`/api/restore-uploads/${encodeURIComponent(upload)}/cancel`, {}) : {status: "cancelled"};
+    if (!backupActive(generation)) return;
+    if (result.kind) await watchBackup(result, generation);
+    else renderBackupResult({status: "cancelled"});
+  } catch (error) { if (backupActive(generation)) notify(error.message, "error"); }
+  finally { finishBackupOperation(generation); }
+}
+function renderUnfinishedUploads() {
+  $("unfinished-uploads").hidden = !state.pendingBackupUploads.length;
+}
+async function clearUnfinishedUploads() {
+  for (const upload of state.pendingBackupUploads) await api(`/api/restore-uploads/${encodeURIComponent(upload.id)}/cancel`, {});
+  state.pendingBackupUploads = []; renderUnfinishedUploads();
+  notify("未完成的上传已清理，当前台账保持不变。");
+}
+async function openBackupDialog() {
+  clearFeedback(); $("backup-dialog").showModal();
+  $("backup-data-directory").textContent = state.dataDirectory;
+  if (state.backupJob?.status === "completed") renderBackupResult(state.backupJob);
+  syncActions();
+  const generation = state.backupGeneration;
+  const isCurrent = () => generation === state.backupGeneration && $("backup-dialog").open && !state.stopped;
+  try {
+    const status = await api("/api/status", undefined, isCurrent);
+    if (!isCurrent()) return;
+    state.pendingBackupUploads = (status.restore_uploads || []).filter((item) => item.id !== state.backupUpload);
+    renderUnfinishedUploads();
+    if (!state.backupBusy && status.backup) {
+      state.backupJob = status.backup;
+      if (status.backup.status === "running") {
+        state.backupBusy = true; const resumed = ++state.backupGeneration;
+        void watchBackup(status.backup, resumed).catch((error) => {
+          if (backupActive(resumed)) notify(error.message, "error");
+        }).finally(() => finishBackupOperation(resumed));
+      } else if (status.backup.status === "completed") renderBackupResult(status.backup);
+    }
+    syncActions();
+  } catch (error) { if (isCurrent()) notify(error.message, "error"); }
+}
 async function initialize() {
   const status = await api("/api/status");
   state.csrf = status.csrf_token; state.today = status.today; state.now = status.now; state.ledger = status.ledger;
+  state.sourceBinding = status.default_source?.binding || null;
+  state.dataDirectory = status.data_directory || "";
+  state.backupLimits = status.backup_limits || state.backupLimits;
+  $("source-data-directory").textContent = state.dataDirectory;
+  $("backup-data-directory").textContent = state.dataDirectory;
+  state.backupJob = status.backup || null;
+  state.pendingBackupUploads = status.restore_uploads || []; renderUnfinishedUploads();
+  if (state.backupJob?.status === "running") {
+    state.backupBusy = true;
+    const generation = ++state.backupGeneration;
+    void watchBackup(state.backupJob, generation).catch((error) => {
+      if (backupActive(generation)) notify(error.message, "error");
+    }).finally(() => finishBackupOperation(generation));
+  }
   const currentSync = status.sync || status.startup_sync;
   const initialSyncGeneration = state.syncGeneration;
   state.sync = currentSync || null; state.syncBusy = syncStatus(currentSync) === "running";
@@ -947,12 +1203,30 @@ async function initialize() {
   }
   await Promise.all([refreshProjects(), refreshReconciliations(), refreshBatches()]);
   await analyze();
-  if (!currentSync && initialSyncGeneration === state.syncGeneration) {
+  if (!currentSync && !state.sourceBinding?.required && initialSyncGeneration === state.syncGeneration) {
     void loadSource("/api/sync", {trigger: "startup"});
   }
 }
 async function openReconciliations() {
   await refreshReconciliations(); renderReconciliations(); $("reconciliation-dialog").showModal();
+}
+async function resolveReconciliation(entry, choice, reason) {
+  invalidate("正在保存核对依据，完成后重新预览");
+  const generation = state.filterGeneration;
+  const isCurrent = () => generation === state.filterGeneration && !state.stopped;
+  let previewStarted = false;
+  try {
+    await api(`/api/reconciliations/${encodeURIComponent(entry.id)}`, {choice, reason,
+      expected_generation: entry.generation, idempotency_key: crypto.randomUUID()}, isCurrent);
+    await Promise.all([refreshLedger(isCurrent), refreshProjects(isCurrent), refreshReconciliations(isCurrent)]);
+    if (!isCurrent()) return;
+    renderReconciliations();
+    previewStarted = true;
+    await analyze();
+    const focus = $("reconciliation-list").querySelector?.('[role="combobox"]:not([disabled]),select:not([hidden]):not([disabled]),button:not([disabled])')
+      || $("reconciliation-dialog").querySelector?.("[data-close]");
+    if ($("reconciliation-dialog").open && !state.stopped) focus?.focus?.();
+  } catch (error) { if (previewStarted || isCurrent() || error.invalidated) throw error; }
 }
 function renderReconciliations() {
   const target = $("reconciliation-list"); AhaForms.destroy(target); target.replaceChildren();
@@ -964,6 +1238,10 @@ function renderReconciliations() {
     const facts = node("div", "reconciliation-facts");
     if (entry.date || entry.model) facts.append(node("p", "", [entry.date, entry.model].filter(Boolean).join(" · ")));
     if (entry.source_name) facts.append(node("p", "", `来源：${entry.source_name}`));
+    if (entry.type === "directory") {
+      facts.append(node("p", "", `已保存目录：${entry.current_cwd || "未提供"}`),
+        node("p", "", `本次目录：${entry.candidate_cwd || (entry.candidate_status === "conflict" ? "存在多个不同目录，尚无法确定" : "当前电脑未找到唯一目录")}`));
+    }
     if (entry.current_cost_usd !== undefined) facts.append(node("p", "", `当前参考成本：${money(entry.current_cost_usd)} USD`));
     if (entry.candidate_cost_usd !== undefined) facts.append(node("p", "", `候选参考成本：${money(entry.candidate_cost_usd)} USD`));
     if (entry.detail_count !== undefined) facts.append(node("p", "", `已存明细 ${counts(entry.detail_count)} 条；来源日汇总 ${counts(entry.rollup_count)} 条，代表 ${counts(entry.rollup_record_count)} 条记录。`));
@@ -987,18 +1265,17 @@ function renderReconciliations() {
     const form = node("form"); const selectLabel = node("label", "field", "采用依据"); const select = node("select");
     for (const choice of entry.choices || []) {
       const value = typeof choice === "string" ? choice : choice.value;
-      const label = entry.type === "source" && value === "current" ? "确认此来源，保留本地历史" : choiceLabels[value] || choice.label || "确认来源关系";
+      const label = entry.type === "source" && value === "current" ? "确认此来源，保留本地历史"
+        : entry.type === "rollup_origin" && value === "current" ? "确认重叠，保留历史汇总"
+        : entry.type === "directory" ? (value === "candidate" ? "采用当前电脑目录" : "保留已保存目录")
+        : choiceLabels[value] || choice.label || "确认来源关系";
       const option = node("option", "", label); option.value = value; select.append(option);
     }
     selectLabel.append(select);
     const reasonLabel = node("label", "field", "核对说明"); const reason = node("textarea"); reason.rows = 2; reason.maxLength = 4000; reason.required = true; reasonLabel.append(reason);
     const submit = node("button", "button primary", "确认依据"); submit.type = "submit"; submit.disabled = !select.options.length;
     form.append(selectLabel, reasonLabel, submit);
-    form.addEventListener("submit", (event) => { event.preventDefault(); void run("正在保存核对结果…", async () => {
-      await api(`/api/reconciliations/${encodeURIComponent(entry.id)}`, {choice: select.value, reason: reason.value,
-        expected_generation: entry.generation, idempotency_key: crypto.randomUUID()});
-      await Promise.all([refreshLedger(), refreshReconciliations()]); invalidate("核对结果已更新，请重新预览"); renderReconciliations();
-    }); });
+    form.addEventListener("submit", (event) => { event.preventDefault(); void run("正在保存核对结果…", () => resolveReconciliation(entry, select.value, reason.value)); });
     card.append(form); target.append(card);
     AhaForms.mount(card);
   }
@@ -1007,6 +1284,15 @@ document.querySelectorAll("[data-page]").forEach((button) => button.addEventList
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
 for (const id of ["project-select", "availability-mode"]) $(id).addEventListener("change", () => invalidate());
 $("source-options").addEventListener("click", () => { clearFeedback(); $("source-dialog").showModal(); });
+$("backup-options").addEventListener("click", openBackupDialog);
+$("create-full-backup").addEventListener("click", () => { void createFullBackup(); });
+$("restore-form").addEventListener("submit", (event) => { event.preventDefault(); void restoreFullBackup(); });
+$("cancel-backup").addEventListener("click", () => { void cancelBackupOperation(); });
+$("clear-unfinished-uploads").addEventListener("click", () => run("正在清理未完成上传…", clearUnfinishedUploads));
+$("source-binding-form").addEventListener("submit", (event) => { event.preventDefault(); void run("正在确认本机来源…", saveSourceBinding); });
+$("source-binding-dialog").addEventListener("close", () => { state.bindingSelection = null; state.bindingRequest += 1; });
+$("bind-default-source").addEventListener("click", () => run("正在读取本机来源…", () => openSourceBinding()));
+$("view-all-history").addEventListener("click", () => run("正在查询全部历史…", viewAllHistory));
 $("load-default").addEventListener("click", () => { void loadSource(); });
 $("review-data").addEventListener("click", () => run("正在加载核对依据…", openReconciliations));
 for (const id of ["import-sql", "dialog-import-sql"]) $(id).addEventListener("click", () => $("sql-file").click());

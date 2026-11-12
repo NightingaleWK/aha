@@ -1,0 +1,8 @@
+{
+  "id": "ccs25-compatibility",
+  "kind": "fix",
+  "title": "支持 CC Switch 25 的用量同步",
+  "description": "支持读取结构版本 23、24、25 的 CC Switch 数据库与 SQL 用量备份，保留严格字段检查和实际来源版本；已有用量、消费身份和冻结材料保持兼容。",
+  "highlight": true,
+  "upgrade_notes": []
+}

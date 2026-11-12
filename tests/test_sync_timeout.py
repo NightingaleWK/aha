@@ -27,6 +27,9 @@ class SnapshotStagingTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.store = Store(self.root / "data")
+        self.enterContext(patch(
+            "aha.source_bindings.installation_id", return_value="synthetic-timeout-installation"
+        ))
         self.store.sync_data(source_data(), trust="live")
         analysis = self.store.analyze("2026-10-01", "2026-10-31")
         batch = self.store.create_batch(analysis, claim(), "snapshot-existing-package")

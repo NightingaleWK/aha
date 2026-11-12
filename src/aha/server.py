@@ -6,11 +6,17 @@ import base64
 import binascii
 import copy
 import json
+import os
 import re
 import secrets
+import shlex
+import subprocess
+import sys
+import tempfile
 import threading
 from collections import OrderedDict
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import CookieError, SimpleCookie
@@ -19,7 +25,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
-from . import __version__, time_ranges
+from . import __version__, backup, time_ranges
 from .domain import AppError, content_hash
 from .instance import PROTOCOL_VERSION, profile_id
 from .storage import Store
@@ -30,6 +36,9 @@ UPLOAD_LIMIT = ((SQL_LIMIT + 2) // 3) * 4 + JSON_LIMIT
 BEIJING = timezone(timedelta(hours=8))
 SAFE_ID = r"([A-Za-z0-9_-]{1,128})"
 WEB_DIR = Path(__file__).with_name("web")
+BACKUP_CHUNK_BYTES = 4 * 1024 * 1024
+MAX_TRANSFER_JOBS = 8
+MAX_RESTORE_UPLOADS = 4
 ASSETS = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
@@ -110,17 +119,254 @@ class Application:
         self.cancel = threading.Event()
         self.startup_job: str | None = None
         self.closed = False
+        self.transfer_jobs: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self.restore_uploads: dict[str, dict[str, Any]] = {}
+        self.transfer_cancels: dict[str, threading.Event] = {}
+        self.transfer_directory: tempfile.TemporaryDirectory[str] | None = None
 
     def close(self) -> None:
         self.cancel.set()
         with self.lock:
             self.closed = True
+            self.cancel_transfers()
             workers = list(self.workers.values())
         for worker in workers:
             worker.join()
         with self.lock:
             self.analyses.clear()
         self.store.close()
+        if self.transfer_directory is not None:
+            self.transfer_directory.cleanup()
+
+    def cancel_transfers(self) -> None:
+        with self.lock:
+            for signal in self.transfer_cancels.values():
+                signal.set()
+
+    def _transfer_root(self) -> Path:
+        if self.transfer_directory is None:
+            self.transfer_directory = tempfile.TemporaryDirectory(prefix="aha-backups-")
+        return Path(self.transfer_directory.name)
+
+    def _binding(self, path: Path) -> dict[str, Any]:
+        if not path.is_file():
+            return {"required": False, "bound": False, "available": False}
+        try:
+            return {**self.store.source_binding_status(path), "available": True}
+        except AppError as error:
+            return {
+                "required": True, "bound": False, "available": True,
+                "code": error.code, "message": error.message,
+            }
+
+    def _transfer_job(self, job_id: str) -> dict[str, Any]:
+        with self.lock:
+            job = self.transfer_jobs.get(job_id)
+            if job is None:
+                raise AppError("backup_not_found", "未找到此次备份或还原，请重新操作。", 404)
+            public = {key: value for key, value in job.items() if not key.startswith("_")}
+            return copy.deepcopy(public)
+
+    def _new_transfer(
+        self, kind: str, archive: Path, destination: Path | None = None
+    ) -> dict[str, Any]:
+        with self.lock:
+            if self.closed:
+                raise AppError("application_closed", "程序正在退出，请重新启动。", 409)
+            if any(job["status"] == "running" for job in self.transfer_jobs.values()):
+                raise AppError("backup_in_progress", "已有备份或还原正在进行，请等待或取消。", 409)
+            while len(self.transfer_jobs) >= MAX_TRANSFER_JOBS:
+                _, old = self.transfer_jobs.popitem(last=False)
+                with suppress(OSError):
+                    Path(old["_archive"]).unlink(missing_ok=True)
+            job_id = secrets.token_hex(16)
+            signal = threading.Event()
+            self.transfer_jobs[job_id] = {
+                "id": job_id, "kind": kind, "status": "running",
+                "started_at": datetime.now(BEIJING).isoformat(),
+                "_archive": str(archive),
+            }
+            self.transfer_cancels[job_id] = signal
+            worker = threading.Thread(
+                target=self._transfer_worker, args=(job_id, kind, archive, destination, signal),
+                name="aha-backup-transfer", daemon=True,
+            )
+            self.workers[job_id] = worker
+            worker.start()
+            return self._transfer_job(job_id)
+
+    def _transfer_worker(
+        self, job_id: str, kind: str, archive: Path, destination: Path | None,
+        signal: threading.Event,
+    ) -> None:
+        try:
+            if kind == "backup":
+                result = self.store.create_backup(archive, cancel=signal)
+                public = {key: value for key, value in result.items() if key != "archive_path"}
+            else:
+                if destination is None:
+                    raise AppError("invalid_restore_directory", "请选择新的还原目录。")
+                result = self.store.restore_backup(archive, destination, cancel=signal)
+                command = self._restored_command(destination)
+                public = {**result, "open_command": (
+                    subprocess.list2cmdline(command) if sys.platform == "win32"
+                    else shlex.join(command)
+                )}
+            with self.lock:
+                self.transfer_jobs[job_id].update(
+                    status="completed", result=public, finished_at=datetime.now(BEIJING).isoformat()
+                )
+        except AppError as error:
+            with self.lock:
+                self.transfer_jobs[job_id].update(
+                    status="cancelled" if signal.is_set() else "failed",
+                    code=error.code, message=error.message,
+                    finished_at=datetime.now(BEIJING).isoformat(),
+                )
+        except Exception:
+            with self.lock:
+                self.transfer_jobs[job_id].update(
+                    status="failed", code="backup_failed",
+                    message="备份或还原未完成，当前台账未被替换，请检查空间后重试。",
+                    finished_at=datetime.now(BEIJING).isoformat(),
+                )
+        finally:
+            if kind == "restore":
+                with suppress(OSError):
+                    archive.unlink(missing_ok=True)
+            with self.lock:
+                self.workers.pop(job_id, None)
+                self.transfer_cancels.pop(job_id, None)
+
+    def _create_backup(self) -> dict[str, Any]:
+        with self.lock:
+            if self.closed:
+                raise AppError("application_closed", "程序正在退出，请重新启动。", 409)
+            archive = self._transfer_root() / (secrets.token_hex(16) + ".aha-backup")
+            return self._new_transfer("backup", archive)
+
+    def _create_upload(self, body: dict[str, Any]) -> dict[str, Any]:
+        size = body.get("size")
+        if (
+            isinstance(size, bool) or not isinstance(size, int)
+            or not 0 < size <= backup.MAX_ARCHIVE_BYTES
+        ):
+            raise AppError("invalid_backup_size", "完整备份包大小无效或超过 4 GiB。", 413)
+        with self.lock:
+            if self.closed:
+                raise AppError("application_closed", "程序正在退出，请重新启动。", 409)
+            if len(self.restore_uploads) >= MAX_RESTORE_UPLOADS:
+                raise AppError(
+                    "upload_in_progress", "待还原文件过多，请先完成或取消已有上传。", 409
+                )
+            upload_id = secrets.token_hex(16)
+            path = self._transfer_root() / (upload_id + ".upload")
+            path.touch(exist_ok=False)
+            self.restore_uploads[upload_id] = {"path": path, "size": size, "received": 0}
+            return {"id": upload_id, "size": size, "received": 0, "chunk_bytes": BACKUP_CHUNK_BYTES}
+
+    def append_upload(self, upload_id: str, offset: int, chunk: bytes) -> dict[str, Any]:
+        with self.lock:
+            upload = self.restore_uploads.get(upload_id)
+            if upload is None:
+                raise AppError("upload_not_found", "上传已取消或过期，请重新选择备份。", 404)
+            if offset != upload["received"]:
+                raise AppError("upload_offset_conflict", "上传进度已变化，请重新选择备份。", 409)
+            if not chunk or len(chunk) > BACKUP_CHUNK_BYTES or offset + len(chunk) > upload["size"]:
+                raise AppError("invalid_backup_chunk", "备份上传分块大小不正确。", 413)
+            try:
+                with upload["path"].open("ab") as stream:
+                    if stream.write(chunk) != len(chunk):
+                        raise OSError("short write")
+            except OSError as exc:
+                with suppress(OSError):
+                    upload["path"].unlink(missing_ok=True)
+                del self.restore_uploads[upload_id]
+                raise AppError(
+                    "backup_upload_failed", "无法保存备份上传，请检查空间后重试。", 500
+                ) from exc
+            upload["received"] += len(chunk)
+            return {"id": upload_id, "received": upload["received"], "size": upload["size"]}
+
+    def _restore_upload(self, upload_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        raw = _string(body, "destination", limit=4096)
+        destination = Path(raw) if raw else self.store.data_dir.resolve().parent / (
+            "aha-restored-" + datetime.now(BEIJING).strftime("%Y%m%d-%H%M%S-") + upload_id[:8]
+        )
+        destination = destination.resolve()
+        current = self.store.data_dir.resolve()
+        if (
+            raw and not Path(raw).is_absolute()
+            or destination == current or current in destination.parents
+        ):
+            raise AppError("invalid_restore_directory", "请使用当前资料目录以外的新绝对目录。")
+        if destination.exists():
+            raise AppError(
+                "restore_destination_exists", "还原目录已存在，请选择一个全新的目录。", 409
+            )
+        with self.lock:
+            upload = self.restore_uploads.get(upload_id)
+            if upload is None:
+                raise AppError("upload_not_found", "上传已取消或过期，请重新选择备份。", 404)
+            if upload["received"] != upload["size"]:
+                raise AppError("incomplete_backup_upload", "备份尚未上传完整，请重新上传。", 409)
+            job = self._new_transfer("restore", upload["path"], destination)
+            self.transfer_jobs[job["id"]]["_upload_id"] = upload_id
+            del self.restore_uploads[upload_id]
+            return job
+
+    def _cancel_upload(self, upload_id: str) -> dict[str, Any]:
+        with self.lock:
+            upload = self.restore_uploads.pop(upload_id, None)
+            if upload is not None:
+                with suppress(OSError):
+                    upload["path"].unlink(missing_ok=True)
+            for job_id, job in self.transfer_jobs.items():
+                if job.get("_upload_id") == upload_id:
+                    return self._cancel_transfer(job_id)
+        return {"id": upload_id, "status": "cancelled"}
+
+    def _cancel_transfer(self, job_id: str) -> dict[str, Any]:
+        with self.lock:
+            if signal := self.transfer_cancels.get(job_id):
+                signal.set()
+            return self._transfer_job(job_id)
+
+    def backup_download(self, job_id: str) -> tuple[Path, str]:
+        with self.lock:
+            job = self.transfer_jobs.get(job_id)
+            if job is None or job["kind"] != "backup" or job["status"] != "completed":
+                raise AppError("backup_not_ready", "完整备份尚未生成，请等待完成后下载。", 409)
+            path = Path(job["_archive"])
+            if not path.is_file():
+                raise AppError("backup_not_found", "此备份已清理，请重新生成。", 404)
+            stamp = job["started_at"][:19].replace(":", "").replace("-", "").replace("T", "-")
+            return path, f"aha完整备份-{stamp}.aha-backup"
+
+    @staticmethod
+    def _restored_command(destination: Path) -> list[str]:
+        command = [sys.executable]
+        if not getattr(sys, "frozen", False):
+            command += ["-m", "aha"]
+        command += ["--data-dir", str(destination)]
+        return command
+
+    def _open_restored(self, job_id: str) -> dict[str, Any]:
+        job = self._transfer_job(job_id)
+        if job["kind"] != "restore" or job["status"] != "completed":
+            raise AppError("restore_not_ready", "还原尚未完成，请等待后再打开。", 409)
+        destination = Path(job["result"]["destination"])
+        if not (destination / "aha.sqlite3").is_file():
+            raise AppError("restore_not_found", "还原资料已移动，请从实际位置打开。", 404)
+        command = self._restored_command(destination)
+        try:
+            subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, close_fds=True)
+        except OSError as exc:
+            raise AppError(
+                "restore_open_failed", "无法打开还原台账，请保留该目录后重新启动。", 500
+            ) from exc
+        return {"message": "已启动还原台账，请在新打开的页面确认本机来源。"}
 
     def invalidate(self) -> None:
         with self.lock:
@@ -130,6 +376,12 @@ class Application:
         with self.lock:
             latest_job = max(self.jobs.values(), key=lambda job: job["started_at"], default=None)
             current_sync = copy.deepcopy(latest_job)
+            latest_transfer = next(reversed(self.transfer_jobs), None)
+            current_transfer = self._transfer_job(latest_transfer) if latest_transfer else None
+            current_uploads = [
+                {"id": key, "size": value["size"], "received": value["received"]}
+                for key, value in self.restore_uploads.items()
+            ]
         captured = time_ranges.current_time()
         return {
             "version": __version__,
@@ -141,11 +393,19 @@ class Application:
             "default_source": {
                 "name": "cc-switch.db",
                 "available": default_sqlite_path().is_file(),
+                "binding": self._binding(default_sqlite_path()),
+            },
+            "data_directory": str(self.store.data_dir.resolve()),
+            "backup_limits": {
+                "archive_bytes": backup.MAX_ARCHIVE_BYTES,
+                "chunk_bytes": BACKUP_CHUNK_BYTES,
             },
             "sql_limit_bytes": SQL_LIMIT,
             "ledger": self.store.ledger_status(),
             "startup_sync": self._job(self.startup_job) if self.startup_job else None,
             "sync": current_sync,
+            "backup": current_transfer,
+            "restore_uploads": current_uploads,
         }
 
     def _job(self, job_id: str | None) -> dict[str, Any]:
@@ -382,6 +642,14 @@ class Application:
     def get(self, path: str, query: dict[str, list[str]]) -> Any:
         if path == "/api/status":
             return self.status()
+        if path == "/api/source/binding":
+            locations = query.get("path", [""])
+            if len(locations) != 1:
+                raise AppError("invalid_field", "请选择一个来源文件。")
+            location = _string({"path": locations[0]}, "path")
+            return self._binding(Path(location) if location else default_sqlite_path())
+        if match := re.fullmatch(r"/api/backups/" + SAFE_ID, path):
+            return self._transfer_job(match[1])
         if path == "/api/ledger":
             return self.store.ledger_status()
         if match := re.fullmatch(r"/api/sync/" + SAFE_ID, path):
@@ -411,6 +679,31 @@ class Application:
         raise AppError("not_found", "未找到此内容。", 404)
 
     def post(self, path: str, body: dict[str, Any]) -> Any:
+        if path == "/api/source/binding":
+            location = _string(body, "path")
+            selected = Path(location) if location else default_sqlite_path()
+            if not selected.is_file():
+                raise AppError(
+                    "source_unavailable", "未找到当前 CC Switch 数据库，请检查路径。", 409
+                )
+            with self.lock:
+                if any(job["status"] == "running" for job in self.jobs.values()):
+                    raise AppError("sync_in_progress", "请等待当前同步结束后再确认来源。", 409)
+                result = self.store.bind_source(selected, _string(body, "reason", limit=4000))
+            self.invalidate()
+            return result
+        if path == "/api/backups":
+            return self._create_backup()
+        if path == "/api/restore-uploads":
+            return self._create_upload(body)
+        if match := re.fullmatch(r"/api/restore-uploads/" + SAFE_ID + r"/restore", path):
+            return self._restore_upload(match[1], body)
+        if match := re.fullmatch(r"/api/restore-uploads/" + SAFE_ID + r"/cancel", path):
+            return self._cancel_upload(match[1])
+        if match := re.fullmatch(r"/api/backups/" + SAFE_ID + r"/cancel", path):
+            return self._cancel_transfer(match[1])
+        if match := re.fullmatch(r"/api/backups/" + SAFE_ID + r"/open", path):
+            return self._open_restored(match[1])
         if path in {"/api/sync", "/api/source/sqlite"}:
             return self._start_sync(body)
         if path == "/api/source/sql":
@@ -543,6 +836,7 @@ class LocalHTTPServer(ThreadingHTTPServer):
         self.app.cancel.set()
         with self.app.lock:
             self.app.closed = True
+            self.app.cancel_transfers()
 
     def instance_identity(self) -> dict[str, Any]:
         with self._state_lock:
@@ -634,14 +928,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(payload)
 
-    def _send_file(self, path: Path, filename: str) -> None:
+    def _send_file(self, path: Path, filename: str, fallback: str = "aha-evidence.zip") -> None:
         with path.open("rb") as source:
             self._response_headers(
                 HTTPStatus.OK,
-                path.stat().st_size,
+                os.fstat(source.fileno()).st_size,
                 "application/zip",
                 {
-                    "Content-Disposition": "attachment; filename=aha-evidence.zip; "
+                    "Content-Disposition": f"attachment; filename={fallback}; "
                     "filename*=UTF-8''" + quote(filename)
                 },
             )
@@ -701,7 +995,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 "authentication_required", "访问凭证已失效，请从程序启动地址重新打开。", 401
             )
 
-    def _body(self) -> dict[str, Any]:
+    def _content_length(self, limit: int) -> int:
         if self.headers.get_all("Origin", []) != [self.server.origin]:
             raise AppError("invalid_origin", "请求来源不正确，请重新打开本机页面。", 403)
         if not _equal(self.headers.get("X-AHA-CSRF", ""), self.server.app.csrf_token):
@@ -710,9 +1004,22 @@ class RequestHandler(BaseHTTPRequestHandler):
         if self.headers.get("Transfer-Encoding") or len(lengths) != 1 or not lengths[0].isdigit():
             raise AppError("invalid_length", "请求长度不正确。", 400)
         length = int(lengths[0])
-        limit = UPLOAD_LIMIT if self.path == "/api/source/sql" else JSON_LIMIT
         if length > limit:
-            raise AppError("request_too_large", "请求过大；SQL 文件上限为 128 MiB。", 413)
+            raise AppError("request_too_large", "请求分块过大，请重新选择文件或稍后重试。", 413)
+        return length
+
+    def _binary_body(self) -> bytes:
+        length = self._content_length(BACKUP_CHUNK_BYTES)
+        if self.headers.get_content_type() != "application/octet-stream":
+            raise AppError("invalid_content_type", "备份分块必须使用二进制传输。", 415)
+        raw = self.rfile.read(length)
+        if len(raw) != length:
+            raise AppError("incomplete_request", "读取备份分块失败，请重新上传。", 400)
+        return raw
+
+    def _body(self) -> dict[str, Any]:
+        limit = UPLOAD_LIMIT if self.path == "/api/source/sql" else JSON_LIMIT
+        length = self._content_length(limit)
         if self.headers.get_content_type() != "application/json":
             raise AppError("invalid_content_type", "请求必须使用 JSON。", 415)
         raw = self.rfile.read(length)
@@ -788,6 +1095,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 name, content_type = ASSETS[path]
                 self._send(HTTPStatus.OK, (WEB_DIR / name).read_bytes(), content_type)
                 return
+            if match := re.fullmatch(r"/api/backups/" + SAFE_ID + r"/download", path):
+                file_path, filename = app.backup_download(match[1])
+                self._send_file(file_path, filename, "aha-backup.aha-backup")
+                return
             if match := re.fullmatch(
                 r"/api/batches/" + SAFE_ID + r"/revisions/([0-9]+)/download", path
             ):
@@ -815,6 +1126,15 @@ class RequestHandler(BaseHTTPRequestHandler):
         try:
             path, _ = self._boundary()
             self._authenticated()
+            if match := re.fullmatch(r"/api/restore-uploads/" + SAFE_ID + r"/chunks", path):
+                self.server.ensure_active()
+                offsets = self.headers.get_all("X-AHA-Upload-Offset", [])
+                if len(offsets) != 1 or not offsets[0].isdigit() or len(offsets[0]) > 20:
+                    raise AppError("invalid_upload_offset", "备份上传位置不正确。")
+                chunk = self._binary_body()
+                result = self.server.app.append_upload(match[1], int(offsets[0]), chunk)
+                self._json(HTTPStatus.OK, result)
+                return
             body = self._body()
             if path == "/api/shutdown":
                 self.server.request_shutdown()

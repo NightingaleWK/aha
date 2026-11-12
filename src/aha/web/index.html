@@ -29,12 +29,13 @@
     <main id="main" tabindex="-1">
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
       <section id="page-usage" class="page">
-        <div class="page-heading"><div><h1>用量与费用</h1><p>选择项目和时间，查看可用用量。</p></div><button id="source-options" class="button">数据来源 <span aria-hidden="true">↗</span></button></div>
+        <div class="page-heading"><div><h1>用量与费用</h1><p>选择项目和时间，查看可用用量。</p></div><div class="page-heading-actions"><button id="backup-options" class="button">备份与还原</button><button id="source-options" class="button">数据来源 <span aria-hidden="true">↗</span></button></div></div>
         <section class="source-card" aria-label="当前数据来源">
           <div class="source-icon" aria-hidden="true">▤</div>
           <div class="source-description"><div class="source-title"><strong id="source-name">本地用量台账</strong><span id="source-mode" class="tag">尚未同步</span></div><p id="source-description">正在读取本地资料。</p><p id="sync-error" class="sync-error" role="alert" hidden></p></div>
-          <div class="source-actions"><button id="load-default" class="button primary" data-sync-control>立即同步</button><button id="review-data" class="button">数据核对 <span id="reconciliation-count">0</span></button><button id="import-sql" class="button" data-sync-control>导入备份</button><input id="sql-file" type="file" accept=".sql" hidden></div>
+          <div class="source-actions"><button id="load-default" class="button primary" data-sync-control>立即同步</button><button id="review-data" class="button">数据核对 <span id="reconciliation-count">0</span></button><button id="import-sql" class="button" data-sync-control>导入 CCS 用量备份</button><input id="sql-file" type="file" accept=".sql" hidden></div>
         </section>
+        <section id="source-binding-note" class="warning source-binding-note" role="status" hidden><div><strong>确认当前电脑的数据来源</strong><p>已保存的历史仍可查询。将当前 CC Switch 作为新来源接续后，只补充新用量；不同的历史值保留供核对。</p></div><button id="bind-default-source" class="button">确认来源，保留历史</button></section>
         <section class="panel filter-panel" aria-label="筛选条件">
           <div class="filter-grid">
             <label class="field project-select-field">项目<select id="project-select" data-searchable="true"><option value="all">全部项目（含未归属）</option><option value="unassigned">未归属</option></select></label>
@@ -44,6 +45,7 @@
           </div>
           <div class="filter-footer"><span>北京时间 · 手动设置包含结束分钟 · 全部用量仅供查看</span><span id="filter-status" class="muted" role="status">查询本地台账</span></div>
         </section>
+        <section id="empty-range-note" class="history-note" role="status" hidden><p id="empty-range-description"></p><button id="view-all-history" class="button small">查看全部历史</button></section>
         <div class="metric-grid" aria-label="期间汇总">
           <section class="metric metric-main"><div class="metric-label"><span id="metric-cost-label">可用参考成本</span> <span class="tag">USD</span></div><strong id="metric-cost">—</strong><p>按 CC Switch 历史金额汇总</p></section>
           <section class="metric"><div id="metric-count-label" class="metric-label">可用用量</div><strong id="metric-count">—</strong><p id="metric-count-note">明细与历史汇总分别统计</p></section>
@@ -88,9 +90,23 @@
     </main>
   </div>
   <dialog id="source-dialog" class="dialog">
-    <form id="sqlite-form"><div class="dialog-heading"><h2>数据来源</h2><button type="button" class="icon-button" data-close="source-dialog" aria-label="关闭">×</button></div><p class="dialog-intro">只读同步 CC Switch 数据库，或导入一份历史备份。查询始终使用本地台账。</p><label class="field">其他 CC Switch 数据库<input id="sqlite-path" type="text" maxlength="4096" placeholder="留空使用默认数据库，或粘贴文件完整路径"></label><div class="dialog-actions"><button type="button" class="button" id="dialog-import-sql" data-sync-control>选择备份文件（.sql）</button><button type="submit" id="sync-other-source" class="button primary" data-sync-control>同步数据库</button></div></form>
+    <form id="sqlite-form"><div class="dialog-heading"><h2>数据来源</h2><button type="button" class="icon-button" data-close="source-dialog" aria-label="关闭">×</button></div><p class="dialog-intro">只读同步 CC Switch 数据库，或导入 CCS 历史用量。查询始终使用本地台账。完整 aha 备份与还原请使用首页对应入口。</p><label class="field">当前 aha 资料目录<output id="source-data-directory" class="path-output"></output><span class="field-help">台账、项目和报销材料保存在这里，与程序文件的位置分开。</span></label><label class="field">其他 CC Switch 数据库<input id="sqlite-path" type="text" maxlength="4096" placeholder="留空使用默认数据库，或粘贴文件完整路径"></label><div class="dialog-actions"><button type="button" class="button" id="dialog-import-sql" data-sync-control>导入 CCS 用量备份（.sql）</button><button type="submit" id="sync-other-source" class="button primary" data-sync-control>同步数据库</button></div></form>
     <div class="dialog-divider"></div>
     <form id="metadata-form"><h3>目录识别</h3><label class="field">Codex 数据目录（每行一个）<textarea id="metadata-roots" rows="3" placeholder="留空使用默认 .codex 目录"></textarea><span class="field-help">用于识别会话的工作目录。</span></label><div class="dialog-actions"><button type="submit" id="scan-metadata" class="button">刷新目录识别</button></div></form>
+  </dialog>
+  <dialog id="source-binding-dialog" class="dialog">
+    <form id="source-binding-form"><div class="dialog-heading"><h2>接续当前电脑的用量</h2><button type="button" class="icon-button" data-close="source-binding-dialog" aria-label="关闭">×</button></div><p id="source-binding-description" class="dialog-intro">原台账完整保留，当前 CC Switch 作为新的来源接续。相同消费不会重复计入；不同历史值会保留供核对。</p><label class="field">接续说明<textarea id="source-binding-reason" rows="3" maxlength="4000" required></textarea></label><div class="dialog-actions"><button type="button" class="button" data-close="source-binding-dialog">暂不接续</button><button type="submit" class="button primary">保留历史并接续</button></div></form>
+  </dialog>
+  <dialog id="backup-dialog" class="dialog wide-dialog">
+    <div class="dialog-heading"><h2>完整 aha 备份与还原</h2><button type="button" class="icon-button" data-close="backup-dialog" aria-label="关闭">×</button></div>
+    <p class="dialog-intro">完整备份包含台账、项目、归属、报销记录和所有版本的原始材料，可用于换机或恢复。它包含个人资料，请自行妥善保管。</p>
+    <label class="field">当前资料目录<output id="backup-data-directory" class="path-output"></output></label>
+    <section class="backup-section"><h3>备份当前资料</h3><p>生成一致的完整备份，再下载保存到你选择的位置。</p><div class="dialog-actions"><button id="create-full-backup" class="button primary">生成完整备份</button></div></section>
+    <div class="dialog-divider"></div>
+    <form id="restore-form"><h3>从完整备份还原</h3><p>还原到一个新的资料目录，当前台账继续保留。还原完成后可直接打开新台账。</p><label class="field">完整备份文件<input id="restore-file" type="file" accept=".aha-backup,.zip" required><span class="field-help">CCS 的 .sql 用量备份请通过“数据来源”导入。</span></label><label class="field">新的还原目录（选填）<input id="restore-destination" type="text" maxlength="4096" placeholder="留空在当前资料目录旁新建，或填写不存在的绝对目录"></label><div class="dialog-actions"><button id="restore-backup" type="submit" class="button">校验并还原到新目录</button></div></form>
+    <section id="unfinished-uploads" class="backup-result" hidden><p>有尚未完成的备份上传。重新选择文件前可清理；这也会取消其他页面的对应上传。</p><button id="clear-unfinished-uploads" class="button small">清理未完成上传</button></section>
+    <div id="backup-progress" class="backup-progress" role="status" aria-live="polite" hidden><p id="backup-progress-text"></p><progress id="backup-progress-bar" max="100"></progress><button id="cancel-backup" class="button small" data-backup-cancel>取消此次操作</button></div>
+    <div id="backup-result" class="backup-result" role="status" hidden></div>
   </dialog>
   <dialog id="project-dialog" class="dialog wide-dialog">
     <form id="project-form"><div class="dialog-heading"><h2 id="project-dialog-title">新建项目</h2><button type="button" class="icon-button" data-close="project-dialog" aria-label="关闭">×</button></div><input type="hidden" id="edit-project-id"><div class="two-column"><label class="field">项目名称<input id="edit-project-name" maxlength="160" required placeholder="例如：liuying-流萤-运维管理平台"></label><label class="field">说明（选填）<input id="edit-project-description" maxlength="4000" placeholder="项目用途"></label></div><h3>选择工作目录</h3><div id="project-candidates" class="candidate-list"></div><label class="field">补充目录（每行一个）<textarea id="edit-project-directories" rows="4" placeholder="可填写 Windows 或 Linux 路径"></textarea><span class="field-help">目录及其子目录归入此项目，更具体的目录设置优先。</span></label><div class="dialog-actions"><button type="button" class="button" data-close="project-dialog">取消</button><button type="submit" class="button primary">保存项目</button></div></form>

@@ -16,12 +16,15 @@ function page() {
       this.classList = {toggle() {}, add() {}, remove() {}};
     }
     addEventListener() {}
+    get options() { return this.children; }
     setAttribute() {}
     removeAttribute() {}
     querySelectorAll() { return []; }
     append(...items) { this.children.push(...items); }
     replaceChildren(...items) { this.children = items; }
     close() {}
+    showModal() { this.open = true; }
+    focus() {}
     getClientRects() { return []; }
   }
   const elements = new Map();
@@ -41,17 +44,21 @@ function page() {
         return selector === "[data-sync-control]" ? [this.getElementById("sync-control")] : [];
       },
     },
-    Node: Element, URLSearchParams, Intl, clearTimeout, setTimeout,
+    Node: Element, URLSearchParams, Intl, clearTimeout, setTimeout, AbortController,
     crypto: {randomUUID: () => "test-sync-key"},
-    AhaForms: {mount() {}, sync() {}, closeAll() {}},
-    fetch(url) {
+    AhaForms: {mount() {}, sync() {}, closeAll() {}, destroy() {}},
+    fetch(url, options = {}) {
       if (url === "/api/status") return new Promise((resolve) => { statusReply = resolve; });
-      return new Promise((resolve, reject) => pending.push({url, resolve, reject}));
+      return new Promise((resolve, reject) => pending.push({url, options, resolve, reject}));
     },
   });
   context.window = context;
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/aha/web/time-range-picker.js"), "utf8"), context);
-  context.AhaTimeRange.create = () => ({setDisabled() {}, markPending() {}});
+  context.AhaTimeRange.create = () => {
+    let intent = {kind: "preset", preset: "today", follow_now: true};
+    return {setDisabled() {}, markPending() {}, setResolved() {},
+      getIntent() { return intent; }, setIntent(value) { intent = value; }};
+  };
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/aha/web/app.js"), "utf8"), context);
   const evaluate = (code) => vm.runInContext(code, context);
   evaluate(`state.busy = false; state.ledger = {};
@@ -71,7 +78,13 @@ function page() {
       pending.splice(index, 1)[0].resolve({ok, json: async () => result});
     },
     pendingUrls() { return pending.map((request) => request.url); },
+    pendingRequests() { return pending; },
     disconnect() { pending.shift().reject(new Error("disconnected")); },
+    disconnectTo(url) {
+      const index = pending.findIndex((request) => request.url === url);
+      assert.notEqual(index, -1, `missing request: ${url}`);
+      pending.splice(index, 1)[0].reject(new Error("disconnected"));
+    },
   };
 }
 
@@ -490,4 +503,160 @@ test("an omitted-only revision preview does not present unknown usage as zero co
   assert.match(text, /统计不完整/);
   assert.doesNotMatch(text, /参考成本 0 USD/);
   assert.equal(app.evaluate('$("save-revision").disabled'), true);
+});
+
+test("empty current filters explain retained history without changing the chosen range", () => {
+  const app = page();
+  const before = app.evaluate("JSON.stringify(timeRange.getIntent())");
+  app.evaluate(`state.ledger = {coverage: {start_date: "2026-06-17", end_date: "2026-11-10"}};
+    renderEmptyRange({summary: {record_count: "0"}, time_coverage: {complete: true}});`);
+  assert.equal(app.evaluate('$("empty-range-note").hidden'), false);
+  assert.match(app.evaluate('$("empty-range-description").textContent'), /历史数据仍保留/);
+  assert.match(app.evaluate('$("empty-range-description").textContent'), /2026-06-17 至 2026-11-10/);
+  assert.equal(app.evaluate("JSON.stringify(timeRange.getIntent())"), before);
+  app.evaluate('renderEmptyRange({summary: {record_count: "0"}, time_coverage: {complete: false}});');
+  assert.equal(app.evaluate('$("empty-range-note").hidden'), true);
+});
+
+test("an unbound copied ledger opens source confirmation while retaining the local preview", async () => {
+  const app = page();
+  app.evaluate('state.sourceBinding = {required: true}; renderSource();');
+  assert.equal(app.evaluate('$("source-mode").textContent'), "待确认本机来源");
+  const operation = app.evaluate("loadSource()");
+  app.reply(true, {required: true, has_history: true, source_name: "cc-switch.db"});
+  await operation;
+  assert.equal(app.evaluate('$("source-binding-dialog").open'), true);
+  assert.equal(app.evaluate("state.analysis.analysis_id"), "old");
+  assert.equal(app.evaluate("state.syncBusy"), false);
+  assert.equal(app.pendingUrls().includes("/api/sync"), false);
+});
+
+test("source confirmation records the explicit reason before starting continuation", async () => {
+  const app = page();
+  app.evaluate(`state.sourceBinding = {required: true};
+    state.bindingSelection = {location: "", continuation: {path: "/api/sync", body: {}}};
+    $("source-binding-reason").value = "新电脑接续，保留历史";
+    loadSource = async (path, body) => { state.continuation = {path, body}; };`);
+  const operation = app.evaluate("saveSourceBinding()");
+  const payload = JSON.parse(app.pendingRequests()[0].options.body);
+  assert.equal(payload.reason, "新电脑接续，保留历史");
+  assert.equal(app.evaluate("state.continuation"), undefined);
+  app.reply(true, {bound: true, required: false});
+  await operation;
+  assert.equal(app.evaluate("state.sourceBinding.required"), false);
+  assert.equal(app.evaluate("state.analysis"), null);
+  assert.equal(app.evaluate("state.continuation.path"), "/api/sync");
+});
+
+test("reconciliation immediately expires saving and automatically previews the same filters", async () => {
+  const app = page();
+  app.evaluate(`$("project-select").value = "original-project";
+    timeRange.setIntent({kind: "preset", preset: "last_7d", follow_now: true});
+    state.pendingBatch = {signature: "old"};
+    refreshLedger = async () => {}; refreshProjects = async () => {};
+    refreshReconciliations = async () => {}; renderReconciliations = () => {};
+    analyze = async () => { state.repreview = {project: $("project-select").value, intent: timeRange.getIntent()}; };`);
+  const operation = app.evaluate('resolveReconciliation({id: "case-1", generation: 2}, "current", "已核对")');
+  assert.equal(app.evaluate("state.analysis"), null);
+  assert.equal(app.evaluate("state.pendingBatch"), null);
+  assert.equal(app.evaluate('$("create-batch").disabled'), true);
+  app.reply(true, {state: "resolved"});
+  await operation;
+  assert.equal(app.evaluate("state.repreview.project"), "original-project");
+  assert.equal(app.evaluate("state.repreview.intent.preset"), "last_7d");
+});
+
+test("a reconciliation refresh failure leaves the old save identity expired", async () => {
+  const app = page();
+  app.evaluate(`state.pendingBatch = {signature: "old"};
+    refreshProjects = async () => {}; refreshReconciliations = async () => {};`);
+  const operation = app.evaluate('resolveReconciliation({id: "case-1", generation: 2}, "current", "已核对")');
+  app.reply(true, {state: "resolved"});
+  await new Promise((resolve) => setImmediate(resolve));
+  app.disconnectTo("/api/ledger");
+  await assert.rejects(operation, /连接中断/);
+  assert.equal(app.evaluate("state.analysis"), null);
+  assert.equal(app.evaluate("state.pendingBatch"), null);
+  assert.equal(app.evaluate('$("create-batch").disabled'), true);
+});
+
+test("late reconciliation refreshes cannot overwrite a newer filter preview", async () => {
+  for (const fail of [false, true]) {
+    const app = page();
+    app.evaluate(`refreshProjects = async () => {}; refreshReconciliations = async () => {};
+      analyze = async () => { throw new Error("stale reconciliation must not requery"); };`);
+    const operation = app.evaluate('resolveReconciliation({id: "case-1", generation: 2}, "current", "已核对")');
+    app.reply(true, {state: "resolved"});
+    await new Promise((resolve) => setImmediate(resolve));
+    app.evaluate('state.filterGeneration += 1; state.analysis = {analysis_id: "newer"}; state.ledger = {newer: true};');
+    if (fail) app.disconnectTo("/api/ledger");
+    else app.replyTo("/api/ledger", true, {older: true});
+    await operation;
+    assert.equal(app.evaluate("state.analysis.analysis_id"), "newer");
+    assert.equal(app.evaluate("state.ledger.newer"), true);
+  }
+});
+
+test("full backup completion retains the current query and exposes a streamed download", async () => {
+  const app = page();
+  const operation = app.evaluate("createFullBackup()");
+  app.reply(true, {id: "backup-1", kind: "backup", status: "completed", result: {size: 100}});
+  await operation;
+  assert.equal(app.evaluate("state.analysis.analysis_id"), "old");
+  assert.equal(app.evaluate("state.backupBusy"), false);
+  assert.equal(app.evaluate('$("backup-result").hidden'), false);
+  assert.match(app.evaluate('$("backup-result").children[0].textContent'), /请下载保存/);
+});
+
+test("cancelled late backup creation cannot replace a newer operation", async () => {
+  const app = page();
+  const first = app.evaluate("createFullBackup()");
+  await app.evaluate("cancelBackupOperation()");
+  const second = app.evaluate("createFullBackup()");
+  app.replyTo("/api/backups", true, {id: "old-backup", kind: "backup", status: "running"});
+  await first;
+  app.replyLatest("/api/backups", true, {id: "new-backup", kind: "backup", status: "completed", result: {}});
+  await second;
+  app.replyTo("/api/backups/old-backup/cancel", true, {status: "cancelled"});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate("state.backupJob.id"), "new-backup");
+  assert.equal(app.evaluate("state.backupBusy"), false);
+  assert.match(app.evaluate('$("backup-result").children[0].textContent'), /完整备份已生成/);
+});
+
+test("restore uploads binary chunks and ignores late chunk success after cancellation", async () => {
+  const app = page();
+  app.evaluate(`state.backupLimits = {archive_bytes: 1024, chunk_bytes: 4};
+    $("restore-file").files = [{size: 8, slice(start, end) { return {size: end - start}; }}];`);
+  const operation = app.evaluate("restoreFullBackup()");
+  app.reply(true, {id: "upload-1", chunk_bytes: 4});
+  await new Promise((resolve) => setImmediate(resolve));
+  const chunk = app.pendingRequests()[0];
+  assert.equal(chunk.options.headers["Content-Type"], "application/octet-stream");
+  assert.equal(chunk.options.headers["X-AHA-Upload-Offset"], "0");
+  assert.equal(chunk.options.body.size, 4);
+  const cancelled = app.evaluate("cancelBackupOperation()");
+  app.replyTo("/api/restore-uploads/upload-1/cancel", true, {status: "cancelled"});
+  await cancelled;
+  app.replyTo("/api/restore-uploads/upload-1/chunks", true, {received: 4});
+  await operation;
+  assert.equal(app.pendingUrls().some((url) => url.endsWith("/restore")), false);
+  assert.equal(app.evaluate("state.analysis.analysis_id"), "old");
+  assert.equal(app.evaluate("state.backupBusy"), false);
+});
+
+test("directory and rollup-origin reconciliation display their real choices", () => {
+  const app = page();
+  app.evaluate(`state.reconciliations = [
+    {id: "directory", type: "directory", current_cwd: "C:/old-project", candidate_cwd: "D:/new-project", choices: ["current", "candidate"]},
+    {id: "rollup", type: "rollup_origin", choices: ["current"]}
+  ]; renderReconciliations();`);
+  const text = app.evaluate(`JSON.stringify((function collect(element) {
+    return [element.textContent || "", ...element.children.flatMap(collect)];
+  })($("reconciliation-list")))`);
+  assert.match(text, /C:\/old-project/);
+  assert.match(text, /D:\/new-project/);
+  assert.match(text, /采用当前电脑目录/);
+  assert.match(text, /保留已保存目录/);
+  assert.match(text, /确认重叠，保留历史汇总/);
 });

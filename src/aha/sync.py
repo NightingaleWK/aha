@@ -13,7 +13,7 @@ from time import monotonic, perf_counter
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from . import ledger, session_meta, sources
+from . import ledger, session_meta, source_bindings, sources
 from .domain import (
     MAX_ROWS,
     SUPPORTED_CCS_SCHEMA_VERSIONS,
@@ -280,7 +280,43 @@ def _metadata(store: Store, run_id: str, roots: list[Path] | None) -> dict[str, 
     return result
 
 
+def _rebase_directory_cases(
+    store: Store, session_id: str, cwd: str | None, fingerprint: str
+) -> None:
+    """Retain contrary observations when auxiliary accepted metadata changes."""
+    connection = store._db
+    cases = connection.execute(
+        "SELECT * FROM reconciliation_cases "
+        "WHERE type='directory' AND record_key=? AND state='open'",
+        ("session:" + session_id,),
+    ).fetchall()
+    for case in cases:
+        info = store._decode(case["info_json"])
+        version = connection.execute(
+            "SELECT content_hash FROM session_metadata_versions WHERE id=? AND session_id=?",
+            (info.get("candidate_metadata_version_id"), session_id),
+        ).fetchone()
+        if version is None:
+            continue
+        info.update(
+            current_cwd=cwd,
+            current_metadata_hash=fingerprint,
+            candidate_hash=content_hash([fingerprint, version[0]]),
+        )
+        connection.execute(
+            "UPDATE reconciliation_cases SET state='superseded',generation=generation+1 "
+            "WHERE id=?",
+            (case["id"],),
+        )
+        ledger.create_case(
+            connection, "directory", case["message"], info,
+            key=case["record_key"], source_id=case["source_id"],
+        )
+
+
 def _save_metadata(store: Store, metadata: dict[str, Any], trust: str) -> set[str]:
+    from .projects import canonical_path
+
     connection = store._db
     changed: set[str] = set()
     for session_id, entry in metadata.get("sessions", {}).items():
@@ -292,13 +328,49 @@ def _save_metadata(store: Store, metadata: dict[str, Any], trust: str) -> set[st
             raise AppError("invalid_metadata", "目录依据结构无效。")
         safe = {"cwd": cwd, "status": status, "parent_id": entry.get("parent_id")}
         old = connection.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
-        if old and old["cwd"] and cwd and old["cwd"] != cwd and trust != "live":
-            safe = {"cwd": None, "status": "conflict", "parent_id": None}
-        fingerprint = content_hash(safe)
         if old:
             connection.execute(
                 "UPDATE sessions SET last_checked=? WHERE id=?", (store._now(), session_id)
             )
+        if old and old["status"] == "matched" and old["cwd"]:
+            # Not finding an old machine's file is not evidence that its saved
+            # directory was wrong. A real contrary observation is a candidate.
+            if status == "missing":
+                continue
+            different = status == "conflict"
+            if cwd:
+                try:
+                    different = canonical_path(old["cwd"]) != canonical_path(cwd)
+                except AppError:
+                    different = old["cwd"] != cwd
+            if different:
+                fingerprint = content_hash(safe)
+                connection.execute(
+                    "INSERT INTO session_metadata_versions(session_id,content_hash,payload_json,"
+                    "created_at) VALUES(?,?,?,?) ON CONFLICT(session_id,content_hash) DO NOTHING",
+                    (session_id, fingerprint, store._encode(safe), store._now()),
+                )
+                version = connection.execute(
+                    "SELECT id FROM session_metadata_versions "
+                    "WHERE session_id=? AND content_hash=?",
+                    (session_id, fingerprint),
+                ).fetchone()[0]
+                before = connection.total_changes
+                ledger.create_case(
+                    connection, "directory",
+                    "当前电脑的目录依据与已保存历史不同；原目录和项目归属保持，请核对。",
+                    {"session_id": session_id, "current_cwd": old["cwd"],
+                     "candidate_cwd": cwd, "candidate_status": status,
+                     "current_metadata_hash": old["content_hash"],
+                     "candidate_metadata_version_id": version,
+                     "candidate_hash": content_hash([old["content_hash"], fingerprint])},
+                    key="session:" + session_id,
+                )
+                if connection.total_changes != before:
+                    changed.add(session_id)
+                continue
+            safe["cwd"] = old["cwd"]
+        fingerprint = content_hash(safe)
         if old and old["content_hash"] == fingerprint:
             continue
         connection.execute(
@@ -318,6 +390,8 @@ def _save_metadata(store: Store, metadata: dict[str, Any], trust: str) -> set[st
             ),
             (session_id, safe["cwd"], safe["status"], safe["parent_id"], fingerprint),
         )
+        if old:
+            _rebase_directory_cases(store, session_id, safe["cwd"], fingerprint)
         changed.add(session_id)
     return changed
 
@@ -444,6 +518,23 @@ def _publish(
                         "INSERT INTO record_evidence VALUES(?,?,?) ON CONFLICT DO NOTHING",
                         (current["version_id"], source_id, run_id),
                     )
+                    if row["kind"] == "rollup" and current["current_source"] != source_id:
+                        before_cases = connection.total_changes
+                        case_id = ledger.create_case(
+                            connection, "rollup_origin",
+                            "不同来源提供了相同日汇总，但成员重叠尚未确认；未重复相加。",
+                            {"candidate_hash": row["content_hash"], "date": current["day"],
+                             "model": current["model"], "request_count": current["request_count"]},
+                            key=logical_key, source_id=source_id,
+                        )
+                        open_case = connection.execute(
+                            "SELECT state FROM reconciliation_cases WHERE id=?", (case_id,)
+                        ).fetchone()[0] == "open"
+                        if open_case:
+                            counts["pending_count"] += 1
+                        if connection.total_changes != before_cases:
+                            cases_changed = True
+                            scopes.add(current["scope_key"])
                     counts["unchanged_count"] += 1
                     continue
                 connection.execute(
@@ -482,13 +573,28 @@ def _publish(
                     if candidate == accepted:
                         counts["unchanged_count"] += 1
                         continue
+                revision_case = connection.execute(
+                    "SELECT id,state,info_json FROM reconciliation_cases WHERE id=?",
+                    (content_hash(
+                        ["revision", None, logical_key, source_id, row["content_hash"]]
+                    ),),
+                ).fetchone() if current else None
+                if revision_case and revision_case["state"] == "resolved":
+                    decision = store._decode(revision_case["info_json"]).get("resolved_choice")
+                    if decision is None:
+                        event = connection.execute(
+                            "SELECT choice FROM reconciliation_events WHERE case_id=? "
+                            "ORDER BY id DESC LIMIT 1", (revision_case["id"],),
+                        ).fetchone()
+                        decision = event[0] if event else None
+                    if decision == "current":
+                        counts["unchanged_count"] += 1
+                        continue
                 if current and (
                     trust != "live"
                     or shrinking
-                    or (
-                        current["current_trust"] == "live"
-                        and current["current_source"] != source_id
-                    )
+                    or current["current_source"] != source_id
+                    or (revision_case is not None and revision_case["state"] == "open")
                 ):
                     candidate = json.loads(row["payload_json"])
                     before_cases = connection.total_changes
@@ -769,9 +875,13 @@ def sync_sqlite(
     trigger: str = "manual",
     startup_id: str | None = None,
     cancel: threading.Event | None = None,
+    installation_id: str | None = None,
 ) -> dict[str, Any]:
     path = Path(path)
     source = {"kind": "sqlite", "name": source_name(str(path)), "location": str(path.resolve())}
+    bound_source_id = source_bindings.source_id_for_sync(
+        store, path, installation_id=installation_id
+    )
 
     def read(stager: _Stager) -> dict[str, Any]:
         # Only the bounded, allowed projection is spooled; no normalization or
@@ -820,7 +930,7 @@ def sync_sqlite(
         read,
         None,
         metadata_roots,
-        source_id=None,
+        source_id=bound_source_id,
         trust="live",
         trigger=trigger,
         startup_id=startup_id,
