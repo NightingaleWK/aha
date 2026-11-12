@@ -59,6 +59,7 @@
           <div id="availability-groups" class="availability-groups"></div>
         </section>
         <div id="reconciliation-note" class="warning" role="status" hidden></div>
+        <section id="assignment-coverage-note" class="history-note" role="status" hidden><p id="assignment-coverage-description"></p><button id="manage-unassigned" class="button small">处理待归属记录</button></section>
         <div id="token-strip" class="token-strip" hidden><span>输入 <strong id="token-input">0</strong></span><span>输出 <strong id="token-output">0</strong></span><span>缓存读取 <strong id="token-read">0</strong></span><span>缓存写入 <strong id="token-write">0</strong></span></div>
         <section class="panel claim-panel">
           <div class="claim-heading"><div><h2>报销信息</h2><p id="claim-explanation">申请报销金额由你填写。</p></div><span class="tag">保存后下载材料</span></div>
@@ -71,7 +72,7 @@
         </section>
         <section id="usage-preview" class="panel preview-panel">
           <div class="panel-heading"><div><h2>用量预览</h2><p id="preview-caption">选择条件后更新预览。</p></div><div class="tabs" role="tablist" aria-label="预览粒度"><button class="tab active" data-tab="daily" role="tab" aria-selected="true">每日</button><button class="tab" data-tab="models" role="tab" aria-selected="false">模型</button><button class="tab" data-tab="details" role="tab" aria-selected="false">明细</button><button class="tab" data-tab="rollups" role="tab" aria-selected="false">历史日汇总</button></div></div>
-          <div id="assignment-bar" class="assignment-bar" hidden><span id="selection-count">已选 0 条</span><label class="field inline-field"><span class="sr-only">分配项目</span><select id="assignment-project" data-searchable="true"><option value="">清除人工指定</option></select></label><label id="session-scope-label" class="checkbox-label"><input type="checkbox" id="session-scope">包括这些会话的全部明细</label><button id="assign" class="button small">分配项目</button><button id="clear-selection" class="text-button">取消选择</button></div>
+          <div id="assignment-bar" class="assignment-bar" hidden><span id="selection-count">已选 0 条</span><label class="field inline-field"><span class="sr-only">分配项目</span><select id="assignment-project" data-searchable="true"><option value="">取消逐条人工例外</option></select></label><label id="session-scope-label" class="checkbox-label"><input type="checkbox" id="session-scope">整个会话（含后续新增明细）</label><button id="assign" class="button small">分配项目</button><button id="clear-selection" class="text-button">取消选择</button><p id="assignment-mode-description" class="field-help"></p></div>
           <div id="preview-table" class="table-wrap"><div class="empty-state"><span class="empty-icon" aria-hidden="true">▤</span><h3>本地台账暂无用量</h3><p>同步 CC Switch 数据，或导入备份。</p></div></div>
           <div id="pagination" class="pagination" hidden><span id="page-label"></span><div><button id="prev-page" class="button small">上一页</button><button id="next-page" class="button small">下一页</button></div></div>
         </section>
@@ -79,9 +80,33 @@
         <p class="page-footnote"><a href="/licenses" target="_blank" rel="noopener">开源说明</a></p>
       </section>
       <section id="page-projects" class="page" hidden>
-        <div class="page-heading"><div><h1>项目管理</h1><p>为项目选择工作目录，用量会自动归类。</p></div><button id="new-project" class="button primary">＋ 新建项目</button></div>
+        <div class="page-heading"><div><h1>项目管理</h1><p>把消费记到对应项目，核对项目费用与报销依据。</p></div><div class="page-heading-actions"><button id="refresh-associations" class="button">刷新项目费用</button><button id="new-project" class="button primary">＋ 新建项目</button></div></div>
+        <div id="association-overview" class="association-overview" aria-label="全历史归属进度" hidden></div>
         <div id="project-list" class="project-list"></div>
-        <section class="panel metadata-panel"><div class="panel-heading"><div><h2>已发现的工作目录</h2><p>可在新建或编辑项目时选择。</p></div><button id="refresh-metadata" class="button">刷新目录识别</button></div><div id="directory-summary" class="directory-summary">加载用量后显示工作目录。</div><div id="directory-list" class="directory-list"></div><details class="scope-details metadata-help"><summary>如何分配未归属的用量</summary><p>在“用量与费用”的明细表中选择记录，再指定项目。历史日汇总按完整记录分配。</p></details></section>
+        <section id="association-panel" class="panel association-panel" aria-labelledby="association-heading">
+          <div class="panel-heading"><div><h2 id="association-heading" tabindex="-1">记录归属</h2><p>按目录、会话或时间批量处理；确认后的历史归属持续保留。</p></div><button id="recover-associations" class="button">检查历史关联恢复</button></div>
+          <div id="association-groups" class="association-groups" aria-label="待归属原因"></div>
+          <form id="association-filter-form" class="association-filters">
+            <div class="association-filter-grid">
+              <label class="field">当前项目<select id="association-filter-project" data-searchable="true"><option value="unassigned">待归属记录</option><option value="all">全部项目（含未归属）</option></select></label>
+              <label class="field">待处理原因<select id="association-filter-reason"><option value="all">全部原因</option><option value="recoverable">历史依据可恢复</option><option value="directory_unbound">有目录，待确认归属</option><option value="missing">缺少目录依据</option><option value="conflict">目录依据存在冲突</option></select></label>
+              <label class="field">工作目录<input id="association-filter-directory" maxlength="8192" placeholder="完整目录，可从原因分组选择"></label>
+              <label class="field">会话<input id="association-filter-session" maxlength="256" placeholder="按完整会话 ID 筛选"></label>
+              <label class="field">开始日期（北京时间）<input id="association-filter-start" type="date"></label>
+              <label class="field">结束日期（北京时间）<input id="association-filter-end" type="date"></label>
+            </div>
+            <div class="association-filter-actions"><span id="association-status" class="field-help" role="status">打开项目管理后读取本地归属。</span><button id="search-associations" type="submit" class="button">查询记录</button></div>
+          </form>
+          <div class="association-bulk">
+            <label class="checkbox-label"><input id="association-all-filtered" type="checkbox">选择全部筛选结果（含其他分页）</label>
+            <p id="association-selection-description" class="field-help" role="status">选择记录后，先预览影响，再确认归属。</p>
+            <div class="association-bulk-fields"><label class="field">分配到项目<select id="association-target-project" data-searchable="true"><option value="">请选择项目</option></select></label><label class="checkbox-label"><input id="association-bind-sessions" type="checkbox">按整个会话分配（含其他现存明细和后续新增）</label></div>
+            <div class="association-bulk-actions"><button id="preview-assignment" class="button primary">预览项目分配</button><button id="preview-reclassification" class="button">按现有目录规则重新归属</button><button id="clear-association-selection" class="text-button">取消选择</button></div>
+          </div>
+          <div id="association-records" class="table-wrap"><div class="empty-state"><h3>读取记录后即可批量分配</h3><p>已确认的项目关系保存在 aha 中，旧电脑日志缺失不会撤销归属。</p></div></div>
+          <div id="association-pagination" class="pagination" hidden><span id="association-page-label"></span><div><button id="association-prev-page" class="button small">上一页</button><button id="association-next-page" class="button small">下一页</button></div></div>
+        </section>
+        <details class="panel metadata-panel"><summary class="metadata-toggle">工作目录与自动识别</summary><div class="panel-heading"><div><h2>已保存的工作目录依据</h2><p>为新会话提供自动归属线索；修改目录不回写已确认的历史关系。</p></div><button id="refresh-metadata" class="button">刷新目录识别</button></div><div id="directory-summary" class="directory-summary">加载用量后显示工作目录。</div><div id="directory-list" class="directory-list"></div></details>
       </section>
       <section id="page-batches" class="page" hidden>
         <div class="page-heading"><div><h1>报销记录</h1><p>查看报销状态、修改历史和已保存材料。</p></div><button id="refresh-batches" class="button">刷新记录</button></div>
@@ -109,7 +134,10 @@
     <div id="backup-result" class="backup-result" role="status" hidden></div>
   </dialog>
   <dialog id="project-dialog" class="dialog wide-dialog">
-    <form id="project-form"><div class="dialog-heading"><h2 id="project-dialog-title">新建项目</h2><button type="button" class="icon-button" data-close="project-dialog" aria-label="关闭">×</button></div><input type="hidden" id="edit-project-id"><div class="two-column"><label class="field">项目名称<input id="edit-project-name" maxlength="160" required placeholder="例如：liuying-流萤-运维管理平台"></label><label class="field">说明（选填）<input id="edit-project-description" maxlength="4000" placeholder="项目用途"></label></div><h3>选择工作目录</h3><div id="project-candidates" class="candidate-list"></div><label class="field">补充目录（每行一个）<textarea id="edit-project-directories" rows="4" placeholder="可填写 Windows 或 Linux 路径"></textarea><span class="field-help">目录及其子目录归入此项目，更具体的目录设置优先。</span></label><div class="dialog-actions"><button type="button" class="button" data-close="project-dialog">取消</button><button type="submit" class="button primary">保存项目</button></div></form>
+    <form id="project-form"><div class="dialog-heading"><h2 id="project-dialog-title">新建项目</h2><button type="button" class="icon-button" data-close="project-dialog" aria-label="关闭">×</button></div><input type="hidden" id="edit-project-id"><div class="two-column"><label class="field">项目名称<input id="edit-project-name" maxlength="160" required placeholder="例如：liuying-流萤-运维管理平台"></label><label class="field">说明（选填）<input id="edit-project-description" maxlength="4000" placeholder="项目用途"></label></div><h3>选择工作目录</h3><div id="project-candidates" class="candidate-list"></div><label class="field">补充目录（每行一个）<textarea id="edit-project-directories" rows="4" placeholder="可填写 Windows 或 Linux 路径"></textarea><span class="field-help">用于新会话的自动归属，更具体的目录优先。历史已确认归属保留；需要调整时，在“记录归属”中单独预览并应用。</span></label><div class="dialog-actions"><button type="button" class="button" data-close="project-dialog">取消</button><button type="submit" class="button primary">保存项目</button></div></form>
+  </dialog>
+  <dialog id="association-dialog" class="dialog wide-dialog">
+    <form id="association-apply-form"><div class="dialog-heading"><h2 id="association-dialog-title">确认项目归属</h2><button type="button" class="icon-button" data-close="association-dialog" aria-label="关闭归属预览">×</button></div><p id="association-preview-caption" class="dialog-intro"></p><div id="association-preview-summary" class="association-preview-summary"></div><div id="association-preview-projects" class="table-wrap"></div><div id="association-preview-warnings" class="analysis-warnings"></div><label class="field">归属依据或调整说明<textarea id="association-reason" rows="3" maxlength="4000" required placeholder="说明这些消费属于该项目的依据"></textarea></label><p class="field-help">确认后保存归属并更新项目费用。消费原金额、已有报销记录和旧版材料继续保留。</p><div class="dialog-actions"><button type="button" class="button" data-close="association-dialog">返回调整</button><button id="apply-associations" type="submit" class="button primary" disabled>确认保存归属</button></div></form>
   </dialog>
   <dialog id="overlap-dialog" class="dialog">
     <div class="dialog-heading"><h2>用量已变化</h2><button class="icon-button" data-close="overlap-dialog" aria-label="关闭">×</button></div><p class="dialog-intro">部分用量已被其他报销记录占用，请更新预览。</p><div id="overlap-list" class="overlap-list"></div><div class="dialog-actions"><button class="button" data-close="overlap-dialog">返回</button><button id="confirm-batch" class="button primary">更新预览</button></div>

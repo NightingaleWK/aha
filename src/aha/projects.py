@@ -47,6 +47,8 @@ def classify(
     row: dict[str, Any], metadata: dict[str, Any], config: dict[str, Any], grain: str = "detail"
 ) -> dict[str, Any]:
     """Give each original row at most one project, without changing the row."""
+    from .project_links import choose_project
+
     project_map = {p["id"]: p for p in config.get("projects", [])}
     override = config.get("overrides", {}).get(record_key(row, grain))
     cwd = None
@@ -54,29 +56,22 @@ def classify(
         session = metadata.get("sessions", {}).get(str(row.get("session_id", "")), {})
         if session.get("status") == "matched" and isinstance(session.get("cwd"), str):
             cwd = session["cwd"]
-    project_id = None
-    origin = "unassigned"
-    if (
-        override
-        and override.get("content_hash") == row_fingerprint(row, grain)
-        and override.get("project_id") in project_map
-    ):
-        project_id, origin = override["project_id"], "manual"
-    elif cwd:
-        try:
-            candidate = canonical_path(cwd)
-        except AppError:
-            candidate = None
-        matches = []
-        if candidate is not None:
-            for project in project_map.values():
-                for directory in project.get("directories", []):
-                    normalized = canonical_path(directory)
-                    if _contains(normalized, candidate):
-                        matches.append((len(normalized), project["id"]))
-        if matches:
-            _, project_id = max(matches)
-            origin = "directory_rule"
+    retained = config.get("record_links", {}).get(record_key(row, grain))
+    binding = config.get("session_bindings", {}).get(str(row.get("session_id", "")))
+    rules = sorted([
+        (len(canonical_path(directory)), canonical_path(directory), project["id"])
+        for project in project_map.values() for directory in project.get("directories", [])
+    ], reverse=True)
+    project_id, origin = choose_project(
+        cwd, rules, fingerprint=row_fingerprint(row, grain),
+        manual=(override["project_id"], override.get("content_hash", ""))
+        if override and override.get("project_id") in project_map else None,
+        retained=(retained.get("project_id"), retained.get("basis", "directory_rule"))
+        if retained and (retained.get("project_id") is None or
+                         retained.get("project_id") in project_map) else None,
+        session=(binding["project_id"], binding.get("basis", "manual"))
+        if binding and binding.get("project_id") in project_map else None,
+    )
     return {
         "project_id": project_id,
         "project_name": project_map[project_id]["name"] if project_id else "未归属",
@@ -108,8 +103,6 @@ def configuration(store: Store, connection: Any = None) -> dict[str, Any]:
 def save_project(
     store: Store, project_id: str | None, name: str, description: str, directories: list[str]
 ) -> dict[str, Any]:
-    from . import ledger
-
     if not isinstance(name, str) or not name.strip() or len(name) > 160:
         raise AppError("invalid_project", "项目名称不能为空，且最多为 160 个字符。")
     if not isinstance(description, str) or len(description) > 4000:
@@ -129,10 +122,6 @@ def save_project(
             ):
                 raise AppError("directory_conflict", "该目录已绑定其他项目。", 409)
         identity = project_id or str(uuid4())
-        old_directories = existing["directories"] if existing else []
-        scopes = _affected_directories(
-            connection, [*old_directories, *normalized.values()], identity
-        )
         saved = {
             "id": identity,
             "name": name.strip(),
@@ -148,8 +137,6 @@ def save_project(
             (identity, saved["name"], saved["description"], store._encode(saved["directories"])),
         )
         store._advance_revision()
-        ledger.reclassify(connection, scopes)
-        ledger.refresh_availability(connection, scopes)
         return {**configuration(store, connection), "project": saved}
 
 
@@ -195,13 +182,21 @@ def assign_keys(store: Store, keys: list[str], project_id: str | None) -> dict[s
         connection = store._db
         _validate_project(connection, project_id)
         scopes: set[str] = set()
-        for key in dict.fromkeys(keys):
+        operation = "manual:" + uuid4().hex
+        for raw_key in dict.fromkeys(keys):
+            key = ledger.canonical_record_key(connection, raw_key)
             row = connection.execute(
                 "SELECT content_hash,scope_key FROM usage_records WHERE record_key=?", (key,)
             ).fetchone()
             if row is None:
                 raise AppError("record_not_found", "所选用量不存在，请刷新。", 404)
             _override(connection, key, row["content_hash"], project_id)
+            connection.execute(
+                """INSERT INTO project_assignment_events(operation_id,record_key,old_project_id,
+                project_id,basis,reason,created_at) SELECT ?,record_key,NULLIF(project_id,''),?,
+                'manual','逐条人工分配',? FROM usage_records WHERE record_key=?""",
+                (operation, project_id, store._now(), key),
+            )
             scopes.add(row["scope_key"])
         store._advance_revision()
         ledger.reclassify(connection, scopes)
@@ -234,6 +229,7 @@ def _override(connection: Any, key: str, fingerprint: str, project_id: str | Non
 
 def assign_sessions(store: Store, session_ids: list[str], project_id: str | None) -> dict[str, Any]:
     from . import ledger
+    from .project_links import bind_session, link_record
 
     if (
         not isinstance(session_ids, list)
@@ -246,14 +242,31 @@ def assign_sessions(store: Store, session_ids: list[str], project_id: str | None
         connection = store._db
         _validate_project(connection, project_id)
         scopes: set[str] = set()
+        operation = "session:" + uuid4().hex
         for session_id in dict.fromkeys(session_ids):
+            if connection.execute(
+                "SELECT 1 FROM sessions WHERE id=?", (session_id,)
+            ).fetchone() is None:
+                raise AppError("session_not_found", "所选会话不存在，请刷新。", 404)
+            if project_id is None:
+                connection.execute(
+                    "DELETE FROM session_project_bindings WHERE session_id=?", (session_id,)
+                )
+            else:
+                bind_session(connection, session_id, project_id, "manual", {}, replace=True)
             cursor = connection.execute(
-                "SELECT record_key,content_hash,scope_key FROM usage_records WHERE session_id=?",
+                "SELECT r.record_key,r.content_hash,r.scope_key,o.content_hash AS override_hash "
+                "FROM usage_records r LEFT JOIN overrides o ON o.record_key=r.record_key "
+                "WHERE r.session_id=?",
                 (session_id,),
             )
             while rows := cursor.fetchmany(512):
                 for row in rows:
-                    _override(connection, row["record_key"], row["content_hash"], project_id)
+                    if project_id is not None and row["override_hash"] != row["content_hash"]:
+                        link_record(
+                            connection, row["record_key"], project_id, "session_binding", {},
+                            operation=operation, reason="按会话建立持续项目归属",
+                        )
                     scopes.add(row["scope_key"])
         store._advance_revision()
         ledger.reclassify(connection, scopes)

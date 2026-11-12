@@ -658,6 +658,23 @@ class Application:
             return {"cases": self.store.list_reconciliations()}
         if path == "/api/projects":
             return self.store.config()
+        if path == "/api/project-associations":
+            return self.store.association_status()
+        if path == "/api/project-associations/records":
+            from .associations import FILTER_FIELDS
+
+            if any(len(values) != 1 for values in query.values()):
+                raise AppError("invalid_assignment_filter", "每项筛选请只选择一个值。")
+            if set(query) - FILTER_FIELDS - {"cursor", "size"}:
+                raise AppError("invalid_assignment_filter", "项目关联筛选格式不正确。")
+            try:
+                size = int(query.get("size", ["50"])[0])
+            except ValueError:
+                raise AppError("invalid_page", "分页参数不正确。") from None
+            return self.store.association_records(
+                {key: values[0] for key, values in query.items() if key in FILTER_FIELDS},
+                cursor=query.get("cursor", [None])[0], size=size,
+            )
         if path == "/api/batches":
             return {"batches": self.store.list_batches()}
         if match := re.fullmatch(r"/api/batches/" + SAFE_ID, path):
@@ -679,6 +696,15 @@ class Application:
         raise AppError("not_found", "未找到此内容。", 404)
 
     def post(self, path: str, body: dict[str, Any]) -> Any:
+        if path == "/api/project-associations/preview":
+            return self.store.preview_associations(body)
+        if path == "/api/project-associations/apply":
+            result = self.store.apply_associations(
+                _string(body, "preview_id", limit=128),
+                _string(body, "reason", limit=4000), _retry_key(body),
+            )
+            self.invalidate()
+            return result
         if path == "/api/source/binding":
             location = _string(body, "path")
             selected = Path(location) if location else default_sqlite_path()

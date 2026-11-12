@@ -402,6 +402,8 @@ def check_backup_roundtrip(
     client: Client, executable: Path, data_root: Path, profile: Path, env: dict[str, str],
     *, batch_id: str, material_sha: str, with_tray: bool,
 ) -> dict[str, Any]:
+    from aha.migrations import SCHEMA_VERSION
+
     original_dir, recovered_dir = data_root / "store", data_root / "restored-store"
     before = ledger_basis(original_dir)
     require(before["counts"]["usage_records"] == ROW_COUNT
@@ -409,7 +411,7 @@ def check_backup_roundtrip(
             "The backup fixture does not contain the expected facts and active claims.")
     job = client.transfer(client.json("POST", "/api/backups", {}))
     result = job["result"]
-    require(result["store_schema_version"] == 3
+    require(result["store_schema_version"] == SCHEMA_VERSION
             and result["counts"]["usage_records"] == ROW_COUNT
             and result["counts"]["usage_claims"] == ROW_COUNT,
             "Complete backup did not include synthetic facts and existing owners.")

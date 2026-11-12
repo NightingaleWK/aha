@@ -7,6 +7,7 @@ from calendar import monthrange
 from collections.abc import Iterable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from . import claims
 from .domain import BEIJING, AppError, content_hash, fresh_input, record_key, row_fingerprint
@@ -242,15 +243,10 @@ def update_coverage(connection: sqlite3.Connection, groups: Iterable[str]) -> se
 
 
 def reclassify(connection: sqlite3.Connection, scopes: set[str] | None = None) -> None:
-    import json
+    from .project_links import bind_session, choose_project, directory_rules, link_record
 
-    from .projects import _contains, canonical_path
-
-    rules = []
-    for project in connection.execute("SELECT id,directories_json FROM projects"):
-        for directory in json.loads(project["directories_json"]):
-            rules.append((len(canonical_path(directory)), canonical_path(directory), project["id"]))
-    rules.sort(reverse=True)
+    rules = directory_rules(connection)
+    operation = "classify:" + uuid4().hex
     if scopes is not None:
         _scope_table(connection, scopes)
     where = (
@@ -261,10 +257,15 @@ def reclassify(connection: sqlite3.Connection, scopes: set[str] | None = None) -
     parameters: tuple[Any, ...] = ()
     cursor = connection.execute(
         (
-            "SELECT r.record_key,r.content_hash,r.session_id,s.cwd,s.status,o"
-            ".project_id AS override_id,o.content_hash AS override_hash FROM "
-            "usage_records r LEFT JOIN sessions s ON s.id=r.session_id LEFT J"
-            "OIN overrides o ON o.record_key=r.record_key"
+            "SELECT r.record_key,r.content_hash,r.session_id,r.cwd AS saved_cwd,s.cwd,s.status,o"
+            ".project_id AS override_id,o.content_hash AS override_hash,l.project_id AS link_id,"
+            "l.record_key AS linked_record,"
+            "l.basis AS link_basis,b.project_id AS binding_id,b.basis AS binding_basis "
+            "FROM usage_records r "
+            "LEFT JOIN sessions s ON s.id=r.session_id LEFT JOIN overrides o ON "
+            "o.record_key=r.record_key LEFT JOIN record_project_links l "
+            "ON l.record_key=r.record_key "
+            "LEFT JOIN session_project_bindings b ON b.session_id=r.session_id"
         )
         + where,
         parameters,
@@ -272,20 +273,22 @@ def reclassify(connection: sqlite3.Connection, scopes: set[str] | None = None) -
     while rows := cursor.fetchmany(512):
         updates = []
         for row in rows:
-            project_id, origin = "", "unassigned"
             cwd = row["cwd"] if row["status"] == "matched" else None
-            if row["override_id"] and row["override_hash"] == row["content_hash"]:
-                project_id, origin = row["override_id"], "manual"
-            elif cwd:
-                try:
-                    candidate = canonical_path(cwd)
-                except AppError:
-                    candidate = ""
-                for _, directory, target in rules:
-                    if candidate and _contains(directory, candidate):
-                        project_id, origin = target, "directory_rule"
-                        break
-            updates.append((project_id, origin, cwd, row["record_key"]))
+            project_id, origin = choose_project(
+                cwd, rules, fingerprint=row["content_hash"],
+                manual=(row["override_id"], row["override_hash"]) if row["override_id"] else None,
+                retained=(row["link_id"], row["link_basis"]) if row["linked_record"] else None,
+                session=(row["binding_id"], row["binding_basis"]) if row["binding_id"] else None,
+            )
+            if row["linked_record"]:
+                cwd = cwd or row["saved_cwd"]
+            if not row["linked_record"] and origin != "manual":
+                link_record(connection, row["record_key"], project_id, origin, {"cwd": cwd},
+                            operation=operation,
+                            reason="沿用已确认项目依据" if project_id else "留存待归属消费")
+                if project_id and row["session_id"]:
+                    bind_session(connection, row["session_id"], project_id, origin, {"cwd": cwd})
+            updates.append((project_id or "", origin, cwd, row["record_key"]))
         connection.executemany(
             "UPDATE usage_records SET project_id=?,assignment_origin=?,cwd=? WHERE record_key=?",
             updates,
@@ -591,6 +594,24 @@ def resolve_reconciliation(
                 ).fetchone()
                 if original is None or candidate is None:
                     raise AppError("invalid_candidate", "消费事实已变化，请刷新。", 409)
+                if (original["project_id"] and candidate["project_id"]
+                        and original["project_id"] != candidate["project_id"]):
+                    raise AppError(
+                        "assignment_conflict",
+                        "两条消费属于不同项目，请先核实项目归属再合并身份。", 409
+                    )
+                if not original["project_id"] and candidate["project_id"]:
+                    from .project_links import link_record
+
+                    # Identity confirmation is new project evidence for the canonical
+                    # consumption, not a copied fingerprint-bound candidate override.
+                    link_record(
+                        connection, canonical, candidate["project_id"], "identity_confirmation",
+                        {"case_id": case_id, "alias_record_key": case["record_key"],
+                         "candidate_version_id": candidate["version_id"],
+                         "candidate_assignment_origin": candidate["assignment_origin"]},
+                        operation="identity:" + case_id, reason=reason.strip(), now=store._now(),
+                    )
                 scopes.add(original["scope_key"])
                 connection.execute(
                     "UPDATE usage_records SET suppressed=1 WHERE record_key=?",
@@ -642,6 +663,9 @@ def resolve_reconciliation(
                     (payload["cwd"], payload.get("parent_id"), version["content_hash"],
                      info["session_id"]),
                 )
+                from .project_links import forget_directory_links
+
+                forget_directory_links(connection, info["session_id"])
                 connection.execute(
                     "UPDATE reconciliation_cases SET state='superseded',generation=generation+1 "
                     "WHERE type='directory' AND record_key=? AND state='open' AND id!=?",

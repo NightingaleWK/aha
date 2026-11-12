@@ -18,6 +18,7 @@ from .domain import (
     canonical_bytes,
     content_hash,
 )
+from .migrations import SCHEMA_VERSION
 
 if TYPE_CHECKING:
     from .storage import Store
@@ -309,6 +310,34 @@ def _row_summary(
     return _finish_summary(dict(row))
 
 
+def _assignment_coverage(
+    connection: sqlite3.Connection, analysis: dict[str, Any]
+) -> dict[str, Any]:
+    """Describe unassigned verified usage in the period, independently of its project filter."""
+    unassigned = {**analysis, "project_id": "unassigned"}
+    mode = analysis["availability_mode"]
+    groups = _summary_groups(connection, unassigned)
+    summary = _combine_groups(groups, {"available"} if mode == "available"
+                              else {"available", "claimed"})
+    if analysis.get("target_batch_id"):
+        own = {**unassigned, "availability_mode": "available"}
+        summary = (
+            _row_summary(connection, own)
+            if mode == "available"
+            else _combine_summaries(summary, _row_summary(connection, own, state="pending"))
+        )
+    return {
+        "scope": "period",
+        "availability_mode": mode,
+        "status": "incomplete" if summary["detail_count"] or summary["rollup_count"]
+        else "complete",
+        "unassigned_detail_count": summary["detail_count"],
+        "unassigned_rollup_count": summary["rollup_count"],
+        "unassigned_record_count": summary["record_count"],
+        "unassigned_cost_usd": summary["total_cost_usd"],
+    }
+
+
 def _excluded_groups(
     connection: sqlite3.Connection, analysis: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -473,7 +502,7 @@ def _analyze(
         "timezone": "Asia/Shanghai",
         "schema_version": USAGE_PROJECTION_SCHEMA_VERSION,
         "usage_projection_schema_version": USAGE_PROJECTION_SCHEMA_VERSION,
-        "ledger_schema_version": 3,
+        "ledger_schema_version": SCHEMA_VERSION,
         "source": {"kind": "ledger", "name": "本地台账"},
         **store.revisions(connection),
     }
@@ -529,25 +558,8 @@ def _analyze(
         "excluded_summary": excluded,
         "excluded_groups": _excluded_groups(connection, result),
     }
-    unassigned = {**result, "project_id": "unassigned"}
-    unassigned_source, unassigned_parameters = _statistics_source(unassigned)
-    unassigned_where = (
-        "s.state='available'"
-        if availability_mode == "available"
-        else "s.state!='pending'"
-    )
-    result["unassigned_count"] = int(connection.execute(
-        f"SELECT integer_sum(record_count) FROM {unassigned_source} WHERE " + unassigned_where,
-        unassigned_parameters,
-    ).fetchone()[0] or 0)
-    if target_batch_id:
-        own_unassigned = {**unassigned, "availability_mode": "available"}
-        if availability_mode == "available":
-            result["unassigned_count"] = _row_summary(connection, own_unassigned)["record_count"]
-        else:
-            result["unassigned_count"] += _row_summary(
-                connection, own_unassigned, state="pending"
-            )["record_count"]
+    result["assignment_coverage"] = _assignment_coverage(connection, result)
+    result["unassigned_count"] = result["assignment_coverage"]["unassigned_record_count"]
     result["unassigned_record_count"] = result["unassigned_count"]
     result["warnings"] = ["参考成本沿用来源保存金额，申请报销金额另填。"]
     if pending:

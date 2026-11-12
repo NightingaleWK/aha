@@ -20,7 +20,7 @@ sql_dump.scan_sql_dump(data: bytes, name: str, sink) -> dict
 Store.sync_sqlite(...) / Store.sync_sql(...) / Store.sync_data(...)
 ```
 
-外部支持集合、版本提示文本和校验复用 domain；sources/sql_dump 观察真实外部版本，sync 将它写入既有 sync_runs.result_json。应用仍为 schema3，无新增迁移。
+外部支持集合、版本提示文本和校验复用 domain；sources/sql_dump 观察真实外部版本，sync 将它写入既有 sync_runs.result_json。外部兼容本身不要求应用库迁移；当前应用schema4及schema3升级由[项目归属合同](./project-association-contract.md)管理，内部用量投影仍为23。
 
 ## 3. 数据合同
 

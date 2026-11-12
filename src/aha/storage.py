@@ -8,6 +8,7 @@ import os
 import sqlite3
 import sys
 import threading
+from collections import OrderedDict
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
@@ -32,6 +33,9 @@ class Store:
         # Failed runs may need cleanup after a competing SQLite writer releases.
         self._sync_failure_lock = threading.Lock()
         self._pending_sync_failures: dict[str, tuple[str, str]] = {}
+        self._association_preview_lock = threading.Lock()
+        self._association_previews: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self.migration_backup: dict[str, Any] | None = None
         if not sqlite_wal_safe():
             raise AppError(
                 "unsupported_sqlite", "SQLite 运行时缺少必要并发修复，请使用新版完整程序。", 500
@@ -50,6 +54,15 @@ class Store:
             self._db.execute("PRAGMA foreign_keys=ON")
             self._db.execute("PRAGMA trusted_schema=OFF")
             register(self._db)
+            if self._db.execute("PRAGMA user_version").fetchone()[0] == 3:
+                # Before any migration transaction or journal-mode changes, preserve
+                # a validated consistent source (including WAL and frozen packages).
+                from .backup import create_backup
+
+                self.migration_backup = create_backup(
+                    self.data_dir,
+                    self.data_dir / "backups" / f"before-schema4-{uuid4().hex}.aha-backup",
+                )
             # Reject old trial databases before changing their journal mode.
             with self._transaction():
                 initialize(self)
@@ -63,6 +76,10 @@ class Store:
             if hasattr(self, "_db"):
                 self._db.close()
             raise AppError("storage_unavailable", "本地资料目录无法打开或结构损坏。", 500) from exc
+        except BaseException:
+            if hasattr(self, "_db"):
+                self._db.close()
+            raise
 
     @staticmethod
     def _now() -> str:
@@ -359,6 +376,30 @@ class Store:
 
     def assign_session(self, session_id: str, project_id: str | None) -> dict[str, Any]:
         return self.assign_sessions([session_id], project_id)
+
+    def association_status(self) -> dict[str, Any]:
+        from .associations import association_status
+
+        return association_status(self)
+
+    def association_records(
+        self, filters: dict[str, Any], *, cursor: str | None = None, size: int = 50
+    ) -> dict[str, Any]:
+        from .associations import association_records
+
+        return association_records(self, filters, cursor=cursor, size=size)
+
+    def preview_associations(self, request: dict[str, Any]) -> dict[str, Any]:
+        from .associations import preview_associations
+
+        return preview_associations(self, request)
+
+    def apply_associations(
+        self, preview_id: str, reason: str, idempotency_key: str
+    ) -> dict[str, Any]:
+        from .associations import apply_associations
+
+        return apply_associations(self, preview_id, reason, idempotency_key)
 
     def analyze(
         self, start_date: str, end_date: str, project_id: str = "all", **kwargs: Any

@@ -100,12 +100,14 @@ def _reader(path: Path, budget: _Budget) -> Iterator[sqlite3.Connection]:
         connection.close()
 
 
-@lru_cache(maxsize=1)
-def _schema() -> tuple[dict[str, list[tuple[Any, ...]]], dict[str, str]]:
+@lru_cache(maxsize=2)
+def _schema(version: int = migrations.SCHEMA_VERSION) -> tuple[
+    dict[str, list[tuple[object, ...]]], dict[str, str]
+]:
     """Use the production DDL, never a second hand-maintained schema definition."""
     connection = sqlite3.connect(":memory:")
     try:
-        connection.executescript(migrations.SCHEMA)
+        connection.executescript(migrations.SCHEMA_V3 if version == 3 else migrations.SCHEMA)
         migrations.initialize_monthly(connection)
         migrations.initialize_source_observations(connection)
         migrations.initialize_query_indexes(connection)
@@ -127,9 +129,10 @@ def _schema() -> tuple[dict[str, list[tuple[Any, ...]]], dict[str, str]]:
 
 def _validate_database(connection: sqlite3.Connection, budget: _Budget) -> dict[str, int]:
     budget.check()
-    if connection.execute("PRAGMA user_version").fetchone()[0] != migrations.SCHEMA_VERSION:
+    version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+    if version not in migrations.SUPPORTED_BACKUP_SCHEMAS:
         raise AppError("unsupported_backup_store", "备份中的 aha 资料版本不受支持。", 409)
-    expected, definitions = _schema()
+    expected, definitions = _schema(version)
     tables = {
         str(row[0])
         for row in connection.execute(
@@ -344,7 +347,8 @@ def create_backup(
             database = workspace / "aha.sqlite3"
             with _reader(root / "aha.sqlite3", budget) as source:
                 # The schema read pins the same snapshot subsequently copied by backup().
-                if source.execute("PRAGMA user_version").fetchone()[0] != migrations.SCHEMA_VERSION:
+                source_version = int(source.execute("PRAGMA user_version").fetchone()[0])
+                if source_version not in migrations.SUPPORTED_BACKUP_SCHEMAS:
                     raise AppError(
                         "unsupported_backup_store", "这份 aha 资料版本不支持完整备份。", 409
                     )
@@ -363,7 +367,7 @@ def create_backup(
                 "format": FORMAT,
                 "format_version": FORMAT_VERSION,
                 "application_version": __version__,
-                "store_schema_version": migrations.SCHEMA_VERSION,
+                "store_schema_version": source_version,
                 "created_at": created_at,
                 "files": [],
                 "excluded": [
@@ -418,7 +422,7 @@ def create_backup(
                 "size": size,
                 "created_at": created_at,
                 "format_version": FORMAT_VERSION,
-                "store_schema_version": migrations.SCHEMA_VERSION,
+                "store_schema_version": source_version,
                 "counts": counts,
             }
     except AppError:
@@ -526,7 +530,7 @@ def _manifest(
         or type(value.get("format_version")) is not int
         or value["format_version"] != FORMAT_VERSION
         or type(value.get("store_schema_version")) is not int
-        or value["store_schema_version"] != migrations.SCHEMA_VERSION
+        or value["store_schema_version"] not in migrations.SUPPORTED_BACKUP_SCHEMAS
         or not isinstance(value.get("application_version"), str)
         or not isinstance(value.get("created_at"), str)
         or not isinstance(value.get("files"), list)
@@ -667,19 +671,41 @@ def restore_backup(
             _, digest = _hash_stream(stream, budget)
             stream.seek(0)
             with zipfile.ZipFile(stream) as bundle:
-                _, records = _manifest(bundle, budget)
+                manifest, records = _manifest(bundle, budget)
                 _extract(bundle, records, staging, budget)
             after = os.fstat(stream.fileno())
             if before.st_size != after.st_size or before.st_mtime_ns != after.st_mtime_ns:
                 raise AppError("backup_file_changed", "恢复期间备份文件发生变化，请重新选择。", 409)
         with _reader(staging / "aha.sqlite3", budget) as database:
             counts = _validate_database(database, budget)
+            if database.execute("PRAGMA user_version").fetchone()[0] != manifest[
+                "store_schema_version"
+            ]:
+                raise AppError("invalid_backup", "备份清单与数据库资料版本不一致。", 409)
             references = _packages(database)
         if {name for name in records if name.startswith("packages/")} != set(references):
             raise AppError("invalid_backup", "完整备份的原材料与数据库登记不一致。", 409)
         if any(records[name]["sha256"] != expected for name, expected in references.items()):
             raise AppError("invalid_backup", "完整备份的原材料校验与历史登记不一致。", 409)
         interrupted = _interrupt_restored_runs(staging / "aha.sqlite3", budget)
+        if manifest["store_schema_version"] == 3:
+            # The immutable schema3 archive is the rollback copy. Upgrade only
+            # the isolated restore staging, never the archive or running ledger.
+            with closing(sqlite3.connect(staging / "aha.sqlite3", isolation_level=None)) as target:
+                target.execute("PRAGMA foreign_keys=ON")
+                target.execute("PRAGMA trusted_schema=OFF")
+                target.set_progress_handler(budget.progress, 5000)
+                try:
+                    target.execute("BEGIN IMMEDIATE")
+                    migrations.upgrade_schema3(
+                        target, datetime.now(UTC).isoformat(timespec="microseconds")
+                    )
+                    budget.check()
+                    target.execute("COMMIT")
+                except BaseException:
+                    if target.in_transaction:
+                        target.execute("ROLLBACK")
+                    raise
         restored_at = datetime.now(BEIJING).isoformat(timespec="seconds")
         marker = {
             "format_version": 1,

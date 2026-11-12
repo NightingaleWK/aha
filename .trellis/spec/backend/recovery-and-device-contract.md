@@ -4,6 +4,8 @@
 
 修改来源身份、核对、目录依据、备份/恢复、相关HTTP/CLI时阅读。aha历史台账独立于当前CCS快照；程序位置不决定资料位置。完整恢复与CCS用量导入分开，当前只支持单向迁移/独立目录恢复，不协调两个独立业务库的报销占用。
 
+当前应用schema4，支持schema3完整备份的严格校验与新目录无损升级；逐笔归属、历史目录恢复和升级回退以[项目归属合同](./project-association-contract.md)为准。消费归属和项目费用是业务终点，保住来源/目录并不等于已恢复失效的项目统计。
+
 ## 2. 签名与所有者
 
 ```text
@@ -42,9 +44,9 @@ HTTP使用既有Cookie/Host/Origin/CSRF边界：
 - ZIP容器，`manifest.json`的format=`aha-full-backup`、format_version=1；记录application_version、store_schema_version、created_at、files的path/size/sha256及排除项。
 - SQLite backup API从一致读事务复制已提交WAL，释放源后打包；全部revisions引用的ZIP（含历史/作废版）按原hash保留，objects逐文件保全。项目/归属/报销/占用/核对在DB中完整保留。
 - 不直接拷贝活动主库，不备份runtime凭证/锁/temporary/嵌套backups/旧restore marker/机器身份。未知资料文件明确阻断，不静默丢弃。生成与恢复默认最多4GiB归档、16GiB展开、100000成员；manifest/中央目录也有独立上限，传输不走128MiB SQL base64协议。
-- 恢复校验表结构、索引/触发器DDL、quick_check、foreign keys、包引用与SHA；拒绝重复或大小写碰撞路径、穿越、绝对路径、保留设备名、链接/重解析点、缺失/多余成员及不支持格式。
+- 恢复按manifest所标schema3/4的权威定义校验表结构、索引/触发器DDL、quick_check、foreign keys、包引用与SHA，清单/DB版本必须一致；拒绝重复或大小写碰撞路径、穿越、绝对路径、保留设备名、链接/重解析点、缺失/多余成员及不支持格式。
 - 目标必须尚不存在，且不嵌套源/当前资料目录；独占staging验证后按平台noreplace原子落位，失败清理只限本次staging。当前库始终不在线替换。
-- 新`restore-info.json`含format_version1、restore_id UUID、restored_at、archive_sha256，恢复后同机也需新来源绑定。无running/staging时DB保留原字节；有未完成run时仅恢复新目录将其failed/sync_interrupted并清暂存，不改归档或已发布事实/原包。
+- 新`restore-info.json`含format_version1、restore_id UUID、restored_at、archive_sha256，恢复后同机也需新来源绑定。同版本且无running/staging时DB保留原字节；schema3恢复只在独立staging受控升schema4。有未完成run时仅恢复新目录将其failed/sync_interrupted并清暂存，不改归档或已发布事实/原包；旧ZIP在所有路径保持原字节。
 - 完整备份为私有资料，与费用分享包不同。恢复目录与默认目录独立；再次双击默认EXE仍打开默认目录，结果需提供再次打开恢复目录的方式。
 
 ## 4. 验证与错误矩阵

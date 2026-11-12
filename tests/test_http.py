@@ -143,6 +143,56 @@ class HTTPTests(unittest.TestCase):
             },
         )
 
+    def test_association_worklist_preview_and_atomic_apply_use_auth_and_full_filter(self) -> None:
+        self.load_usage(80)
+        project = self.json("POST", "/api/projects", {
+            "name": "批量归属项目", "description": "", "directories": [],
+        })["project"]["id"]
+        self.assertEqual(
+            self.request("GET", "/api/project-associations", authenticated=False)[0], 401
+        )
+        status = self.json("GET", "/api/project-associations")
+        self.assertEqual(status["summary"]["unassigned_detail_count"], 80)
+        first = self.json("GET", "/api/project-associations/records?size=50")
+        self.assertEqual(len(first["rows"]), 50)
+        self.assertTrue(first["has_more"])
+        self.assertEqual(self.request(
+            "POST", "/api/project-associations/preview", {"action": "assign"},
+            {"X-AHA-CSRF": "invalid"},
+        )[0], 403)
+        preview = self.json("POST", "/api/project-associations/preview", {
+            "action": "assign", "project_id": project, "filters": {"project_id": "unassigned"},
+        })
+        self.assertEqual(preview["summary"]["selected_detail_count"], 80)
+        request = {"preview_id": preview["preview_id"], "reason": "核实本期消费归属",
+                   "idempotency_key": "http-association-apply-test"}
+        result = self.json("POST", "/api/project-associations/apply", request)
+        self.assertEqual(result["changed_count"], 80)
+        self.assertEqual(self.json("POST", "/api/project-associations/apply", request), result)
+        self.assertEqual(self.analyze(project)["summary"]["detail_count"], 80)
+        self.assertEqual(self.json("GET", "/api/project-associations")["summary"]
+                         ["unassigned_detail_count"], 0)
+
+    def test_association_preview_expires_after_project_rules_change(self) -> None:
+        self.load_usage(1)
+        project = self.json("POST", "/api/projects", {
+            "name": "项目", "description": "", "directories": [],
+        })["project"]["id"]
+        preview = self.json("POST", "/api/project-associations/preview", {
+            "action": "assign", "project_id": project,
+        })
+        self.json("POST", "/api/projects/" + project, {
+            "name": "项目", "description": "规则改变", "directories": ["/new/repo"],
+        })
+        code, _, payload = self.request("POST", "/api/project-associations/apply", {
+            "preview_id": preview["preview_id"], "reason": "迟到的确认",
+            "idempotency_key": "http-association-expired-test",
+        })
+        self.assertEqual(code, 409)
+        self.assertEqual(json.loads(payload)["code"], "association_preview_expired")
+        self.assertEqual(self.json("GET", "/api/project-associations")["summary"]
+                         ["unassigned_detail_count"], 1)
+
     @staticmethod
     def claim(purpose: str = "项目开发") -> dict[str, Any]:
         return {"purpose": purpose, "amount": "", "currency": "CNY", "amount_note": ""}

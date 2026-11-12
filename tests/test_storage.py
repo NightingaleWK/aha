@@ -18,6 +18,7 @@ from test_sources import database, dump
 from test_storage_helpers import claim, detail, metadata, rollup, source_data
 
 from aha.domain import AppError, record_key
+from aha.migrations import SCHEMA_VERSION
 from aha.storage import Store
 from aha.sync import _Stager
 
@@ -78,7 +79,7 @@ class LedgerStorageTests(unittest.TestCase):
                 self.assertEqual(upgraded["unchanged_count"], 1)
                 self.assertEqual(self.query()["summary"]["record_count"], 0)
         with self.store.read_connection() as db:
-            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM usage_records").fetchone()[0], 1)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM usage_versions").fetchone()[0], 1)
             self.assertEqual(tuple(db.execute(

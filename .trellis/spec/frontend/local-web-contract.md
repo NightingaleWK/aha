@@ -21,6 +21,8 @@
 | `GET /api/projects` | 项目配置与分类 revision |
 | `POST /api/projects`、`/api/projects/{id}` | `name/description/directories`，名称最多160字符 |
 | `POST /api/assignments` | `project_id` 加 keys 或 session_ids；rollup 按整条记录处理 |
+| `GET /api/project-associations`、`/records` | 项目费用/待归属分组及修订绑定的keyset记录清单 |
+| `POST /api/project-associations/preview`、`/apply` | 全筛选/逐条/整会话的归属影响预览与原子幂等应用；协议见[项目归属合同](../backend/project-association-contract.md) |
 | `GET /api/reconciliations` | `{cases}`，来源重建、版本或覆盖的待核对事项 |
 | `POST /api/reconciliations/{id}` | `choice/reason/expected_generation/idempotency_key`，按实际候选确认 |
 | `POST /api/analysis` | project、time_range意图或旧起止日期（二者互斥）、`availability_mode=available|all`；只查本地库 |
@@ -65,6 +67,8 @@
 正文/输入16px，表格/按钮15px，标签/表头14px，次要至少13px；主要控件约44px。青绿、深色导航和卡片风格，标题“用量与费用/项目管理/报销记录”。筛选→指标→必要排除说明→申请表单→长预览；币种完整可见，容器滚动或换行，不缩字适配。
 
 来源/协议细节放按需帮助；不向产品流程加入内部 epoch、迁移协议或助手旁白。成功提示短浮动，操作错误持续可见并进入当前弹窗。
+
+项目页首先回答项目费用、成员数量与待归属进度，目录维护作为辅助入口。批量须明确“当前页/所选记录/全部筛选/整个会话及未来”范围；有效关系保存在aha中。查看全部费用仍是all只读口径，申请报销切回可用用量。同期未归属单独说明，不能混算成某项目或假称全部已完成；覆盖与冻结合同见[项目归属合同](../backend/project-association-contract.md)。
 
 ## 6. 验证
 
