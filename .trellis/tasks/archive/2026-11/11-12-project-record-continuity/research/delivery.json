@@ -1,0 +1,203 @@
+{
+  "verified": true,
+  "started_at": "2026-11-12T15:21:35.867090+08:00",
+  "source_ref": "WORKTREE",
+  "executable_sha256": "9ccd827d1dc4edbbda8b4a8bf30abe3867143950b828a7ffc5217c97e334e97a",
+  "native_tray_enabled": true,
+  "physical_tray_input": false,
+  "synchronization_requested_by_script": false,
+  "source_fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "product_files_sha256": "ddf7c2b41e7d3ffa25993ade60a621909e539608e4dc2a6aeb41a039987a89fc",
+  "gate_sha256": {
+    "python-final.json": "8781cd9e1d6415b34cb66904388ad02923c31fc31eec17c535b99ff9f97b94f1",
+    "directory-verification.json": "2d0485fc3ec3f6b32e611658ab981b11348e1402496477915322ba56074acff9",
+    "onefile-verification.json": "336b14ee795b8673b2fd077030fd1cb8d1cf45829287881637f9c78029013a1d",
+    "native-ui-directory.json": "d56979a836f9b27a883c9f1291b92f619d6500b5af76d8ebee098f71b8cbb163",
+    "native-ui-onefile.json": "bcd565e934b00ba68a3d11d474dbfa791d6a77d3d2eb439a8b2dde6f18a7be05",
+    "native-materials-directory.json": "2d05fd5c2404788cc62fcf59d0b29d14c8c97e064db0b1c63a6d702f57ad2068",
+    "native-materials-onefile.json": "e9df31f9c14adea28fbdccdb2115d09637c00f72a061817890cf708f87ec56b1",
+    "frozen-real-copy-verification.json": "20f38c6fe51414e5beb6b741ec358562f46133d4b1f8ee174dfc3fbb70f3e77c",
+    "node-final.log": "502cd6da9212c78f4a2e2d384063ba4478bba4586df8c044221355fb3841fb5b"
+  },
+  "version": "0.4.1",
+  "build_runtime": {
+    "windows": true,
+    "isolated": true,
+    "bits": 64,
+    "python": [
+      3,
+      12,
+      16
+    ],
+    "machine": "AMD64",
+    "sqlite": [
+      3,
+      53,
+      1
+    ],
+    "sqlite_version": "3.53.1",
+    "packages": {
+      "pyinstaller": "6.22.3",
+      "setuptools": "84.2.1",
+      "wheel": "0.48.0",
+      "zstandard": "0.25.0",
+      "altgraph": "0.17.5",
+      "packaging": "26.3",
+      "pefile": "2024.8.26",
+      "pyinstaller-hooks-contrib": "2026.9",
+      "pywin32-ctypes": "0.2.3"
+    }
+  },
+  "runtime_sha256": "1f8c0f27921d8b77671ced7ac224119085e0abd4517c638e1b06e8dafe4ac6d4",
+  "build_runtime_probe_sha256": "bcfcb2a4762f738735a7a0ef725df654167eb1bfcb0f5224c3b4f10b250acecb",
+  "qa_tools": {
+    "ruff": "0.17.4",
+    "mypy": "2.4.1",
+    "playwright": "1.65.1",
+    "pywin32": "312",
+    "pypdf": "7.0.1",
+    "pymupdf": "1.26.7"
+  },
+  "migration_preserves_facts_project_rules_claims_packages_and_coverage": true,
+  "same_instance_reopened_without_new_sync": true,
+  "completed_at": "2026-11-12T15:22:53.484886+08:00",
+  "desktop": "C:\\Users\\djsyw\\Desktop\\aha.exe",
+  "desktop_executable": "C:\\Users\\djsyw\\Desktop\\aha.exe",
+  "desktop_sha256": "9ccd827d1dc4edbbda8b4a8bf30abe3867143950b828a7ffc5217c97e334e97a",
+  "desktop_started_and_verified": true,
+  "existing_program": {
+    "path": "D:\\Program Files\\aha.exe",
+    "updated": true,
+    "already_matching": false
+  },
+  "desktop_delivery": {
+    "path": "C:\\Users\\djsyw\\Desktop\\aha.exe",
+    "updated": true,
+    "already_matching": false
+  },
+  "actual_data_directory": "C:\\Users\\djsyw\\AppData\\Local\\aha",
+  "schema_before": 3,
+  "schema_after": 4,
+  "counts_before": {
+    "usage_records": 42220,
+    "usage_versions": 42220,
+    "projects": 5,
+    "sessions": 411,
+    "usage_claims": 0,
+    "revisions": 0
+  },
+  "counts_after": {
+    "usage_records": 42220,
+    "usage_versions": 42220,
+    "projects": 5,
+    "sessions": 411,
+    "usage_claims": 0,
+    "revisions": 0
+  },
+  "assigned_before": 1500,
+  "assigned_after": 38665,
+  "recovered_sessions": 347,
+  "recovered_detail_count": 37165,
+  "preview_counts": {
+    "selected_detail_count": 38978,
+    "selected_rollup_count": 0,
+    "selected_record_count": 38978,
+    "changed_count": 37165,
+    "session_count": 347,
+    "recovered_sessions": 347,
+    "directory_only_sessions": 50,
+    "manual_exceptions": 0
+  },
+  "association_counts_after": {
+    "detail_count": 42103,
+    "rollup_count": 110,
+    "record_count": 77603,
+    "unassigned_detail_count": 3438,
+    "unassigned_rollup_count": 110,
+    "unassigned_record_count": 38938,
+    "pending_count": 0,
+    "assigned_detail_count": 38665,
+    "recoverable_sessions": 0,
+    "recoverable_detail_count": 0,
+    "directory_only_sessions": 0,
+    "directory_only_detail_count": 0,
+    "ambiguous_sessions": 0
+  },
+  "immutable_fact_hashes": {
+    "fact_identity_content": {
+      "sha256": "5a58d961765a0ba80ff74041e31e63185eae1b4e6d25aea3ea7a5dfaf5715dd7"
+    },
+    "versions": {
+      "sha256": "caa0c855bbe436388d0f82692432303e55405a28abb7488ca67e4afe37a738fe"
+    },
+    "projects": {
+      "sha256": "908055944dcce63b690f75229be949a469d0b9d6d96d43a2c89d315ad01351e2"
+    },
+    "claims": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "revisions": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "coverage": {
+      "sha256": "e1d173909e2a2a5afd6d08eac2a1b69f91742e1957403897a101690be6f62288"
+    }
+  },
+  "relationships_after": {
+    "projection": "01717de140b5bf07501bdf04a6470ba46e2e10487e8818499e2b9be37ce482d7",
+    "record_project_links": "ed5175310749b815a8bfada4c92240fdb850157fcb398fa90346382d4645bc2b",
+    "session_project_bindings": "8b581ec24c1471af5b51a13ffd0bcd5f41c31522f6be81653749697988ae3da3",
+    "project_assignment_events": "7275874595f0e990a89fbedd3249a6dfa39211c29406ae664c9c00c5165a9803"
+  },
+  "conservation": {
+    "verified": true,
+    "represented_record_count": 77603,
+    "summary_sha256": "f09da85a747dc5e592d150a31d03c6fd5d862a96038323b8b4ec39301b78d0fc"
+  },
+  "original_packages_and_claims_unchanged": true,
+  "coverage_and_project_rules_unchanged": true,
+  "backup_before": {
+    "archive_path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\aha-before-final-apply-d948bde94b81.aha-backup",
+    "sha256": "aa8dcf2d996174632bf7010376239359447b9511e08556834a895ccff437e734",
+    "size": 41497790,
+    "format_version": 1,
+    "store_schema_version": 3,
+    "counts": {
+      "usage_records": 42220,
+      "usage_versions": 42220,
+      "projects": 5,
+      "sessions": 411,
+      "batches": 0,
+      "revisions": 0,
+      "usage_claims": 0,
+      "reconciliation_cases": 8
+    }
+  },
+  "backup_after": {
+    "archive_path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\aha-after-project-associations-c48292ed1446.aha-backup",
+    "sha256": "6d51e061c09a506b50fe3274873ef95788912827f50ac829cf08d1cc8dba3e59",
+    "size": 46546933,
+    "format_version": 1,
+    "store_schema_version": 4,
+    "counts": {
+      "usage_records": 42220,
+      "usage_versions": 42220,
+      "projects": 5,
+      "sessions": 411,
+      "batches": 0,
+      "revisions": 0,
+      "usage_claims": 0,
+      "reconciliation_cases": 355
+    }
+  },
+  "protected_initial_archive": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\aha-before-project-associations.aha-backup",
+  "preserved_old_executable": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\aha-before-project-associations.exe",
+  "independent_post_recovery_restore_verified": true,
+  "independent_restore_directory": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\primary-recovery-validation-87ca0f4404\\ledger",
+  "real_default_instance_left_running": true
+}

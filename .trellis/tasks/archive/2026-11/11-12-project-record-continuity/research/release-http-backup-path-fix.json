@@ -1,0 +1,20 @@
+{
+  "verified": true,
+  "ast_parse_passed": true,
+  "ruff_returncode": 0,
+  "changed_files": [
+    "tests/test_http_backup.py"
+  ],
+  "changed_behavior": "strictly resolve expected existing restore/open target paths before comparison",
+  "product_source_modified": false,
+  "native_test_executed": true,
+  "cloud_observed_short_alias": "RUNNER~1 vs runneradmin",
+  "native_test_returncode": 0,
+  "native_tests_run": 11,
+  "native_python": [
+    3,
+    15,
+    2
+  ],
+  "native_sqlite": "3.53.4"
+}

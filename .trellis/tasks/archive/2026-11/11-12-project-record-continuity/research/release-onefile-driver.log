@@ -1,0 +1,73 @@
+{
+  "verified": true,
+  "stage": "OneFile",
+  "version": "0.5.0",
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "source_fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "actual_build_runtime": {
+    "windows": true,
+    "isolated": true,
+    "bits": 64,
+    "python": [
+      3,
+      15,
+      2
+    ],
+    "machine": "AMD64",
+    "sqlite": [
+      3,
+      53,
+      4
+    ],
+    "sqlite_version": "3.53.4",
+    "packages": {
+      "aha-usage": "0.5.0",
+      "altgraph": "0.17.5",
+      "ast-serialize": "0.13.1",
+      "greenlet": "3.5.6",
+      "librt": "0.16.0",
+      "mypy": "2.4.1",
+      "mypy-extensions": "1.2.0",
+      "packaging": "26.3",
+      "pathspec": "1.1.1",
+      "pefile": "2024.8.26",
+      "pip": "26.2.2",
+      "playwright": "1.65.1",
+      "pyinstaller": "6.22.3",
+      "pyinstaller-hooks-contrib": "2026.9",
+      "pymupdf": "1.26.7",
+      "pypdf": "7.0.1",
+      "pywin32": "312",
+      "pywin32-ctypes": "0.2.3",
+      "ruff": "0.17.4",
+      "setuptools": "84.2.1",
+      "typing-extensions": "4.16.0",
+      "wheel": "0.48.0",
+      "zstandard": "0.25.0"
+    }
+  },
+  "real_profile_used": false,
+  "directory_gates_sha256": {
+    "release-directory-build.json": "8908ff7ae62d4a6f048b79fe70ee93347b9550a4b3cb2fee94af94d21437679f",
+    "release-directory-verification.json": "33090051cdbcec0b558c4f3c08e1e7bf3bd13464c536fca8b432055559d575ec",
+    "release-native-ui-directory.json": "59d0957786ac3be2e6c834ef7e28e2be022026305204d861f3e51024c6a07306",
+    "release-native-materials-directory.json": "aa1b9d39c6e8f328e2ff97257aab883f682fa44cee30674ac0fef0a111000fe1"
+  },
+  "started_at": "2026-11-12T08:29:32.846109+00:00",
+  "build_returncode": 0,
+  "build_log_sha256": "ddbb3880efbd98dc02bba73873d7d1e49bf65463f93d1803a87f9bec34e543a6",
+  "executable": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\build\\release\\portable\\aha.exe",
+  "executable_sha256": "675be8054caba4b7397b96af9baa1a8271a5a9cc4e7d6a54049678e716319318",
+  "bundled_sqlite_matches_verified_public_production_bytes": true,
+  "verification_returncode": 0,
+  "verification_log_sha256": "e36a840081cfbee7ea5402c08a8e5f4baf514d1923ffc15852ea423558283a95",
+  "completed_at": "2026-11-12T08:30:29.402130+00:00",
+  "verification_fixture": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\verify-onefile-188cb1cae7cc",
+  "standard_native_gate_passed": true
+}

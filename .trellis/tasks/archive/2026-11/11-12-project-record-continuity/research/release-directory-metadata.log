@@ -1,0 +1,18 @@
+Obtaining file://wsl.localhost/Ubuntu-26.04/home/wangkai/code/aha
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: zstandard==0.25.0 in C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\qa315\Lib\site-packages (from aha-usage==0.5.0) (0.25.0)
+Building wheels for collected packages: aha-usage
+  Building editable for aha-usage (pyproject.toml): started
+  Building editable for aha-usage (pyproject.toml): finished with status 'done'
+  Created wheel for aha-usage: filename=aha_usage-0.5.0-0.editable-py3-none-any.whl size=10138 sha256=26b0187d4185168c0c1376bcca88fa747f4ce4fe92e2f0a99377dcb6ee927dca
+  Stored in directory: C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\qa-profile-7800\Temp\pip-ephem-wheel-cache-k405wc80\wheels\ae\aa\c4\fd16ba19b78f5646dd5705ba2f69e685b6aef1d939b36e14ef
+Successfully built aha-usage
+Installing collected packages: aha-usage
+  Attempting uninstall: aha-usage
+    Found existing installation: aha-usage 0.4.1
+    Not uninstalling aha-usage at \\wsl.localhost\ubuntu-26.04\home\wangkai\code\aha\src, outside environment C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\qa315
+    Can't uninstall 'aha-usage'. No files were found to uninstall.
+Successfully installed aha-usage-0.5.0

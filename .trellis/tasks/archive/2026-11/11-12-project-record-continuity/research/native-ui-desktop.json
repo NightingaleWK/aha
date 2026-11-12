@@ -1,0 +1,67 @@
+{
+  "verified": true,
+  "mode": "exe",
+  "case_id": "association-ui-desktop-c97d52f1",
+  "browser": "native Edge via Playwright headless",
+  "physical_desktop_input": false,
+  "profile_isolated": true,
+  "checks": [
+    "schema3_restore_then_native_upgrade",
+    "project_cost_overview_and_pending_reasons",
+    "ui_all_filtered_80_rows_from_50_row_page",
+    "ui_one_record_expands_whole_session_and_old_preview_expires",
+    "ui_sql_import_future_record_inherits_session_project",
+    "ui_history_recovery_preserves_owners_and_uncertain_queue",
+    "escape_focus_and_five_responsive_widths",
+    "ui_project_preview_save_and_exact_evidence_members",
+    "native_reopen_retains_ownership_and_original_package"
+  ],
+  "started_at": "2026-11-12T15:23:39.560838+08:00",
+  "ui_source_sha256": {
+    "app.js": "8318e5177f275b1219281d90353421111d7ddee22a67ef71bf9ceafebc13d91a",
+    "index.html": "3b5d26dc97c6d99a061a5fa84674b04f277d631ee7f52d85f13d60cf2ac999e1",
+    "style.css": "9dd6a94af5fd2d61d75fe8f5fd7ff91f8f9a5c5a24f9baebf919874eb7bff992"
+  },
+  "executable_sha256": "9ccd827d1dc4edbbda8b4a8bf30abe3867143950b828a7ffc5217c97e334e97a",
+  "layouts": [
+    {
+      "width": 1440,
+      "horizontal_overflow": false
+    },
+    {
+      "width": 1366,
+      "horizontal_overflow": false
+    },
+    {
+      "width": 1280,
+      "horizontal_overflow": false
+    },
+    {
+      "width": 430,
+      "horizontal_overflow": false
+    },
+    {
+      "width": 375,
+      "horizontal_overflow": false
+    }
+  ],
+  "material": {
+    "member_count": 81,
+    "total_cost_usd": "9.9999927",
+    "assignment_status": "incomplete",
+    "sha256": "5066c5898f2182473105e607a64324992a8e8210b50c3e8a9871545175e0651c"
+  },
+  "conservation": {
+    "record_count": 160,
+    "total_cost_usd": "19.88887511",
+    "unassigned_detail_count": 16,
+    "unassigned_rollup_count": 1
+  },
+  "original_facts_unchanged": true,
+  "console_error_count": 0,
+  "page_error_count": 0,
+  "final_detail_count": 153,
+  "final_claim_count": 81,
+  "final_record_count": 160,
+  "completed_at": "2026-11-12T15:23:55.358745+08:00"
+}

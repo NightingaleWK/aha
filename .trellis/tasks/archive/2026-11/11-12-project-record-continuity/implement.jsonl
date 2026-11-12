@@ -1,0 +1,9 @@
+{"file":".trellis/spec/backend/recovery-and-device-contract.md","reason":"来源身份、缺日志保留旧目录、完整恢复和真实资料边界"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"事务、持久化、精确派生统计与无损兼容"}
+{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"逐条归属、内容指纹人工例外、项目费用与冻结报销证据的主合同"}
+{"file":".trellis/spec/backend/project-association-contract.md","reason":"实现后的持久逐笔关系/NULL待归属基线、批量及历史恢复边界、schema4升级和冻结覆盖权威合同"}
+{"file":".trellis/spec/backend/time-range-contract.md","reason":"同时间/粒度口径的金额守恒及旧冻结材料兼容"}
+{"file":".trellis/spec/backend/delivery-and-cleanup.md","reason":"桌面单文件成品、真实资料保护、验证证据与任务临时文件清理"}
+{"file":".trellis/spec/frontend/state-management.md","reason":"恢复预览提交、动态刷新和迟到成功/失败失效"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"项目选择、动态 options、键盘和焦点"}
+{"file":".trellis/tasks/11-12-project-record-continuity/research/association-findings.md","reason":"当前真实数据、根因、可恢复范围与旧任务验收缺口"}

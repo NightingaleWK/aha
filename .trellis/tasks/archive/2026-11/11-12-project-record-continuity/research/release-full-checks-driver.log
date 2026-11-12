@@ -1,0 +1,98 @@
+{
+  "verified": true,
+  "purpose": "release-v050",
+  "started_at": "2026-11-12T08:07:43.415461+00:00",
+  "source_ref": "9dcf2e9efeb800d0b7e735107745f26af742571e",
+  "python": [
+    3,
+    15,
+    2
+  ],
+  "python_full": "3.15.2 (main, Oct 26 2026, 14:23:21) [MSC v.1951 64 bit (AMD64)]",
+  "sqlite": "3.53.4",
+  "sqlite_version": "3.53.4",
+  "sqlite_version_info": [
+    3,
+    53,
+    4
+  ],
+  "machine": "AMD64",
+  "windows": true,
+  "bits": 64,
+  "isolated": true,
+  "source_version": "0.4.1",
+  "candidate_build_started": false,
+  "real_profile_used": false,
+  "source_directory": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha",
+  "source_package": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\src\\aha\\__init__.py",
+  "task_root": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112",
+  "qa_python": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa315\\Scripts\\python.exe",
+  "source_fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "qa_tools": {
+    "ruff": "0.17.4",
+    "mypy": "2.4.1",
+    "playwright": "1.65.1",
+    "pywin32": "312",
+    "pypdf": "7.0.1",
+    "pymupdf": "1.26.7"
+  },
+  "fixed_build_packages": {
+    "pyinstaller": "6.22.3",
+    "setuptools": "84.2.1",
+    "wheel": "0.48.0",
+    "zstandard": "0.25.0",
+    "altgraph": "0.17.5",
+    "packaging": "26.3",
+    "pefile": "2024.8.26",
+    "pyinstaller-hooks-contrib": "2026.9",
+    "pywin32-ctypes": "0.2.3"
+  },
+  "expected_tests": 351,
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "python_tests": {
+    "returncode": 0,
+    "passed": true,
+    "started_at": "2026-11-12T08:07:44.778993+00:00",
+    "completed_at": "2026-11-12T08:15:47.461608+00:00",
+    "log_sha256": "fa34885d73ced1cb5546cbb10c0e1ab393647cfb62584d7db6f3cfe94a211f19"
+  },
+  "tests_run": 351,
+  "python_tests_passed": true,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "ruff": {
+    "returncode": 0,
+    "passed": true,
+    "started_at": "2026-11-12T08:15:47.497655+00:00",
+    "completed_at": "2026-11-12T08:15:48.260180+00:00",
+    "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+  },
+  "mypy": {
+    "returncode": 0,
+    "passed": true,
+    "started_at": "2026-11-12T08:15:48.275214+00:00",
+    "completed_at": "2026-11-12T08:16:11.946030+00:00",
+    "log_sha256": "d8718b1a9af3d237f75caefa2c246d31ce9b95648bf02213276847f4e0dc6069"
+  },
+  "compileall": {
+    "returncode": 0,
+    "passed": true,
+    "started_at": "2026-11-12T08:16:11.963512+00:00",
+    "completed_at": "2026-11-12T08:16:13.513233+00:00",
+    "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "source_fingerprints_after": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "source_unchanged": true,
+  "completed_at": "2026-11-12T08:16:14.242460+00:00"
+}

@@ -1,0 +1,55 @@
+{
+  "verified": true,
+  "artifact_id": 13924958970,
+  "artifact_sha256": "9a85417d5cfc6bae625f01f77a87d55cf1904b7be1370a1d5295a36b75ccd4f3",
+  "workflow_run_id": 43178376925,
+  "workflow_commit": "b7f4c4ea1e20925b4b72af70a9d46e5ecade24c0",
+  "provenance": {
+    "schema_version": 1,
+    "source_commit": "da826a723b81e76f805e3d8e13e0679dff9bbddf",
+    "workflow_commit": "b7f4c4ea1e20925b4b72af70a9d46e5ecade24c0",
+    "workflow_run_id": "43178376925",
+    "package": {
+      "name": "zstandard",
+      "version": "0.25.0",
+      "zstd_version": [
+        1,
+        5,
+        7
+      ]
+    },
+    "sdist": {
+      "filename": "zstandard-0.25.0.tar.gz",
+      "sha256": "7713e1179d162cf5c7906da876ec2ccb9c3a9dcbdffef0cc7f70c3667a205f0b",
+      "project_url": "https://pypi.org/project/zstandard/0.25.0/"
+    },
+    "wheel": {
+      "filename": "zstandard-0.25.0-cp315-cp315-win_amd64.whl",
+      "sha256": "a1c09646b16f6c5c3dfbd6d2074bbe5bdb6cac88d1566762b6ad2d7b4003e178",
+      "tags": [
+        "cp315-cp315-win_amd64"
+      ],
+      "compiled_modules": [
+        "zstandard/backend_c.cp315-win_amd64.pyd"
+      ]
+    },
+    "python": {
+      "version": "3.15.2",
+      "implementation": "CPython",
+      "cache_tag": "cpython-315",
+      "soabi": "cp315-win_amd64",
+      "extension_suffix": ".cp315-win_amd64.pyd",
+      "gil_disabled": false
+    },
+    "platform": {
+      "sys_platform": "win32",
+      "machine": "AMD64",
+      "bits": 64
+    },
+    "sqlite_version": "3.53.4",
+    "requirements_build_sha256": "0dcc6891f07ab931a88d495f29e1a8fb3cf9bfa2c061d4d7c3797bcab455ae1f",
+    "build_isolation": false,
+    "verified_native_import_and_roundtrip": true,
+    "created_at": "2026-11-12T07:57:25.103420+00:00"
+  }
+}

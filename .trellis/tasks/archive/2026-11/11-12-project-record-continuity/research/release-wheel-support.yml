@@ -1,0 +1,162 @@
+name: Temporary native cp315 zstandard wheel
+
+on:
+  push:
+    branches: [codex/release-v050-native-wheel]
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: '1'
+  AHA_WHEEL_SOURCE_SHA: da826a723b81e76f805e3d8e13e0679dff9bbddf
+
+jobs:
+  wheel:
+    if: >-
+      github.repository == 'NightingaleWK/aha' &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/codex/release-v050-native-wheel'
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: da826a723b81e76f805e3d8e13e0679dff9bbddf
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.15.2'
+          architecture: x64
+      - name: Prepare fixed native build dependencies and official source
+        shell: python
+        run: |
+          import hashlib
+          import os
+          import platform
+          import struct
+          import subprocess
+          import sys
+          import urllib.request
+          from pathlib import Path
+
+          assert sys.version_info[:3] == (3, 15, 2)
+          assert sys.platform == 'win32' and struct.calcsize('P') == 8
+          assert platform.python_implementation() == 'CPython'
+          actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert actual == os.environ['AHA_WHEEL_SOURCE_SHA']
+          root = Path(os.environ['RUNNER_TEMP']) / 'aha-zstandard-cp315-support'
+          root.mkdir()
+          (root / 'source').mkdir()
+          (root / 'artifact').mkdir()
+          environment = root / 'venv'
+          subprocess.run([sys.executable, '-m', 'venv', str(environment)], check=True)
+          python = environment / 'Scripts/python.exe'
+          requirements = Path('scripts/requirements-build.txt').read_text(encoding='utf-8')
+          pins = [line.strip() for line in requirements.splitlines() if line.strip() and not line.lstrip().startswith('#')]
+          assert pins.count('zstandard==0.25.0') == 1
+          assert all('==' in line and ' @ ' not in line for line in pins)
+          filtered = root / 'requirements-build-without-zstandard.txt'
+          filtered.write_text('\n'.join(line for line in pins if line != 'zstandard==0.25.0') + '\n', encoding='utf-8')
+          subprocess.run([str(python), '-m', 'pip', '--isolated', 'install', '--disable-pip-version-check',
+                          '--index-url', 'https://pypi.org/simple', '--only-binary=:all:', '-r', str(filtered)], check=True)
+          source_url = 'https://files.pythonhosted.org/packages/fd/aa/3e0508d5a5dd96529cdc5a97011299056e14c6505b678fd58938792794b1/zstandard-0.25.0.tar.gz'
+          source_sha256 = '7713e1179d162cf5c7906da876ec2ccb9c3a9dcbdffef0cc7f70c3667a205f0b'
+          with urllib.request.urlopen(source_url, timeout=60) as response:
+              source = response.read(4 * 1024 * 1024 + 1)
+          assert len(source) <= 4 * 1024 * 1024
+          assert hashlib.sha256(source).hexdigest() == source_sha256
+          (root / 'source/zstandard-0.25.0.tar.gz').write_bytes(source)
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8', newline='\n') as output:
+              output.write(f'AHA_WHEEL_ROOT={root}\nAHA_WHEEL_PYTHON={python}\n')
+      - name: Compile the pinned sdist with native MSVC
+        shell: pwsh
+        run: |
+          & $env:AHA_WHEEL_PYTHON -m pip --isolated wheel --disable-pip-version-check --no-deps --no-cache-dir --no-build-isolation --index-url https://pypi.org/simple --wheel-dir "$env:AHA_WHEEL_ROOT/artifact" "$env:AHA_WHEEL_ROOT/source/zstandard-0.25.0.tar.gz"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Install and verify the native wheel and record provenance
+        shell: pwsh
+        run: |
+          $wheels = @(Get-ChildItem -LiteralPath "$env:AHA_WHEEL_ROOT/artifact" -Filter '*.whl')
+          if ($wheels.Count -ne 1) { throw 'Expected exactly one compiled wheel.' }
+          & $env:AHA_WHEEL_PYTHON -m pip --isolated install --disable-pip-version-check --no-deps $wheels[0].FullName
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          @'
+          import hashlib
+          import importlib.metadata
+          import json
+          import os
+          import platform
+          import struct
+          import sys
+          import sysconfig
+          import zipfile
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from packaging.utils import parse_wheel_filename
+          import zstandard
+          import zstandard.backend_c
+
+          assert sys.version_info[:3] == (3, 15, 2)
+          assert sys.prefix != sys.base_prefix
+          assert sys.platform == 'win32' and struct.calcsize('P') == 8
+          assert platform.python_implementation() == 'CPython'
+          assert not sysconfig.get_config_var('Py_GIL_DISABLED')
+          assert importlib.metadata.version('zstandard') == zstandard.__version__ == '0.25.0'
+          assert zstandard.ZSTD_VERSION == (1, 5, 7)
+          root = Path(os.environ['AHA_WHEEL_ROOT'])
+          wheels = list((root / 'artifact').glob('*.whl'))
+          assert len(wheels) == 1
+          wheel = wheels[0]
+          name, version, build, tags = parse_wheel_filename(wheel.name)
+          assert str(name) == 'zstandard' and str(version) == '0.25.0'
+          assert {str(tag) for tag in tags} == {'cp315-cp315-win_amd64'}
+          extension = Path(zstandard.backend_c.__file__)
+          assert extension.name.endswith(sysconfig.get_config_var('EXT_SUFFIX'))
+          assert extension.suffix == '.pyd'
+          payload = b'aha fixed source native zstandard roundtrip\x00' * 1024
+          compressed = zstandard.ZstdCompressor().compress(payload)
+          assert zstandard.ZstdDecompressor().decompress(compressed) == payload
+          sys.path.insert(0, str(Path.cwd() / 'src'))
+          from aha.migrations import sqlite_wal_safe
+          import sqlite3
+          assert sqlite_wal_safe()
+          with zipfile.ZipFile(wheel) as archive:
+              compiled_modules = sorted(name for name in archive.namelist() if name.endswith('.pyd'))
+          source = root / 'source/zstandard-0.25.0.tar.gz'
+          provenance = {
+              'schema_version': 1,
+              'source_commit': os.environ['AHA_WHEEL_SOURCE_SHA'],
+              'workflow_commit': os.environ['GITHUB_SHA'],
+              'workflow_run_id': os.environ['GITHUB_RUN_ID'],
+              'package': {'name': 'zstandard', 'version': zstandard.__version__, 'zstd_version': list(zstandard.ZSTD_VERSION)},
+              'sdist': {'filename': source.name, 'sha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+                        'project_url': 'https://pypi.org/project/zstandard/0.25.0/'},
+              'wheel': {'filename': wheel.name, 'sha256': hashlib.sha256(wheel.read_bytes()).hexdigest(),
+                        'tags': sorted(str(tag) for tag in tags), 'compiled_modules': compiled_modules},
+              'python': {'version': platform.python_version(), 'implementation': platform.python_implementation(),
+                         'cache_tag': sys.implementation.cache_tag, 'soabi': sysconfig.get_config_var('SOABI'),
+                         'extension_suffix': sysconfig.get_config_var('EXT_SUFFIX'), 'gil_disabled': False},
+              'platform': {'sys_platform': sys.platform, 'machine': platform.machine(), 'bits': struct.calcsize('P') * 8},
+              'sqlite_version': sqlite3.sqlite_version,
+              'requirements_build_sha256': hashlib.sha256(Path('scripts/requirements-build.txt').read_bytes()).hexdigest(),
+              'build_isolation': False,
+              'verified_native_import_and_roundtrip': True,
+              'created_at': datetime.now(timezone.utc).isoformat(),
+          }
+          text = json.dumps(provenance, ensure_ascii=False, indent=2) + '\n'
+          assert len(text.encode('utf-8')) < 16384
+          (root / 'artifact/provenance.json').write_text(text, encoding='utf-8', newline='\n')
+          print(text)
+          '@ | & $env:AHA_WHEEL_PYTHON -X utf8 -
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: aha-zstandard-cp315-wheel
+          path: |
+            ${{ runner.temp }}/aha-zstandard-cp315-support/artifact/*.whl
+            ${{ runner.temp }}/aha-zstandard-cp315-support/artifact/provenance.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

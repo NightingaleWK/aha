@@ -1,0 +1,105 @@
+{
+  "task_root": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112",
+  "inventory": {
+    "files": 11429,
+    "logical_bytes": 1364373147,
+    "categories": {
+      "root-files": 46630655,
+      "association-ui-desktop-c97d52f1": 2596130,
+      "association-ui-directory-534f6a5d": 3103839,
+      "association-ui-fixture": 929850,
+      "association-ui-fixture-v2": 963127,
+      "association-ui-onefile-3347fad4": 3029463,
+      "association-ui-source-86615adf": 2596149,
+      "association-ui-source-cc0d69b9": 1052617,
+      "association-ui-source-e518b449": 2592259,
+      "association-ui-source-eb77ff08": 1057808,
+      "baseline-source": 633527,
+      "build": 57399135,
+      "compiled-source": 1701711,
+      "frozen-real-copy-67876a73": 237081987,
+      "mypy-check-evidence": 3154149,
+      "mypy-check-final": 3928293,
+      "mypy-core": 3932389,
+      "mypy-evidence-win": 3092709,
+      "mypy-final-win": 4002021,
+      "pip-cache": 18739880,
+      "primary-recovery-validation-87ca0f4404": 199487777,
+      "qa-profile-17568": 2215509,
+      "qa-profile-19552": 2313381,
+      "qa-profile-30580": 4422035,
+      "qa-profile-31908": 2940370,
+      "qa-profile-32388": 1257077,
+      "qa-profile-32604": 2313703,
+      "qa-profile-36876": 2313559,
+      "qa-profile-37852": 1239747,
+      "qa-profile-38400": 4363943,
+      "qa-profile-38540": 2313281,
+      "qa-profile-7412": 2313617,
+      "qa312": 299733801,
+      "real-copy-after-associations-restored": 197402822,
+      "real-schema3-copy": 238900612,
+      "verify-desktop-final": 874747,
+      "verify-directory-final": 874736,
+      "verify-onefile-final": 874732
+    },
+    "known_internal_edge_junctions": [
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-17568\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-17568\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-19552\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-19552\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-30580\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-30580\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-31908\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-31908\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-32388\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-32388\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-32604\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-32604\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-36876\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-36876\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-37852\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-37852\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-38400\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-38400\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-38540\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-38540\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-7412\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\qa-profile-7412\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach junction only"
+      }
+    ]
+  },
+  "active_task_processes": []
+}

@@ -1,0 +1,24 @@
+{
+  "verified": true,
+  "purpose": "release-v050",
+  "synthetic": true,
+  "baseline_source_commit": "2216e27a19375ff28463b6db5f8a414d2d227480",
+  "baseline_file_count": 31,
+  "baseline_git_archive_sha256": "c8ebb47ce0ec746990a588e4aac22ee0a52e4c239b95ec5fb1a8797bb7abbcfa",
+  "schema": 3,
+  "detail_count": 152,
+  "rollup_count": 1,
+  "record_count": 159,
+  "initial_assigned": 1,
+  "template_archive_sha256": "75ae7fec23cd0c731ce3eed910b2ccec83f8946cc90b565bbb03d86a349c98ad",
+  "python": [
+    3,
+    15,
+    2
+  ],
+  "sqlite": "3.53.4",
+  "zstandard": "0.25.0",
+  "real_profile_used": false,
+  "candidate_artifact_started": false,
+  "completed_at": "2026-11-12T08:06:57.151834+00:00"
+}

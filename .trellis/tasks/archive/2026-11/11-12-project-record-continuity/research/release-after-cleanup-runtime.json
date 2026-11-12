@@ -1,0 +1,17 @@
+{
+  "verified": true,
+  "published": true,
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "version": "0.5.0",
+  "executable_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+  "default_service_ready": true,
+  "desktop_reopen_reuses_same_service": true,
+  "browser_open_requested": true,
+  "browser_window_visually_checked_by_agent": false,
+  "normal_ui_startup_may_sync_new_consumption": true,
+  "task_root_absent": true,
+  "after_cleanup": true,
+  "base_interpreter_outside_task_root": true,
+  "original_delivery_report_preserved": true,
+  "verified_at": "2026-11-12T16:59:55.302521+08:00"
+}

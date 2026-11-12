@@ -1,0 +1,28 @@
+{
+  "verified": false,
+  "python": [
+    3,
+    12,
+    16
+  ],
+  "sqlite": "3.53.1",
+  "started_at": "2026-11-12T14:48:35.016160+08:00",
+  "tests_run": 336,
+  "failures": 0,
+  "errors": 1,
+  "skipped": 0,
+  "python_tests_passed": false,
+  "ruff": {
+    "returncode": 0,
+    "passed": true
+  },
+  "mypy": {
+    "returncode": 0,
+    "passed": true
+  },
+  "compileall": {
+    "returncode": 0,
+    "passed": true
+  },
+  "completed_at": "2026-11-12T14:55:30.282475+08:00"
+}

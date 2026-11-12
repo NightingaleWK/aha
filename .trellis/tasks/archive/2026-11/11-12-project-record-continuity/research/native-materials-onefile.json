@@ -1,0 +1,46 @@
+{
+  "verified": true,
+  "executable_sha256": "9ccd827d1dc4edbbda8b4a8bf30abe3867143950b828a7ffc5217c97e334e97a",
+  "material_sha256": "4e0147cbbf228dd7b6ba5d24233695529e5ad3d148a3f772b45ca56b0a89b57c",
+  "physical_office_input": false,
+  "excel": [
+    {
+      "file": "使用明细.csv",
+      "rows": 81,
+      "columns": 23,
+      "all_cells_match": true,
+      "semantic_date_cells": 0,
+      "columns_autofit_for_inspection": true,
+      "no_formulas": true,
+      "version": "16.0"
+    },
+    {
+      "file": "每日汇总.csv",
+      "rows": 1,
+      "columns": 17,
+      "all_cells_match": true,
+      "semantic_date_cells": 1,
+      "columns_autofit_for_inspection": true,
+      "no_formulas": true,
+      "version": "16.0"
+    }
+  ],
+  "print": {
+    "pages": 1,
+    "a4_page_sizes_pt": [
+      [
+        594.95996,
+        841.91998
+      ]
+    ],
+    "precise_cost_and_assignment_note_preserved": true,
+    "pdf_sha256": "1843bcca452d612f11055900b67e930ff70b6c6e65759e476ae6ddc988f90388",
+    "pdf_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\association-ui-onefile-3347fad4\\office-validation-1bab67\\project-c-a4.pdf",
+    "rendered_pages": [
+      "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\association-ui-onefile-3347fad4\\office-validation-1bab67\\a4-page-1.png"
+    ],
+    "all_rendered_pages_visually_reviewed": true,
+    "visual_findings": "逐页查看A4渲染图：完整一页，项目、期间、81条明细、精确金额、同期未归属说明及页脚清晰，无截断或重叠。"
+  },
+  "completed_at": "2026-11-12T15:05:35.951980+08:00"
+}

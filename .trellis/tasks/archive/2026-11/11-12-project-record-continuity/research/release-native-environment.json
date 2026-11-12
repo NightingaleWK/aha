@@ -1,0 +1,12 @@
+{
+  "verified": false,
+  "task": "project-record-continuity",
+  "purpose": "release-v050",
+  "task_root": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112",
+  "qa_python": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa315\\Scripts\\python.exe",
+  "returncode": 1,
+  "log": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\setup-native.log",
+  "cleanup_after_release": true,
+  "real_profile_used": false,
+  "built_artifact": false
+}

@@ -1,0 +1,185 @@
+{
+  "schema_version": 1,
+  "verified": true,
+  "started_at": "2026-11-12T16:38:31.997964+08:00",
+  "native_tray_enabled": true,
+  "physical_tray_input": false,
+  "synchronization_requested_by_script": false,
+  "real_ledger_restored": false,
+  "version": "0.5.0",
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "executable_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+  "pe_version": {
+    "file_version_parts": [
+      0,
+      5,
+      0,
+      0
+    ],
+    "file_version": "0.5.0",
+    "product_version_parts": [
+      0,
+      5,
+      0,
+      0
+    ],
+    "product_version": "0.5.0"
+  },
+  "publication_stage": "candidate",
+  "candidate_info_sha256": "2965438bab30c8217f44f9ea26d56780f6e12fb54de5b1a025ef5ad513045cd9",
+  "check_reports": [
+    {
+      "path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\python315-release.json",
+      "sha256": "8fabe1d478646f3d18bb14725763322b2a35436b863adecc59836ba83c1116c0",
+      "artifact_sha256": null
+    },
+    {
+      "path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-directory-build.json",
+      "sha256": "8908ff7ae62d4a6f048b79fe70ee93347b9550a4b3cb2fee94af94d21437679f",
+      "artifact_sha256": "ecc8ce5ac743ac1e8413881d19cdbd4d5a92fb8cc5db006a2cc92b43f8e4df46"
+    },
+    {
+      "path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-directory-verification.json",
+      "sha256": "33090051cdbcec0b558c4f3c08e1e7bf3bd13464c536fca8b432055559d575ec",
+      "artifact_sha256": "ecc8ce5ac743ac1e8413881d19cdbd4d5a92fb8cc5db006a2cc92b43f8e4df46"
+    },
+    {
+      "path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-native-ui-directory.json",
+      "sha256": "59d0957786ac3be2e6c834ef7e28e2be022026305204d861f3e51024c6a07306",
+      "artifact_sha256": "ecc8ce5ac743ac1e8413881d19cdbd4d5a92fb8cc5db006a2cc92b43f8e4df46"
+    },
+    {
+      "path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-native-materials-directory.json",
+      "sha256": "aa1b9d39c6e8f328e2ff97257aab883f682fa44cee30674ac0fef0a111000fe1",
+      "artifact_sha256": "ecc8ce5ac743ac1e8413881d19cdbd4d5a92fb8cc5db006a2cc92b43f8e4df46"
+    },
+    {
+      "path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-cloud-assets.json",
+      "sha256": "ca093cbffd09cd625b060d3924a1b0859a70e7af4e196852e7152c4f217d1de1",
+      "artifact_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5"
+    },
+    {
+      "path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-cloud-onefile-verification.json",
+      "sha256": "8fdae173d53c20b787a79cbf9bff097b6d9705a53937d3e984085f7a5b5e0504",
+      "artifact_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5"
+    },
+    {
+      "path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-native-ui-cloud-onefile.json",
+      "sha256": "c07e4a08a401c9edb7a7da2b8185e47619a7c851412ad23b83c6d4c2c0375b42",
+      "artifact_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5"
+    },
+    {
+      "path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-native-materials-cloud-onefile.json",
+      "sha256": "31bdbe61e2e4ba34f2c869d1350581a9d7e33052936fda5262b5c06d1c8d0095",
+      "artifact_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5"
+    }
+  ],
+  "data_directory": "C:\\Users\\djsyw\\AppData\\Local\\aha",
+  "qa_python": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa315\\Scripts\\python.exe",
+  "current_head": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "completed_at": "2026-11-12T16:39:29.079898+08:00",
+  "delivery": [
+    {
+      "path": "C:\\Users\\djsyw\\Desktop\\aha.exe",
+      "updated": true,
+      "already_matching": false
+    },
+    {
+      "path": "D:\\Program Files\\aha.exe",
+      "updated": true,
+      "already_matching": false
+    }
+  ],
+  "backup_before": {
+    "archive_path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\aha-before-release-v0.5.0-d3e67ca786bc.aha-backup",
+    "sha256": "22ab0f878a164977e2764a0eb0aa1c8dd948106b9ac23646974feb88c8c2d54c",
+    "size": 45976737,
+    "format_version": 1,
+    "store_schema_version": 4,
+    "counts": {
+      "usage_records": 42779,
+      "usage_versions": 42779,
+      "projects": 5,
+      "sessions": 416,
+      "batches": 0,
+      "revisions": 0,
+      "usage_claims": 0,
+      "reconciliation_cases": 355
+    }
+  },
+  "rollback_programs": [
+    {
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\aha-before-release-v0.5.0-9ccd827d1dc4edbb.exe",
+      "sha256": "9ccd827d1dc4edbbda8b4a8bf30abe3867143950b828a7ffc5217c97e334e97a"
+    },
+    {
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\aha-before-release-v0.5.0-9ccd827d1dc4edbb.exe",
+      "sha256": "9ccd827d1dc4edbbda8b4a8bf30abe3867143950b828a7ffc5217c97e334e97a"
+    }
+  ],
+  "baseline": {
+    "facts": {
+      "schema": 4,
+      "business_revisions": {
+        "claim_revision": "0",
+        "data_revision": "28",
+        "revision": "12"
+      },
+      "fact_identity_content": {
+        "sha256": "add4c4aa77231792f8e931c461293091c7448f480c3938ed8cb2f0498eddbf4c"
+      },
+      "versions": {
+        "sha256": "063d451e70808a08fa5910235d8a4286ba585cfd2550b151b906cfa0b00d82d5"
+      },
+      "projects": {
+        "sha256": "908055944dcce63b690f75229be949a469d0b9d6d96d43a2c89d315ad01351e2"
+      },
+      "claims": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "revisions": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "coverage": {
+        "sha256": "e1d173909e2a2a5afd6d08eac2a1b69f91742e1957403897a101690be6f62288"
+      },
+      "counts": {
+        "usage_records": 42779,
+        "usage_versions": 42779,
+        "projects": 5,
+        "sessions": 416,
+        "usage_claims": 0,
+        "revisions": 0
+      },
+      "assigned": 39224
+    },
+    "relationships": {
+      "projection": "e33576c2d8de8cfeae3ad9c60aec3b53a59a7bc58f4de27389e1cfb1d9d4554b",
+      "record_project_links": "24816dfa517267e6ecc66de585ea366b4622965f6920c117e1bb4b406ce84d19",
+      "session_project_bindings": "5c36fdb157909bbee8d346d00239c5b853c6f530599589f8c8deaccba297b5f2",
+      "project_assignment_events": "39df0a7e14145e5a99e2692c069e8ded9f3789d1243a1ed5324ba6d443ce3b03"
+    },
+    "extra": {
+      "overrides": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "batches": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "batch_events": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_profiles": "e609282c0afd1cc358bd06d604f43e48592be636de6b7573b2ef3bb739e39019",
+      "sync_runs": "92c1dd8fdb89f0e9b699592919208015d50a38e99a54a8189e4a5e0685cb02e3",
+      "package_count": 0,
+      "package_inventory_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "projection_sha256": "e33576c2d8de8cfeae3ad9c60aec3b53a59a7bc58f4de27389e1cfb1d9d4554b"
+    }
+  },
+  "schema4_facts_and_relationships_unchanged": true,
+  "same_service_reopened": true,
+  "original_protection_preserved": true,
+  "browser_open_requested": true,
+  "normal_ui_may_start_new_sync": true
+}

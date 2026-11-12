@@ -1,0 +1,17 @@
+{
+  "verified": true,
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "artifact_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "checks": [
+    "directory",
+    "onefile",
+    "browser",
+    "tray",
+    "excel",
+    "print"
+  ],
+  "missing": [],
+  "receipt": ".release/acceptance/v0.5.0-project-continuity.json",
+  "receipt_sha256": "ada7c19107a1439e6b19541c6ed2ac04c6de39fb6348e169601ce805af25d24c"
+}

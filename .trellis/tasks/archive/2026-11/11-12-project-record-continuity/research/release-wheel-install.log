@@ -1,0 +1,12 @@
+Processing .\trusted-zstd-wheel\zstandard-0.25.0-cp315-cp315-win_amd64.whl
+Installing collected packages: zstandard
+Successfully installed zstandard-0.25.0
+Requirement already satisfied: pyinstaller==6.22.3 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 1)) (6.22.3)
+Requirement already satisfied: setuptools==84.2.1 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 2)) (84.2.1)
+Requirement already satisfied: wheel==0.48.0 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 3)) (0.48.0)
+Requirement already satisfied: zstandard==0.25.0 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 4)) (0.25.0)
+Requirement already satisfied: altgraph==0.17.5 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 5)) (0.17.5)
+Requirement already satisfied: packaging==26.3 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 6)) (26.3)
+Requirement already satisfied: pefile==2024.8.26 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 7)) (2024.8.26)
+Requirement already satisfied: pyinstaller-hooks-contrib==2026.9 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 8)) (2026.9)
+Requirement already satisfied: pywin32-ctypes==0.2.3 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 9)) (0.2.3)

@@ -1,0 +1,19 @@
+{
+  "verified": false,
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "version": "0.5.0",
+  "stage": "Directory",
+  "source_fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "real_profile_used": false,
+  "started_at": "2026-11-12T08:19:49.443145+00:00",
+  "metadata_returncode": 0,
+  "metadata_log_sha256": "10d97d879c258206ae144fef473079f25f53ee306e3a28baf220c544eedb1e83",
+  "failure_type": "RuntimeError",
+  "completed_at": "2026-11-12T08:19:59.600002+00:00"
+}

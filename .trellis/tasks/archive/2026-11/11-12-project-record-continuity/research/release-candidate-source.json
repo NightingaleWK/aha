@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "version": "0.5.0",
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "source_fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "release_pr": 10,
+  "release_pr_final_head": "64399a3d68827875119729d7ee26c0aa766b67e3",
+  "release_pr_final_head_dispatch_run": 43180484300,
+  "release_pr_final_head_dispatch_conclusion": "success",
+  "feature_pr": 9,
+  "feature_merge_sha": "cb8c6da0f4996a6370fa016b08236b4d607f5506",
+  "feature_final_head": "9dcf2e9efeb800d0b7e735107745f26af742571e",
+  "feature_final_head_ci_run": 43178513550,
+  "feature_final_head_ci_conclusion": "success",
+  "candidate_metadata": {
+    "schema_version": 1,
+    "version": "0.5.0",
+    "base_sha": "8898451cde00956d32edd0585b8b68690ea3307d",
+    "previous_tag": "v0.4.1",
+    "fragment_ids": [
+      "ccs25-compatibility",
+      "device-data-continuity",
+      "full-backup-restore",
+      "project-record-continuity"
+    ],
+    "notes_sha256": "2e3c7c5f976b2326842f6abebc8e774ecbe7650d0321f36714acc56410ea0e77"
+  },
+  "product_diff_from_tested_feature": "Only authoritative version string 0.4.1 to 0.5.0; normalized product/recipe fingerprints equal"
+}

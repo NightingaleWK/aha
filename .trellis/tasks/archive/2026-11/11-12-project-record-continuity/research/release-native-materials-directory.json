@@ -1,0 +1,58 @@
+{
+  "verified": true,
+  "purpose": "release-v050",
+  "label": "release-directory",
+  "ui_report": "release-native-ui-directory.json",
+  "ui_report_sha256": "59d0957786ac3be2e6c834ef7e28e2be022026305204d861f3e51024c6a07306",
+  "qa_python": "3.15.2",
+  "qa_sqlite": "3.53.4",
+  "ui_source_sha256": {
+    "app.js": "8318e5177f275b1219281d90353421111d7ddee22a67ef71bf9ceafebc13d91a",
+    "index.html": "3b5d26dc97c6d99a061a5fa84674b04f277d631ee7f52d85f13d60cf2ac999e1",
+    "style.css": "9dd6a94af5fd2d61d75fe8f5fd7ff91f8f9a5c5a24f9baebf919874eb7bff992"
+  },
+  "real_profile_used": false,
+  "executable_sha256": "ecc8ce5ac743ac1e8413881d19cdbd4d5a92fb8cc5db006a2cc92b43f8e4df46",
+  "material_sha256": "1844ac54bac611f48dec5e350d0ef06335d667b7b27a943f6a7e0ca492a65e7f",
+  "physical_office_input": false,
+  "excel": [
+    {
+      "file": "使用明细.csv",
+      "rows": 81,
+      "columns": 23,
+      "all_cells_match": true,
+      "semantic_date_cells": 0,
+      "columns_autofit_for_inspection": true,
+      "no_formulas": true,
+      "version": "16.0"
+    },
+    {
+      "file": "每日汇总.csv",
+      "rows": 1,
+      "columns": 17,
+      "all_cells_match": true,
+      "semantic_date_cells": 1,
+      "columns_autofit_for_inspection": true,
+      "no_formulas": true,
+      "version": "16.0"
+    }
+  ],
+  "print": {
+    "pages": 1,
+    "a4_page_sizes_pt": [
+      [
+        594.95996,
+        841.91998
+      ]
+    ],
+    "precise_cost_and_assignment_note_preserved": true,
+    "pdf_sha256": "e3de6703a036616cc793ad5789a29bb3698c633cc8a7a08abd9c2f07e1dea3b7",
+    "pdf_relative_path": "association-ui-release-directory-79d2fc4e/office-validation-4eaecb/project-c-a4.pdf",
+    "rendered_pages": [
+      "association-ui-release-directory-79d2fc4e/office-validation-4eaecb/a4-page-1.png"
+    ],
+    "all_rendered_pages_visually_reviewed": true,
+    "visual_findings": "主会话实际逐页查看一页A4渲染：表头、项目/期间/81条明细/精确金额9.9999927USD、归属覆盖说明及页脚完整，无截断或重叠。"
+  },
+  "completed_at": "2026-11-12T16:26:27.796283+08:00"
+}

@@ -1,0 +1,16 @@
+{
+  "reported_at": "2026-11-12T16:12:24.704006+08:00",
+  "reporter": "user",
+  "confirmation": "三项都已测试，正常",
+  "confirmed_actions": [
+    "托盘菜单打开",
+    "双击托盘重开",
+    "托盘菜单退出后图标消失"
+  ],
+  "context": "针对问题中“刚才实测”的已交付版本；正式0.5.0候选尚未构建，不冒称用户已点击未来产物",
+  "currently_delivered_executable_sha256": "9ccd827d1dc4edbbda8b4a8bf30abe3867143950b828a7ffc5217c97e334e97a",
+  "currently_delivered_version": "0.4.1",
+  "currently_delivered_runtime_sha256": "1f8c0f27921d8b77671ced7ac224119085e0abd4517c638e1b06e8dafe4ac6d4",
+  "physical_tray_confirmed_for_current_delivery": true,
+  "future_production_candidate_physical_test_claimed": false
+}

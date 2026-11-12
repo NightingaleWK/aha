@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "verified": false,
+  "error_code": "OSError",
+  "message": "Artifact verification could not complete; inspect the owned fixture."
+}

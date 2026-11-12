@@ -1,0 +1,41 @@
+{
+  "bits": 64,
+  "isolated": true,
+  "packages": {
+    "PyMuPDF": "1.26.7",
+    "aha-usage": "0.4.1",
+    "altgraph": "0.17.5",
+    "ast_serialize": "0.13.1",
+    "greenlet": "3.5.6",
+    "librt": "0.16.0",
+    "mypy": "2.4.1",
+    "mypy_extensions": "1.2.0",
+    "packaging": "26.3",
+    "pathspec": "1.1.1",
+    "pefile": "2024.8.26",
+    "pip": "26.2.2",
+    "playwright": "1.65.1",
+    "pyinstaller": "6.22.3",
+    "pyinstaller-hooks-contrib": "2026.9",
+    "pypdf": "7.0.1",
+    "pywin32": "312",
+    "pywin32-ctypes": "0.2.3",
+    "ruff": "0.17.4",
+    "setuptools": "84.2.1",
+    "typing_extensions": "4.16.0",
+    "wheel": "0.48.0"
+  },
+  "python": [
+    3,
+    15,
+    2
+  ],
+  "sqlite": "3.53.1",
+  "verified": true,
+  "zstandard_installed": false,
+  "qa_tools_install_returncode": 0,
+  "task": "project-record-continuity",
+  "purpose": "release-v050",
+  "full_dependency_setup_verified": false,
+  "awaiting_trusted_cp315_zstandard_wheel": true
+}

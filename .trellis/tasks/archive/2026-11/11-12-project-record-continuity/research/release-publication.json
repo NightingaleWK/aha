@@ -1,0 +1,28 @@
+{
+  "verified": true,
+  "published": true,
+  "version": "0.5.0",
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "executable_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+  "public_asset_sha256": {
+    "aha-0.5.0-windows-x64.exe": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+    "build-info.json": "a34df29fdd2796da70994fdc70514302bd874bbcc693be8a42fd9e936a8861d6",
+    "SHA256SUMS.txt": "c6a7067d535dbab49ec03d5d49403f267c09053955cd83ec56acdf53fc08a84e"
+  },
+  "public_asset_sizes": {
+    "aha-0.5.0-windows-x64.exe": 12833570,
+    "build-info.json": 4179,
+    "SHA256SUMS.txt": 174
+  },
+  "public_url": "https://github.com/NightingaleWK/aha/releases/tag/v0.5.0",
+  "release_id": 442670135,
+  "published_at": "2026-11-12T08:51:47Z",
+  "tag_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "latest_public_release_matches": true,
+  "notes_sha256": "2e3c7c5f976b2326842f6abebc8e774ecbe7650d0321f36714acc56410ea0e77",
+  "desktop_and_existing_program_match_public_asset": true,
+  "original_delivery_report_byte_unchanged": true,
+  "receipt_sha256": "ada7c19107a1439e6b19541c6ed2ac04c6de39fb6348e169601ce805af25d24c",
+  "verified_at": "2026-11-12T16:55:12.351168+08:00"
+}

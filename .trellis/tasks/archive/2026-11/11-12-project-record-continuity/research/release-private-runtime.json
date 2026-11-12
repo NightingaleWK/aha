@@ -1,0 +1,149 @@
+{
+  "verified": true,
+  "started_at": "2026-11-12T08:04:38.303309+00:00",
+  "task": "project-record-continuity",
+  "purpose": "release-v050",
+  "public_executable_executed": false,
+  "global_runtime_modified": false,
+  "real_profile_used": false,
+  "full_installed_runtime_verified": false,
+  "initial_base_sqlite": "3.53.1",
+  "base_sqlite_files_sha256": {
+    "sqlite3.dll": "f2ebefe62ae2942eac4c5a31e777c674235a82fbe653ca465e59cd044d9f77de",
+    "_sqlite3.pyd": "554a9a20119e8f101e3b452d8c5adfa4a26c2cc21c8275250a0b42479b9e6337"
+  },
+  "public_source": {
+    "version": "0.4.1",
+    "source_sha": "8898451cde00956d32edd0585b8b68690ea3307d",
+    "url": "https://github.com/NightingaleWK/aha/releases/download/v0.4.1/aha-0.4.1-windows-x64.exe",
+    "executable_sha256": "0c25c25da9df56f7b82e7fe4cbce9f20613e1e82172c2ac9b620c2b77b0e8f58"
+  },
+  "extracted_files": {
+    "sqlite3.dll": {
+      "archive_member": "sqlite3.dll",
+      "size": 1683680,
+      "sha256": "73530e8f4555605d716352ee98fe0ce205a09e5eec57e7e6360d4c915efcacd8"
+    },
+    "_sqlite3.pyd": {
+      "archive_member": "_sqlite3.pyd",
+      "size": 132320,
+      "sha256": "851e8bfa65328162ddad2dff9f7c213f8eceb2d90baf179aa472704ec3ca6295"
+    }
+  },
+  "private_runtime": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\runtime315-sqlite3534",
+  "copied_standard_runtime_entries": [
+    "BUILD",
+    "build-details.json",
+    "LICENSE.txt",
+    "python.exe",
+    "python3.dll",
+    "python315.dll",
+    "python3t.dll",
+    "pythonw.exe",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+    "DLLs/",
+    "Lib/",
+    "include/",
+    "libs/",
+    "tcl/"
+  ],
+  "private_base_probe": {
+    "base_prefix": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\runtime315-sqlite3534",
+    "bits": 64,
+    "executable": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\runtime315-sqlite3534\\python.exe",
+    "isolated": false,
+    "loaded_files": {
+      "_sqlite3.pyd": {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\runtime315-sqlite3534\\DLLs\\_sqlite3.pyd",
+        "sha256": "851e8bfa65328162ddad2dff9f7c213f8eceb2d90baf179aa472704ec3ca6295"
+      },
+      "sqlite3.dll": {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\runtime315-sqlite3534\\DLLs\\sqlite3.dll",
+        "sha256": "73530e8f4555605d716352ee98fe0ce205a09e5eec57e7e6360d4c915efcacd8"
+      }
+    },
+    "machine": "AMD64",
+    "packages": {},
+    "prefix": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\runtime315-sqlite3534",
+    "python": [
+      3,
+      15,
+      2
+    ],
+    "sqlite": [
+      3,
+      53,
+      4
+    ],
+    "sqlite_version": "3.53.4",
+    "windows": true
+  },
+  "venv_rebind_returncode": 0,
+  "qa_runtime_probe": {
+    "base_prefix": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\runtime315-sqlite3534",
+    "bits": 64,
+    "executable": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa315\\Scripts\\python.exe",
+    "isolated": true,
+    "loaded_files": {
+      "_sqlite3.pyd": {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\runtime315-sqlite3534\\DLLs\\_sqlite3.pyd",
+        "sha256": "851e8bfa65328162ddad2dff9f7c213f8eceb2d90baf179aa472704ec3ca6295"
+      },
+      "sqlite3.dll": {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\runtime315-sqlite3534\\DLLs\\sqlite3.dll",
+        "sha256": "73530e8f4555605d716352ee98fe0ce205a09e5eec57e7e6360d4c915efcacd8"
+      }
+    },
+    "machine": "AMD64",
+    "packages": {
+      "altgraph": "0.17.5",
+      "ast-serialize": "0.13.1",
+      "greenlet": "3.5.6",
+      "librt": "0.16.0",
+      "mypy": "2.4.1",
+      "mypy-extensions": "1.2.0",
+      "packaging": "26.3",
+      "pathspec": "1.1.1",
+      "pefile": "2024.8.26",
+      "pip": "26.2.2",
+      "playwright": "1.65.1",
+      "pyinstaller": "6.22.3",
+      "pyinstaller-hooks-contrib": "2026.9",
+      "pymupdf": "1.26.7",
+      "pypdf": "7.0.1",
+      "pywin32": "312",
+      "pywin32-ctypes": "0.2.3",
+      "ruff": "0.17.4",
+      "setuptools": "84.2.1",
+      "typing-extensions": "4.16.0",
+      "wheel": "0.48.0"
+    },
+    "prefix": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa315",
+    "python": [
+      3,
+      15,
+      2
+    ],
+    "sqlite": [
+      3,
+      53,
+      4
+    ],
+    "sqlite_version": "3.53.4",
+    "windows": true
+  },
+  "declared_recipe_runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "declared_recipe_runtime_matches_public": true,
+  "declared_digest_uses_fixed_recipe_pins_not_claimed_installed_zstandard": true,
+  "missing_or_drifted_fixed_packages": {
+    "zstandard": {
+      "expected": "0.25.0",
+      "actual": null
+    }
+  },
+  "runtime_fields_match_public": true,
+  "base_runtime_unchanged": true,
+  "completed_at": "2026-11-12T08:05:01.599225+00:00",
+  "awaiting_trusted_zstandard_wheel": true
+}

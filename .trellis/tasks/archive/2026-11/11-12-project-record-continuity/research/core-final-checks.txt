@@ -1,0 +1,91 @@
+-m ruff check src tests scripts
+All checks passed!
+
+
+returncode 0
+
+-m mypy src/aha --cache-dir C:\Users\djsyw\AppData\Local\Temp\aha-project-record-continuity-20261112\mypy-core
+Success: no issues found in 26 source files
+
+
+returncode 0
+
+-m unittest discover -s tests -p test_associations.py -v
+test_conflicting_historical_directories_are_never_selected_by_recency (test_associations.AssociationTests.test_conflicting_historical_directories_are_never_selected_by_recency) ... ok
+test_explicit_rejection_in_legacy_event_prevents_automatic_recovery (test_associations.AssociationTests.test_explicit_rejection_in_legacy_event_prevents_automatic_recovery) ... ok
+test_explicit_session_focus_can_recover_beyond_global_metadata_scan_limit (test_associations.AssociationTests.test_explicit_session_focus_can_recover_beyond_global_metadata_scan_limit) ... ok
+test_failure_mid_batch_rolls_back_relations_overrides_stats_and_events (test_associations.AssociationTests.test_failure_mid_batch_rolls_back_relations_overrides_stats_and_events) ... ok
+test_record_cursor_is_revision_bound_and_filter_bound (test_associations.AssociationTests.test_record_cursor_is_revision_bound_and_filter_bound) ... ok
+test_recovery_excludes_matched_new_machine_records_without_project_rules (test_associations.AssociationTests.test_recovery_excludes_matched_new_machine_records_without_project_rules) ... ok
+test_rollups_remain_whole_and_project_totals_plus_unassigned_conserve_cost (test_associations.AssociationTests.test_rollups_remain_whole_and_project_totals_plus_unassigned_conserve_cost) ... ok
+test_rule_edits_preserve_history_until_explicit_reclassification (test_associations.AssociationTests.test_rule_edits_preserve_history_until_explicit_reclassification) ... ok
+test_saving_a_new_rule_does_not_silently_assign_existing_unassigned_records (test_associations.AssociationTests.test_saving_a_new_rule_does_not_silently_assign_existing_unassigned_records) ... ok
+test_stale_previews_reject_all_changes_and_response_loss_replay_survives_restart (test_associations.AssociationTests.test_stale_previews_reject_all_changes_and_response_loss_replay_survives_restart) ... ok
+test_unique_directory_without_project_is_retained_as_an_actionable_unassigned_group (test_associations.AssociationTests.test_unique_directory_without_project_is_retained_as_an_actionable_unassigned_group) ... ok
+test_unique_retained_directory_recovers_without_any_codex_file_and_replays (test_associations.AssociationTests.test_unique_retained_directory_recovers_without_any_codex_file_and_replays) ... ok
+test_whole_filtered_selection_includes_rows_beyond_the_visible_page (test_associations.AssociationTests.test_whole_filtered_selection_includes_rows_beyond_the_visible_page) ... ok
+test_whole_session_preview_expands_existing_members_preserves_exception_and_future_default (test_associations.AssociationTests.test_whole_session_preview_expands_existing_members_preserves_exception_and_future_default) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 1.641s
+
+OK
+
+
+returncode 0
+
+-m unittest discover -s tests -p test_projects.py -v
+test_complete_rollup_assignment_is_whole_and_not_inferred (test_projects.ProjectTests.test_complete_rollup_assignment_is_whole_and_not_inferred) ... ok
+test_longest_component_rule_and_atomic_conflict (test_projects.ProjectTests.test_longest_component_rule_and_atomic_conflict) ... ok
+test_manual_assignment_bound_to_content_and_persists_restart (test_projects.ProjectTests.test_manual_assignment_bound_to_content_and_persists_restart) ... ok
+test_missing_conflicting_metadata_and_component_case_rules (test_projects.ProjectTests.test_missing_conflicting_metadata_and_component_case_rules) ... ok
+test_multiple_session_assignment_is_one_transaction (test_projects.ProjectTests.test_multiple_session_assignment_is_one_transaction) ... ok
+test_paths_use_their_own_platform_rules (test_projects.ProjectTests.test_paths_use_their_own_platform_rules) ... ok
+test_pure_classifier_shares_retained_record_and_session_priority (test_projects.ProjectTests.test_pure_classifier_shares_retained_record_and_session_priority) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.805s
+
+OK
+
+
+returncode 0
+
+-m unittest discover -s tests -p test_storage.py -v
+test_alias_cost_revision_keeps_canonical_identity_and_can_be_frozen (test_storage.LedgerStorageTests.test_alias_cost_revision_keeps_canonical_identity_and_can_be_frozen) ... ok
+test_alias_revision_keeps_original_claim_and_package (test_storage.LedgerStorageTests.test_alias_revision_keeps_original_claim_and_package) ... ok
+test_changed_source_observation_invalidates_old_case_generation (test_storage.LedgerStorageTests.test_changed_source_observation_invalidates_old_case_generation) ... ok
+test_consistent_source_cleanup_does_not_delete_local_rows (test_storage.LedgerStorageTests.test_consistent_source_cleanup_does_not_delete_local_rows) ... ok
+test_duplicate_source_identity_is_rejected_not_silently_dropped (test_storage.LedgerStorageTests.test_duplicate_source_identity_is_rejected_not_silently_dropped) ... ok
+test_empty_rebuild_observation_keeps_rows_and_requires_confirmation (test_storage.LedgerStorageTests.test_empty_rebuild_observation_keeps_rows_and_requires_confirmation) ... ok
+test_failed_or_cancelled_rebuild_does_not_publish_identity_candidates (test_storage.LedgerStorageTests.test_failed_or_cancelled_rebuild_does_not_publish_identity_candidates) ... ok
+test_failed_startup_is_not_silently_retried_by_page_refresh (test_storage.LedgerStorageTests.test_failed_startup_is_not_silently_retried_by_page_refresh) ... ok
+test_invalid_input_and_publish_failure_keep_previous_success (test_storage.LedgerStorageTests.test_invalid_input_and_publish_failure_keep_previous_success) ... ok
+test_legacy_projection_without_source_version_stays_unknown (test_storage.LedgerStorageTests.test_legacy_projection_without_source_version_stays_unknown) ... ok
+test_live_revision_preserves_old_fact_and_old_preview_expires (test_storage.LedgerStorageTests.test_live_revision_preserves_old_fact_and_old_preview_expires) ... ok
+test_metadata_is_projected_not_conversation_or_private_config (test_storage.LedgerStorageTests.test_metadata_is_projected_not_conversation_or_private_config) ... ok
+test_old_backup_cannot_replace_live_value_by_import_time (test_storage.LedgerStorageTests.test_old_backup_cannot_replace_live_value_by_import_time) ... ok
+test_reader_does_not_wait_for_python_writer_lock (test_storage.LedgerStorageTests.test_reader_does_not_wait_for_python_writer_lock) ... ok
+test_rebuilt_identity_can_be_confirmed_alias_without_double_count (test_storage.LedgerStorageTests.test_rebuilt_identity_can_be_confirmed_alias_without_double_count) ... ok
+test_removed_source_and_restart_keep_local_usage (test_storage.LedgerStorageTests.test_removed_source_and_restart_keep_local_usage) ... ok
+test_repeated_pending_backup_does_not_create_more_versions (test_storage.LedgerStorageTests.test_repeated_pending_backup_does_not_create_more_versions) ... ok
+test_repeated_sync_has_one_fact_one_content_and_stable_revision (test_storage.LedgerStorageTests.test_repeated_sync_has_one_fact_one_content_and_stable_revision) ... ok
+test_rollup_cost_correction_without_count_regression_remains_normal_revision (test_storage.LedgerStorageTests.test_rollup_cost_correction_without_count_regression_remains_normal_revision) ... ok
+test_rollup_row_loss_is_reviewed_even_when_detail_count_is_unchanged (test_storage.LedgerStorageTests.test_rollup_row_loss_is_reviewed_even_when_detail_count_is_unchanged) ... ok
+test_same_source_backup_rebuild_alias_revision_keeps_original_claim (test_storage.LedgerStorageTests.test_same_source_backup_rebuild_alias_revision_keeps_original_claim) ... ok
+test_same_source_coexisting_same_second_requests_stay_independent (test_storage.LedgerStorageTests.test_same_source_coexisting_same_second_requests_stay_independent) ... ok
+test_same_source_equal_size_rebuild_is_not_counted_as_new_consumption (test_storage.LedgerStorageTests.test_same_source_equal_size_rebuild_is_not_counted_as_new_consumption) ... ok
+test_schema_upgrade_keeps_identity_assignment_claims_and_package (test_storage.LedgerStorageTests.test_schema_upgrade_keeps_identity_assignment_claims_and_package) ... ok
+test_source_confirmation_does_not_accept_a_regressed_fact_revision (test_storage.LedgerStorageTests.test_source_confirmation_does_not_accept_a_regressed_fact_revision) ... ok
+test_source_read_lock_is_not_held_while_waiting_indefinitely_for_local_writer (test_storage.LedgerStorageTests.test_source_read_lock_is_not_held_while_waiting_indefinitely_for_local_writer) ... ok
+test_source_staging_sqlite_busy_wait_is_bounded_and_restores_timeout (test_storage.LedgerStorageTests.test_source_staging_sqlite_busy_wait_is_bounded_and_restores_timeout) ... ok
+test_sql24_failure_and_unknown_sql_version_do_not_publish_staged_rows (test_storage.LedgerStorageTests.test_sql24_failure_and_unknown_sql_version_do_not_publish_staged_rows) ... ok
+test_startup_identity_is_once_even_after_failed_or_completed_attempt (test_storage.LedgerStorageTests.test_startup_identity_is_once_even_after_failed_or_completed_attempt) ... ok
+
+----------------------------------------------------------------------
+Ran 29 tests in 4.350s
+
+OK
+
+
+returncode 0

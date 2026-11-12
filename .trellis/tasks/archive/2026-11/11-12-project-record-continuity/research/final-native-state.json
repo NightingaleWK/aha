@@ -1,0 +1,26 @@
+{
+  "verified": true,
+  "task_temporary_root_absent": true,
+  "retained_base_native_interpreter": "C:\\Users\\djsyw\\AppData\\Roaming\\uv\\python\\cpython-3.12.16-windows-x86_64-none\\python.exe",
+  "desktop_and_existing_program_sha256": "9ccd827d1dc4edbbda8b4a8bf30abe3867143950b828a7ffc5217c97e334e97a",
+  "persistent_before_and_after_backups_verified": true,
+  "historical_gate_reports_byte_unchanged": true,
+  "default_service_ready_after_qa_environment_removed": true,
+  "default_reopen_reuses_same_service_after_cleanup": true,
+  "primary_historical_facts_and_recovered_links_unchanged_after_cleanup": true,
+  "normal_sync_additions_observed": true,
+  "post_sync_historical_audit": {
+    "historical_physical_rows_verified": 42220,
+    "current_physical_rows_at_audit": 42779,
+    "new_physical_rows_since_repair": 559,
+    "historical_facts_cost_tokens_versions_and_relationships_unchanged": true,
+    "temporary_readonly_audit_directory": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-continuity-final-audit-lkgv1am3",
+    "temporary_readonly_audit_directory_removed": true
+  },
+  "current_assigned_detail_count_before_browser_open": 39224,
+  "physical_desktop_input": false,
+  "browser_open_requested": true,
+  "completed_at": "2026-11-12T15:30:22.929534+08:00",
+  "browser_window_visually_verified": false,
+  "subsequent_normal_ui_startup_may_sync_new_consumption": true
+}

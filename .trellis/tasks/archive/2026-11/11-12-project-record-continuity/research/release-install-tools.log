@@ -1,0 +1,70 @@
+Collecting pyinstaller==6.22.3
+  Using cached pyinstaller-6.22.3-py3-none-win_amd64.whl.metadata (8.5 kB)
+Collecting setuptools==84.2.1
+  Using cached setuptools-84.2.1-py3-none-any.whl.metadata (6.6 kB)
+Collecting wheel==0.48.0
+  Using cached wheel-0.48.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting altgraph==0.17.5
+  Downloading altgraph-0.17.5-py2.py3-none-any.whl.metadata (7.5 kB)
+Collecting packaging==26.3
+  Using cached packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+Collecting pefile==2024.8.26
+  Downloading pefile-2024.8.26-py3-none-any.whl.metadata (1.4 kB)
+Collecting pyinstaller-hooks-contrib==2026.9
+  Downloading pyinstaller_hooks_contrib-2026.9-py3-none-any.whl.metadata (16 kB)
+Collecting pywin32-ctypes==0.2.3
+  Downloading pywin32_ctypes-0.2.3-py3-none-any.whl.metadata (3.9 kB)
+Collecting ruff==0.17.4
+  Using cached ruff-0.17.4-py3-none-win_amd64.whl.metadata (21 kB)
+Collecting mypy==2.4.1
+  Using cached mypy-2.4.1-cp315-cp315-win_amd64.whl.metadata (2.4 kB)
+Collecting playwright==1.65.1
+  Using cached playwright-1.65.1-py3-none-win_amd64.whl.metadata (3.3 kB)
+Collecting pywin32==312
+  Using cached pywin32-312-cp315-cp315-win_amd64.whl.metadata (11 kB)
+Collecting pypdf==7.0.1
+  Using cached pypdf-7.0.1-py3-none-any.whl.metadata (7.6 kB)
+Collecting PyMuPDF==1.26.7
+  Using cached pymupdf-1.26.7-cp310-abi3-win_amd64.whl.metadata (3.4 kB)
+Collecting typing_extensions>=4.14.0 (from mypy==2.4.1)
+  Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting mypy_extensions>=1.0.0 (from mypy==2.4.1)
+  Downloading mypy_extensions-1.2.0-py3-none-any.whl.metadata (1.1 kB)
+Collecting pathspec>=1.0.0 (from mypy==2.4.1)
+  Downloading pathspec-1.1.1-py3-none-any.whl.metadata (14 kB)
+Collecting librt>=0.16.0 (from mypy==2.4.1)
+  Downloading librt-0.16.0-cp315-cp315-win_amd64.whl.metadata (1.3 kB)
+Collecting ast-serialize<1.0.0,>=0.12.1 (from mypy==2.4.1)
+  Downloading ast_serialize-0.13.1-cp315-abi3.abi3t-win_amd64.whl.metadata (1.4 kB)
+Collecting greenlet<4.0.0,>=3.1.1 (from playwright==1.65.1)
+  Downloading greenlet-3.5.6-cp315-cp315-win_amd64.whl.metadata (3.9 kB)
+Downloading pyinstaller-6.22.3-py3-none-win_amd64.whl (1.5 MB)
+   ---------------------------------------- 1.5/1.5 MB 1.2 MB/s  0:00:01
+Using cached setuptools-84.2.1-py3-none-any.whl (876 kB)
+Downloading wheel-0.48.0-py3-none-any.whl (33 kB)
+Downloading altgraph-0.17.5-py2.py3-none-any.whl (21 kB)
+Using cached packaging-26.3-py3-none-any.whl (129 kB)
+Downloading pefile-2024.8.26-py3-none-any.whl (74 kB)
+Downloading pyinstaller_hooks_contrib-2026.9-py3-none-any.whl (462 kB)
+Downloading pywin32_ctypes-0.2.3-py3-none-any.whl (30 kB)
+Downloading ruff-0.17.4-py3-none-win_amd64.whl (10.3 MB)
+   ---------------------------------------- 10.3/10.3 MB 1.4 MB/s  0:00:07
+Downloading mypy-2.4.1-cp315-cp315-win_amd64.whl (11.6 MB)
+   ---------------------------------------- 11.6/11.6 MB 2.4 MB/s  0:00:04
+Downloading playwright-1.65.1-py3-none-win_amd64.whl (42.7 MB)
+   ---------------------------------------- 42.7/42.7 MB 3.1 MB/s  0:00:13
+Downloading pywin32-312-cp315-cp315-win_amd64.whl (7.0 MB)
+   ---------------------------------------- 7.0/7.0 MB 4.2 MB/s  0:00:01
+Downloading pypdf-7.0.1-py3-none-any.whl (416 kB)
+Downloading pymupdf-1.26.7-cp310-abi3-win_amd64.whl (18.4 MB)
+   ---------------------------------------- 18.4/18.4 MB 3.2 MB/s  0:00:05
+Downloading ast_serialize-0.13.1-cp315-abi3.abi3t-win_amd64.whl (1.2 MB)
+   ---------------------------------------- 1.2/1.2 MB 3.0 MB/s  0:00:00
+Downloading greenlet-3.5.6-cp315-cp315-win_amd64.whl (327 kB)
+Downloading librt-0.16.0-cp315-cp315-win_amd64.whl (120 kB)
+Downloading mypy_extensions-1.2.0-py3-none-any.whl (5.1 kB)
+Downloading pathspec-1.1.1-py3-none-any.whl (57 kB)
+Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Installing collected packages: altgraph, typing_extensions, setuptools, ruff, pywin32-ctypes, pywin32, pypdf, PyMuPDF, pefile, pathspec, packaging, mypy_extensions, librt, greenlet, ast-serialize, wheel, pyinstaller-hooks-contrib, playwright, mypy, pyinstaller
+
+Successfully installed PyMuPDF-1.26.7 altgraph-0.17.5 ast-serialize-0.13.1 greenlet-3.5.6 librt-0.16.0 mypy-2.4.1 mypy_extensions-1.2.0 packaging-26.3 pathspec-1.1.1 pefile-2024.8.26 playwright-1.65.1 pyinstaller-6.22.3 pyinstaller-hooks-contrib-2026.9 pypdf-7.0.1 pywin32-312 pywin32-ctypes-0.2.3 ruff-0.17.4 setuptools-84.2.1 typing_extensions-4.16.0 wheel-0.48.0

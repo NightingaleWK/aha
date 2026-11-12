@@ -1,0 +1,53 @@
+{
+  "version": "0.5.0",
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "executable": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\cloud-v050-assets\\aha-0.5.0-windows-x64.exe",
+  "executable_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+  "directory_executable_sha256": "ecc8ce5ac743ac1e8413881d19cdbd4d5a92fb8cc5db006a2cc92b43f8e4df46",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "check_reports": [
+    {
+      "path": "python315-release.json",
+      "sha256": "8fabe1d478646f3d18bb14725763322b2a35436b863adecc59836ba83c1116c0"
+    },
+    {
+      "path": "release-directory-build.json",
+      "sha256": "8908ff7ae62d4a6f048b79fe70ee93347b9550a4b3cb2fee94af94d21437679f"
+    },
+    {
+      "path": "release-directory-verification.json",
+      "sha256": "33090051cdbcec0b558c4f3c08e1e7bf3bd13464c536fca8b432055559d575ec"
+    },
+    {
+      "path": "release-native-ui-directory.json",
+      "sha256": "59d0957786ac3be2e6c834ef7e28e2be022026305204d861f3e51024c6a07306"
+    },
+    {
+      "path": "release-native-materials-directory.json",
+      "sha256": "aa1b9d39c6e8f328e2ff97257aab883f682fa44cee30674ac0fef0a111000fe1"
+    },
+    {
+      "path": "release-cloud-assets.json",
+      "sha256": "ca093cbffd09cd625b060d3924a1b0859a70e7af4e196852e7152c4f217d1de1"
+    },
+    {
+      "path": "release-cloud-onefile-verification.json",
+      "sha256": "8fdae173d53c20b787a79cbf9bff097b6d9705a53937d3e984085f7a5b5e0504"
+    },
+    {
+      "path": "release-native-ui-cloud-onefile.json",
+      "sha256": "c07e4a08a401c9edb7a7da2b8185e47619a7c851412ad23b83c6d4c2c0375b42"
+    },
+    {
+      "path": "release-native-materials-cloud-onefile.json",
+      "sha256": "31bdbe61e2e4ba34f2c869d1350581a9d7e33052936fda5262b5c06d1c8d0095"
+    }
+  ],
+  "stage": "candidate"
+}

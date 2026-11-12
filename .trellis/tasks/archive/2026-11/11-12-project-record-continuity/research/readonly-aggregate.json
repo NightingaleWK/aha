@@ -1,0 +1,374 @@
+{
+  "at": "2026-11-12T11:31:05.365230+08:00",
+  "python_sqlite": "3.53.1",
+  "mode": "read-only transactions",
+  "current": {
+    "revisions": [
+      {
+        "key": "claim_revision",
+        "value": "0"
+      },
+      {
+        "key": "data_revision",
+        "value": "27"
+      },
+      {
+        "key": "revision",
+        "value": "11"
+      }
+    ],
+    "facts": [
+      {
+        "kind": "detail",
+        "assignment_origin": "directory_rule",
+        "physical_rows": 1500,
+        "represented_count": 1500,
+        "first_day": "2026-11-10",
+        "last_day": "2026-11-12",
+        "suppressed": 0,
+        "availability_state": "available"
+      },
+      {
+        "kind": "detail",
+        "assignment_origin": "unassigned",
+        "physical_rows": 40603,
+        "represented_count": 40603,
+        "first_day": "2026-09-28",
+        "last_day": "2026-11-11",
+        "suppressed": 0,
+        "availability_state": "available"
+      },
+      {
+        "kind": "rollup",
+        "assignment_origin": "unassigned",
+        "physical_rows": 110,
+        "represented_count": 35500,
+        "first_day": "2026-06-17",
+        "last_day": "2026-09-24",
+        "suppressed": 0,
+        "availability_state": "available"
+      },
+      {
+        "kind": "rollup",
+        "assignment_origin": "unassigned",
+        "physical_rows": 7,
+        "represented_count": 2351,
+        "first_day": "2026-09-28",
+        "last_day": "2026-09-30",
+        "suppressed": 1,
+        "availability_state": "available"
+      }
+    ],
+    "session_status": [
+      {
+        "status": "matched",
+        "n": 64,
+        "with_cwd": 64
+      },
+      {
+        "status": "missing",
+        "n": 347,
+        "with_cwd": 0
+      }
+    ],
+    "project_count": 5,
+    "override_count": 0,
+    "claims_count": 0,
+    "metadata_versions": [
+      {
+        "status": "matched",
+        "n": 411,
+        "sessions": 411
+      },
+      {
+        "status": "missing",
+        "n": 347,
+        "sessions": 347
+      }
+    ]
+  },
+  "detail_join": [
+    {
+      "status": "matched",
+      "assignment_origin": "directory_rule",
+      "n": 1500,
+      "session_count": 29,
+      "first_day": "2026-11-10",
+      "last_day": "2026-11-12"
+    },
+    {
+      "status": "matched",
+      "assignment_origin": "unassigned",
+      "n": 1625,
+      "session_count": 35,
+      "first_day": "2026-11-09",
+      "last_day": "2026-11-11"
+    },
+    {
+      "status": "missing",
+      "assignment_origin": "unassigned",
+      "n": 38978,
+      "session_count": 347,
+      "first_day": "2026-09-28",
+      "last_day": "2026-11-06"
+    }
+  ],
+  "unknown_sessions_with_old_matched_version": [
+    {
+      "status": "missing",
+      "n": 347
+    }
+  ],
+  "open_cases": [
+    {
+      "type": "coverage",
+      "state": "resolved",
+      "n": 7
+    },
+    {
+      "type": "source",
+      "state": "resolved",
+      "n": 1
+    }
+  ],
+  "unknown_session_usage": [
+    {
+      "sessions": 347,
+      "min_rows": 1,
+      "max_rows": 1298,
+      "total_rows": 38978
+    }
+  ],
+  "retained_snapshots": [
+    {
+      "revisions": [
+        {
+          "key": "claim_revision",
+          "value": "0"
+        },
+        {
+          "key": "data_revision",
+          "value": "26"
+        },
+        {
+          "key": "revision",
+          "value": "7"
+        }
+      ],
+      "facts": [
+        {
+          "kind": "detail",
+          "assignment_origin": "unassigned",
+          "physical_rows": 39346,
+          "represented_count": 39346,
+          "first_day": "2026-09-28",
+          "last_day": "2026-11-10",
+          "suppressed": 0,
+          "availability_state": "available"
+        },
+        {
+          "kind": "rollup",
+          "assignment_origin": "unassigned",
+          "physical_rows": 110,
+          "represented_count": 35500,
+          "first_day": "2026-06-17",
+          "last_day": "2026-09-24",
+          "suppressed": 0,
+          "availability_state": "available"
+        },
+        {
+          "kind": "rollup",
+          "assignment_origin": "unassigned",
+          "physical_rows": 7,
+          "represented_count": 2351,
+          "first_day": "2026-09-28",
+          "last_day": "2026-09-30",
+          "suppressed": 1,
+          "availability_state": "available"
+        }
+      ],
+      "session_status": [
+        {
+          "status": "matched",
+          "n": 13,
+          "with_cwd": 13
+        },
+        {
+          "status": "missing",
+          "n": 347,
+          "with_cwd": 0
+        }
+      ],
+      "project_count": 5,
+      "override_count": 0,
+      "claims_count": 0,
+      "metadata_versions": [
+        {
+          "status": "matched",
+          "n": 360,
+          "sessions": 360
+        },
+        {
+          "status": "missing",
+          "n": 347,
+          "sessions": 347
+        }
+      ],
+      "old_fact_missing_count": 0,
+      "old_fact_content_changed_count": 0,
+      "old_fact_assignment_changed_count": 122
+    },
+    {
+      "revisions": [
+        {
+          "key": "claim_revision",
+          "value": "0"
+        },
+        {
+          "key": "data_revision",
+          "value": "26"
+        },
+        {
+          "key": "revision",
+          "value": "7"
+        }
+      ],
+      "facts": [
+        {
+          "kind": "detail",
+          "assignment_origin": "unassigned",
+          "physical_rows": 39346,
+          "represented_count": 39346,
+          "first_day": "2026-09-28",
+          "last_day": "2026-11-10",
+          "suppressed": 0,
+          "availability_state": "available"
+        },
+        {
+          "kind": "rollup",
+          "assignment_origin": "unassigned",
+          "physical_rows": 110,
+          "represented_count": 35500,
+          "first_day": "2026-06-17",
+          "last_day": "2026-09-24",
+          "suppressed": 0,
+          "availability_state": "available"
+        },
+        {
+          "kind": "rollup",
+          "assignment_origin": "unassigned",
+          "physical_rows": 7,
+          "represented_count": 2351,
+          "first_day": "2026-09-28",
+          "last_day": "2026-09-30",
+          "suppressed": 1,
+          "availability_state": "available"
+        }
+      ],
+      "session_status": [
+        {
+          "status": "matched",
+          "n": 13,
+          "with_cwd": 13
+        },
+        {
+          "status": "missing",
+          "n": 347,
+          "with_cwd": 0
+        }
+      ],
+      "project_count": 5,
+      "override_count": 0,
+      "claims_count": 0,
+      "metadata_versions": [
+        {
+          "status": "matched",
+          "n": 360,
+          "sessions": 360
+        },
+        {
+          "status": "missing",
+          "n": 347,
+          "sessions": 347
+        }
+      ],
+      "old_fact_missing_count": 0,
+      "old_fact_content_changed_count": 0,
+      "old_fact_assignment_changed_count": 122
+    }
+  ],
+  "recovery_preview": {
+    "totals": {
+      "unknown_sessions": 347,
+      "unique_historical_directory_sessions": 347,
+      "unique_historical_directory_rows": 38978,
+      "existing_project_sessions": 297,
+      "existing_project_rows": 37165,
+      "directory_without_project_sessions": 50,
+      "directory_without_project_rows": 1813
+    },
+    "metadata_events": [
+      {
+        "status": "matched",
+        "created_at": "2026-10-28T16:15+08:00",
+        "n": 213
+      },
+      {
+        "status": "matched",
+        "created_at": "2026-10-28T16:32+08:00",
+        "n": 2
+      },
+      {
+        "status": "matched",
+        "created_at": "2026-10-29T08:59+08:00",
+        "n": 12
+      },
+      {
+        "status": "matched",
+        "created_at": "2026-10-29T10:16+08:00",
+        "n": 1
+      },
+      {
+        "status": "matched",
+        "created_at": "2026-10-29T13:38+08:00",
+        "n": 7
+      },
+      {
+        "status": "matched",
+        "created_at": "2026-10-29T15:01+08:00",
+        "n": 1
+      },
+      {
+        "status": "matched",
+        "created_at": "2026-11-02T10:59+08:00",
+        "n": 28
+      },
+      {
+        "status": "matched",
+        "created_at": "2026-11-03T08:50+08:00",
+        "n": 9
+      },
+      {
+        "status": "matched",
+        "created_at": "2026-11-03T10:47+08:00",
+        "n": 4
+      },
+      {
+        "status": "matched",
+        "created_at": "2026-11-06T08:38+08:00",
+        "n": 47
+      },
+      {
+        "status": "matched",
+        "created_at": "2026-11-06T22:46+08:00",
+        "n": 23
+      },
+      {
+        "status": "missing",
+        "created_at": "2026-11-12T09:34+08:00",
+        "n": 347
+      }
+    ]
+  },
+  "independent_read_summary_unchanged": true
+}

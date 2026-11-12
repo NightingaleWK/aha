@@ -1,0 +1,121 @@
+{
+  "verified": true,
+  "started_at": "2026-11-12T08:58:15.561604+00:00",
+  "task_root": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112",
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "executable_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "forced_process_termination": false,
+  "inventory_before_delete": {
+    "files": 11550,
+    "directories": 1621,
+    "logical_bytes": 585271718,
+    "categories": {
+      "root-files": 13240828,
+      "verify-onefile-188cb1cae7cc": 875225,
+      "verify-directory-2f50cc42c79c": 875169,
+      "verify-desktop-v050": 875215,
+      "verify-cloud-onefile-observed-5a79b73c": 875219,
+      "verify-cloud-onefile": 875214,
+      "trusted-zstd-wheel": 268323,
+      "runtime315-sqlite3534": 49129401,
+      "runtime-provenance": 14554877,
+      "ruff-cache": 3794,
+      "qa315": 263892332,
+      "qa-profile-6696": 4392596,
+      "qa-profile-5348": 2313315,
+      "qa-profile-37128": 2296083,
+      "qa-profile-10320": 4310855,
+      "pycache": 39643516,
+      "pip-cache": 99375568,
+      "mypy-release-win": 3928293,
+      "compiled-source": 725835,
+      "cloud-v050-assets": 12837923,
+      "build": 62360602,
+      "baseline-source": 633695,
+      "association-ui-release-directory-79d2fc4e": 3012316,
+      "association-ui-release-cloud-onefile-3ee6718f": 3012410,
+      "association-ui-fixture-v2": 963114
+    },
+    "known_internal_edge_junctions": [
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-6696\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-6696\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach_link_only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-5348\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-5348\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach_link_only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-37128\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-37128\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach_link_only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-10320\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-10320\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach_link_only"
+      }
+    ],
+    "blocked_entries": [],
+    "entry_manifest_sha256": "5a176fc12dbf15dc9c1c520cf6d6b98423c355f6a909435326cfde870db14325"
+  },
+  "deletion_started": true,
+  "completed_at": "2026-11-12T08:58:48.386254+00:00",
+  "removed_root": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112",
+  "ownership_marker_verified": true,
+  "active_task_processes_before_delete": [],
+  "excel_processes_observed_before_delete": [],
+  "logical_bytes_removed": 585271718,
+  "observed_c_free_bytes_before": 323176116224,
+  "observed_c_free_bytes_after": 323782553600,
+  "observed_c_free_bytes_delta": 606437376,
+  "free_space_delta_may_include_other_system_activity": true,
+  "retained_root": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0",
+  "retained_curated_payload_bytes": 1761226,
+  "source_and_original_base_runtime_unchanged": true,
+  "product_state_preserved": {
+    "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+    "source_fingerprints": {
+      "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+      "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+      "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+      "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+    },
+    "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+    "current_worktree_head": "cae26d6202235c7588913d6def597ccc79850172",
+    "cleanup_base_sqlite": "3.53.1",
+    "original_base_sqlite_files_sha256": {
+      "sqlite3.dll": "f2ebefe62ae2942eac4c5a31e777c674235a82fbe653ca465e59cd044d9f77de",
+      "_sqlite3.pyd": "554a9a20119e8f101e3b452d8c5adfa4a26c2cc21c8275250a0b42479b9e6337"
+    }
+  },
+  "desktop_and_default_service_health_after": {
+    "desktop": "C:\\Users\\djsyw\\Desktop\\aha.exe",
+    "executable_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+    "ready": true,
+    "version": "0.5.0"
+  },
+  "acceptance_gate_sha256": {
+    "release-desktop-delivery.json": "f9c76ceac23b1cd081652dfe553eda34dbd6ce46d39e4e7a91b16c7649f751b9",
+    "release-desktop-verification.json": "84fc02a5f05c427d4199b1f6eeae464adfbc86199a27eeb99872de73dbd7c8b6",
+    "release-native-ui-directory.json": "59d0957786ac3be2e6c834ef7e28e2be022026305204d861f3e51024c6a07306",
+    "release-native-ui-cloud-onefile.json": "c07e4a08a401c9edb7a7da2b8185e47619a7c851412ad23b83c6d4c2c0375b42",
+    "release-native-materials-directory.json": "aa1b9d39c6e8f328e2ff97257aab883f682fa44cee30674ac0fef0a111000fe1",
+    "release-native-materials-cloud-onefile.json": "31bdbe61e2e4ba34f2c869d1350581a9d7e33052936fda5262b5c06d1c8d0095",
+    "release-cloud-assets.json": "ca093cbffd09cd625b060d3924a1b0859a70e7af4e196852e7152c4f217d1de1",
+    "release-cloud-onefile-verification.json": "8fdae173d53c20b787a79cbf9bff097b6d9705a53937d3e984085f7a5b5e0504",
+    "release-publication.json": "480bba4b87ca09da219b9fe05c7c0e2766c095366d223a5173cee4e274226459"
+  },
+  "known_edge_links_detached_without_following": true,
+  "preserved": [
+    "real LocalAppData/aha and sidecars",
+    "Desktop/D production programs",
+    "all persistent D backups and rollback EXEs",
+    "original base CPython315",
+    "source/Git/Trellis"
+  ],
+  "retained_total_bytes": 1798354
+}

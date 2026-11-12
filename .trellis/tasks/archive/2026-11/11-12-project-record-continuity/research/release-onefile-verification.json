@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "verified": true,
+  "version": "0.5.0",
+  "executable_sha256": "675be8054caba4b7397b96af9baa1a8271a5a9cc4e7d6a54049678e716319318",
+  "pe_version": {
+    "file_version_parts": [
+      0,
+      5,
+      0,
+      0
+    ],
+    "file_version": "0.5.0",
+    "product_version_parts": [
+      0,
+      5,
+      0,
+      0
+    ],
+    "product_version": "0.5.0"
+  },
+  "material_sha256": "3b53fd39319503e37c2cae40444e9eadec9eacbc581b5a35e04971266169bae8",
+  "complete_backup": {
+    "sha256": "5d18c569b7904bd9e72ebb19f88c9ace262e075b7495b28580f92240e3d8bb0e",
+    "size": 23465,
+    "restored_source_rebound": true,
+    "facts": 3,
+    "active_claims": 3,
+    "original_material_sha256": "3b53fd39319503e37c2cae40444e9eadec9eacbc581b5a35e04971266169bae8"
+  },
+  "verified_at": "2026-11-12T16:30:28+08:00",
+  "scopes": [
+    "native-exe",
+    "pe-version",
+    "http-authentication",
+    "resource-bytes",
+    "ccs-23-24-25",
+    "sql-25",
+    "unsupported-26-history-preserved",
+    "usage-projection-23",
+    "full-backup-download",
+    "chunked-backup-upload",
+    "new-directory-restore",
+    "restored-source-rebinding",
+    "restored-repeat-sync-idempotence",
+    "frozen-material",
+    "same-directory-reopen",
+    "persistent-restart",
+    "shutdown-cleanup"
+  ],
+  "tray_enabled": false,
+  "tray_physical_checked": false,
+  "browser_driven": false,
+  "office_checked": false,
+  "manual_checks": [],
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "source_fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "actual_build_runtime": {
+    "windows": true,
+    "isolated": true,
+    "bits": 64,
+    "python": [
+      3,
+      15,
+      2
+    ],
+    "machine": "AMD64",
+    "sqlite": [
+      3,
+      53,
+      4
+    ],
+    "sqlite_version": "3.53.4",
+    "packages": {
+      "aha-usage": "0.5.0",
+      "altgraph": "0.17.5",
+      "ast-serialize": "0.13.1",
+      "greenlet": "3.5.6",
+      "librt": "0.16.0",
+      "mypy": "2.4.1",
+      "mypy-extensions": "1.2.0",
+      "packaging": "26.3",
+      "pathspec": "1.1.1",
+      "pefile": "2024.8.26",
+      "pip": "26.2.2",
+      "playwright": "1.65.1",
+      "pyinstaller": "6.22.3",
+      "pyinstaller-hooks-contrib": "2026.9",
+      "pymupdf": "1.26.7",
+      "pypdf": "7.0.1",
+      "pywin32": "312",
+      "pywin32-ctypes": "0.2.3",
+      "ruff": "0.17.4",
+      "setuptools": "84.2.1",
+      "typing-extensions": "4.16.0",
+      "wheel": "0.48.0",
+      "zstandard": "0.25.0"
+    }
+  }
+}

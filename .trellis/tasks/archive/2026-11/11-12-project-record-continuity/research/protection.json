@@ -1,0 +1,71 @@
+{
+  "protected": true,
+  "at": "2026-11-12T13:55:15.676669+08:00",
+  "backup_implementation_source": "2216e27a19375ff28463b6db5f8a414d2d227480",
+  "baseline_tar_sha256": "c8ebb47ce0ec746990a588e4aac22ee0a52e4c239b95ec5fb1a8797bb7abbcfa",
+  "archive": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\aha-before-project-associations.aha-backup",
+  "archive_sha256": "8cee2ce51a1880baf8e0915166243ac4fd5e9c42c10e08e472c7a20475ebb622",
+  "archive_size": 41497790,
+  "database": {
+    "path": "aha.sqlite3",
+    "sha256": "13b240420b2395cdc8c0118148001c741860f6491d71f2af89cb179b96c0d32f",
+    "size": 176910336
+  },
+  "old_executable": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\aha-before-project-associations.exe",
+  "old_executable_sha256": "5f34fe26f9efda64c46aed32a8eacb90af4af9c54426650f4b1f48fa5fcef888",
+  "before": {
+    "schema": 3,
+    "revisions": 0,
+    "usage_records": 42220,
+    "usage_versions": 42220,
+    "projects": 5,
+    "sessions": 411,
+    "overrides": 0,
+    "usage_claims": 0,
+    "assignments": [
+      [
+        "detail",
+        "directory_rule",
+        1500
+      ],
+      [
+        "detail",
+        "unassigned",
+        40603
+      ],
+      [
+        "rollup",
+        "unassigned",
+        117
+      ]
+    ]
+  },
+  "after": {
+    "schema": 3,
+    "revisions": 0,
+    "usage_records": 42220,
+    "usage_versions": 42220,
+    "projects": 5,
+    "sessions": 411,
+    "overrides": 0,
+    "usage_claims": 0,
+    "assignments": [
+      [
+        "detail",
+        "directory_rule",
+        1500
+      ],
+      [
+        "detail",
+        "unassigned",
+        40603
+      ],
+      [
+        "rollup",
+        "unassigned",
+        117
+      ]
+    ]
+  },
+  "independent_read_summary_unchanged": true
+}

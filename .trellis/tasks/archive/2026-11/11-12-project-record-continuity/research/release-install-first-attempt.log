@@ -1,0 +1,63 @@
+Collecting ruff==0.17.4
+  Downloading ruff-0.17.4-py3-none-win_amd64.whl.metadata (21 kB)
+Collecting mypy==2.4.1
+  Downloading mypy-2.4.1-cp315-cp315-win_amd64.whl.metadata (2.4 kB)
+Collecting playwright==1.65.1
+  Downloading playwright-1.65.1-py3-none-win_amd64.whl.metadata (3.3 kB)
+Collecting pywin32==312
+  Downloading pywin32-312-cp315-cp315-win_amd64.whl.metadata (11 kB)
+Collecting pypdf==7.0.1
+  Downloading pypdf-7.0.1-py3-none-any.whl.metadata (7.6 kB)
+Collecting PyMuPDF==1.26.7
+  Downloading pymupdf-1.26.7-cp310-abi3-win_amd64.whl.metadata (3.4 kB)
+Collecting pyinstaller==6.22.3 (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 1))
+  Downloading pyinstaller-6.22.3-py3-none-win_amd64.whl.metadata (8.5 kB)
+Collecting setuptools==84.2.1 (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 2))
+  Downloading setuptools-84.2.1-py3-none-any.whl.metadata (6.6 kB)
+Collecting wheel==0.48.0 (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 3))
+  Downloading wheel-0.48.0-py3-none-any.whl.metadata (2.3 kB)
+Collecting zstandard==0.25.0 (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 4))
+  Downloading zstandard-0.25.0.tar.gz (711 kB)
+     ---------------------------------------- 711.5/711.5 kB 2.3 MB/s  0:00:00
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'error'
+  error: subprocess-exited-with-error
+  
+  × Getting requirements to build wheel did not run successfully.
+  │ exit code: 1
+  ╰─> [29 lines of output]
+      Traceback (most recent call last):
+        File "C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\qa315\Lib\site-packages\pip\_vendor\pyproject_hooks\_in_process\_in_process.py", line 389, in <module>
+          main()
+          ~~~~^^
+        File "C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\qa315\Lib\site-packages\pip\_vendor\pyproject_hooks\_in_process\_in_process.py", line 373, in main
+          json_out["return_val"] = hook(**hook_input["kwargs"])
+                                   ~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+        File "C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\qa315\Lib\site-packages\pip\_vendor\pyproject_hooks\_in_process\_in_process.py", line 143, in get_requires_for_build_wheel
+          return hook(config_settings)
+        File "C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\synthetic-profile\Temp\pip-build-env-4dfiivfw\overlay\Lib\site-packages\setuptools\build_meta.py", line 333, in get_requires_for_build_wheel
+          return self._get_build_requires(config_settings, requirements=[])
+                 ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        File "C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\synthetic-profile\Temp\pip-build-env-4dfiivfw\overlay\Lib\site-packages\setuptools\build_meta.py", line 301, in _get_build_requires
+          self.run_setup()
+          ~~~~~~~~~~~~~~^^
+        File "C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\synthetic-profile\Temp\pip-build-env-4dfiivfw\overlay\Lib\site-packages\setuptools\build_meta.py", line 317, in run_setup
+          exec(code, locals())  # noqa: S102 # exec is intentional here
+          ~~~~^^^^^^^^^^^^^^^^
+        File "<string>", line 128, in <module>
+        File "C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\synthetic-profile\Temp\pip-install-dz9u6rl9\zstandard_7a06f4fd93a144738a483be4737b2126\setup_zstd.py", line 67, in get_c_extension
+          compiler.initialize()
+          ~~~~~~~~~~~~~~~~~~~^^
+        File "C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\synthetic-profile\Temp\pip-build-env-4dfiivfw\overlay\Lib\site-packages\setuptools\_distutils\compilers\C\msvc.py", line 354, in initialize
+          vc_env = _get_vc_env(plat_spec)
+        File "C:\Users\djsyw\AppData\Local\Temp\aha-release-v050-20261112\synthetic-profile\Temp\pip-build-env-4dfiivfw\overlay\Lib\site-packages\setuptools\_distutils\compilers\C\msvc.py", line 152, in _get_vc_env
+          raise PlatformError(
+          ...<3 lines>...
+          )
+      distutils.compilers.errors.PlatformError: Microsoft Visual C++ 14.0 or greater is required. Get it with "Microsoft C++ Build Tools": https://visualstudio.microsoft.com/visual-cpp-build-tools/
+      [end of output]
+  
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+ERROR: Failed to build 'zstandard' when getting requirements to build wheel

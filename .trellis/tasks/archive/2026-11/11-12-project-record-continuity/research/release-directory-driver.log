@@ -1,0 +1,51 @@
+{
+  "verified": true,
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "version": "0.5.0",
+  "stage": "Directory",
+  "source_fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "real_profile_used": false,
+  "started_at": "2026-11-12T08:21:48.768236+00:00",
+  "metadata_returncode": 0,
+  "metadata_log_sha256": "df9ae68b375ad97bd3cc9dcfbeb7872cb0aa455f907aee1685817c09b5d5fa7e",
+  "egg-info_returncode": 0,
+  "egg-info_log_sha256": "61bb0b33c33cadf21398ad99818055dc184ffaba698086fec6304291ef3f5217",
+  "active_provider": {
+    "module_version": "0.5.0",
+    "active_provider_version": "0.5.0",
+    "source_package": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\src\\aha\\__init__.py"
+  },
+  "build_returncode": 0,
+  "build_log_sha256": "b5e78b9b48585f9a40d59fe8f2a54ee785352c6111c7546fe5c866f93bc269b3",
+  "executable": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\build\\release\\directory\\aha\\aha.exe",
+  "executable_sha256": "ecc8ce5ac743ac1e8413881d19cdbd4d5a92fb8cc5db006a2cc92b43f8e4df46",
+  "actual_build_runtime": {
+    "windows": true,
+    "bits": 64,
+    "isolated": true,
+    "python": [
+      3,
+      15
+    ],
+    "machine": "AMD64",
+    "sqlite": [
+      3,
+      53,
+      4
+    ],
+    "sqlite_version": "3.53.4",
+    "application_version": "0.5.0"
+  },
+  "bundled_sqlite_matches_verified_public_production_bytes": true,
+  "verification_returncode": 0,
+  "verification_log_sha256": "e36a840081cfbee7ea5402c08a8e5f4baf514d1923ffc15852ea423558283a95",
+  "completed_at": "2026-11-12T08:22:47.653029+00:00",
+  "verification_fixture": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\verify-directory-2f50cc42c79c",
+  "standard_native_gate_passed": true
+}

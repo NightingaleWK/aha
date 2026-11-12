@@ -1,0 +1,411 @@
+{
+  "verified": true,
+  "retained_root": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0",
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "executable_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+  "files": [
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\materials\\project-c.zip",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\materials\\project-c.zip",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\directory\\project-c.zip",
+      "sha256": "1844ac54bac611f48dec5e350d0ef06335d667b7b27a943f6a7e0ca492a65e7f",
+      "bytes": 12515
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\projects-1440.png",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\projects-1440.png",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\directory\\projects-1440.png",
+      "sha256": "7b636c3c29ab3238a6ca3bf469dfbe926b9abd0b5a583ac29a3a80b0934a2d7d",
+      "bytes": 251492
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\projects-375.png",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\projects-375.png",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\directory\\projects-375.png",
+      "sha256": "c822bcbbb6c739bc245738412b8517973b886e234df0b7e129fdcf30a9a794a5",
+      "bytes": 206160
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\project-c-a4.pdf",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\project-c-a4.pdf",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\directory\\project-c-a4.pdf",
+      "sha256": "e3de6703a036616cc793ad5789a29bb3698c633cc8a7a08abd9c2f07e1dea3b7",
+      "bytes": 118640
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\a4-page-1.png",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\a4-page-1.png",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\directory\\a4-page-1.png",
+      "sha256": "356b02398818331e60621bb73e868f763aabc0a1ef3ab3e802303b88943c48b5",
+      "bytes": 146727
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\使用明细.csv",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\使用明细.csv",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\directory\\使用明细.csv",
+      "sha256": "f10e3a1ec99de3c6b2c79283879821af43fdc366c6856890029f0973bc5b2c10",
+      "bytes": 16795
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\每日汇总.csv",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\每日汇总.csv",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\directory\\每日汇总.csv",
+      "sha256": "097b07108ee76d4acd156d6d23527b4c06434006d8331f6d3bb4a67cd5efc76f",
+      "bytes": 382
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\费用说明.html",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\费用说明.html",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\directory\\费用说明.html",
+      "sha256": "7b6f550a65fa656d4517492915adbf321d7d32b9e767c293538352f5b5ac1b66",
+      "bytes": 3253
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\导出信息.json",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-directory-79d2fc4e\\office-validation-4eaecb\\导出信息.json",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\directory\\导出信息.json",
+      "sha256": "faada6871c2cc701bdaeef9871f0ec1479b65ae8fa9f4695497094192d8613a2",
+      "bytes": 53900
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\materials\\project-c.zip",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\materials\\project-c.zip",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\cloud-onefile\\project-c.zip",
+      "sha256": "26b7e01d3b72a2f2f47a8c67725398647a634dcb4c922878c31dc8a81b6b1c76",
+      "bytes": 12515
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\projects-1440.png",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\projects-1440.png",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\cloud-onefile\\projects-1440.png",
+      "sha256": "7b636c3c29ab3238a6ca3bf469dfbe926b9abd0b5a583ac29a3a80b0934a2d7d",
+      "bytes": 251492
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\projects-375.png",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\projects-375.png",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\cloud-onefile\\projects-375.png",
+      "sha256": "c822bcbbb6c739bc245738412b8517973b886e234df0b7e129fdcf30a9a794a5",
+      "bytes": 206160
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\project-c-a4.pdf",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\project-c-a4.pdf",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\cloud-onefile\\project-c-a4.pdf",
+      "sha256": "024d1337331e01f92234183e4ff03cd09c54e95515241bf3f4b49c2b48363f02",
+      "bytes": 118642
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\a4-page-1.png",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\a4-page-1.png",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\cloud-onefile\\a4-page-1.png",
+      "sha256": "6dda67eb329f54a3e84b64bb4b8815ba4011533193dc275fc53a126761261f0b",
+      "bytes": 146811
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\使用明细.csv",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\使用明细.csv",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\cloud-onefile\\使用明细.csv",
+      "sha256": "f10e3a1ec99de3c6b2c79283879821af43fdc366c6856890029f0973bc5b2c10",
+      "bytes": 16795
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\每日汇总.csv",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\每日汇总.csv",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\cloud-onefile\\每日汇总.csv",
+      "sha256": "097b07108ee76d4acd156d6d23527b4c06434006d8331f6d3bb4a67cd5efc76f",
+      "bytes": 382
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\费用说明.html",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\费用说明.html",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\cloud-onefile\\费用说明.html",
+      "sha256": "b622d766944c494b487cc2abecac5fee86a398fe39c8a1de8b7a486a5fb04a1e",
+      "bytes": 3253
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\导出信息.json",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\association-ui-release-cloud-onefile-3ee6718f\\office-validation-8d2bdd\\导出信息.json",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\cloud-onefile\\导出信息.json",
+      "sha256": "0bc2684f1370329ef1e7e936efdf6e4a82d4943dc631492175796ec0b67a1059",
+      "bytes": 53900
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\python315-release.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\python315-release.json",
+      "sha256": "8fabe1d478646f3d18bb14725763322b2a35436b863adecc59836ba83c1116c0",
+      "bytes": 3538
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-candidate-source.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-candidate-source.json",
+      "sha256": "98f1c6de1234e40d287056bd813806c46c2b31d37b1edc037c6eb077f2c99a1f",
+      "bytes": 1461
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-private-runtime.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-private-runtime.json",
+      "sha256": "f35d6b55d75d98a33ea3dd9066dacc9ad0a14530c768e44dd7fddc91fd7e3e2a",
+      "bytes": 5182
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-installed-runtime.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-installed-runtime.json",
+      "sha256": "880809027a2e5a92d7bb93df6b9fb4c43eb98a4d9fee66edd3999994a64e1797",
+      "bytes": 1626
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-trusted-wheel.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-trusted-wheel.json",
+      "sha256": "9a2ea937d8b6d11574193a8579a0d312b0509777f5f2fc64d8b805adebb7f325",
+      "bytes": 1727
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-previous-public-runtime.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-previous-public-runtime.json",
+      "sha256": "282f009915293e6d0dabca28fbf9ecf0b6d3135f38bbf7a33979895db2186738",
+      "bytes": 1135
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-directory-build.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-directory-build.json",
+      "sha256": "8908ff7ae62d4a6f048b79fe70ee93347b9550a4b3cb2fee94af94d21437679f",
+      "bytes": 2175
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-directory-verification.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-directory-verification.json",
+      "sha256": "33090051cdbcec0b558c4f3c08e1e7bf3bd13464c536fca8b432055559d575ec",
+      "bytes": 2287
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-onefile-build.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-onefile-build.json",
+      "sha256": "a7298f40a9314ac7fb283aded9d8a46486730ce653133edda5459c1b1a36ce69",
+      "bytes": 2873
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-onefile-verification.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-onefile-verification.json",
+      "sha256": "cbf894e2419f204cc58b754199726a18f07cef9a26fc9e1cdb9249747b3a7929",
+      "bytes": 2972
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-cloud-assets.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-cloud-assets.json",
+      "sha256": "ca093cbffd09cd625b060d3924a1b0859a70e7af4e196852e7152c4f217d1de1",
+      "bytes": 4389
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-cloud-onefile-verification.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-cloud-onefile-verification.json",
+      "sha256": "8fdae173d53c20b787a79cbf9bff097b6d9705a53937d3e984085f7a5b5e0504",
+      "bytes": 1482
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-native-ui-directory.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-native-ui-directory.json",
+      "sha256": "59d0957786ac3be2e6c834ef7e28e2be022026305204d861f3e51024c6a07306",
+      "bytes": 2163
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-native-ui-cloud-onefile.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-native-ui-cloud-onefile.json",
+      "sha256": "c07e4a08a401c9edb7a7da2b8185e47619a7c851412ad23b83c6d4c2c0375b42",
+      "bytes": 2167
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-native-materials-directory.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-native-materials-directory.json",
+      "sha256": "aa1b9d39c6e8f328e2ff97257aab883f682fa44cee30674ac0fef0a111000fe1",
+      "bytes": 2095
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-native-materials-cloud-onefile.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-native-materials-cloud-onefile.json",
+      "sha256": "31bdbe61e2e4ba34f2c869d1350581a9d7e33052936fda5262b5c06d1c8d0095",
+      "bytes": 2130
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-desktop-delivery.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-desktop-delivery.json",
+      "sha256": "f9c76ceac23b1cd081652dfe553eda34dbd6ce46d39e4e7a91b16c7649f751b9",
+      "bytes": 8389
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-desktop-verification.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-desktop-verification.json",
+      "sha256": "84fc02a5f05c427d4199b1f6eeae464adfbc86199a27eeb99872de73dbd7c8b6",
+      "bytes": 1989
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-publication.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-publication.json",
+      "sha256": "480bba4b87ca09da219b9fe05c7c0e2766c095366d223a5173cee4e274226459",
+      "bytes": 1327
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-post-publication-runtime.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-post-publication-runtime.json",
+      "sha256": "dc0bcf1ae015021f2b40820570a9dfcf64ab933de7e30767bd67aa36212cbc29",
+      "bytes": 637
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-user-tray-confirmation.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-user-tray-confirmation.json",
+      "sha256": "b119c257f076a9f005cdf8348b631b50aadbcf770a0a26d507774968ec36918b",
+      "bytes": 767
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-user-tray-v050.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-user-tray-v050.json",
+      "sha256": "239078e03f554397a2266c75081627c9c119d2a85e1b3f95ecc9f20d15b05ce1",
+      "bytes": 1057
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-acceptance-evaluation.json",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\reports\\release-acceptance-evaluation.json",
+      "sha256": "916f868cbb0ce7cc4fe0573fe40728492c4fa1168804ee9baca647a41a63ece2",
+      "bytes": 535
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-python-tests.log",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\logs\\release-python-tests.log",
+      "sha256": "fa34885d73ced1cb5546cbb10c0e1ab393647cfb62584d7db6f3cfe94a211f19",
+      "bytes": 59794
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-ruff.log",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\logs\\release-ruff.log",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "bytes": 19
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-mypy.log",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\logs\\release-mypy.log",
+      "sha256": "d8718b1a9af3d237f75caefa2c246d31ce9b95648bf02213276847f4e0dc6069",
+      "bytes": 45
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-compileall.log",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\logs\\release-compileall.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-directory-build.log",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\logs\\release-directory-build.log",
+      "sha256": "b5e78b9b48585f9a40d59fe8f2a54ee785352c6111c7546fe5c866f93bc269b3",
+      "bytes": 9590
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-directory-verification.log",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\logs\\release-directory-verification.log",
+      "sha256": "e36a840081cfbee7ea5402c08a8e5f4baf514d1923ffc15852ea423558283a95",
+      "bytes": 28
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-onefile-build.log",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\logs\\release-onefile-build.log",
+      "sha256": "ddbb3880efbd98dc02bba73873d7d1e49bf65463f93d1803a87f9bec34e543a6",
+      "bytes": 9290
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-onefile-verification.log",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\logs\\release-onefile-verification.log",
+      "sha256": "e36a840081cfbee7ea5402c08a8e5f4baf514d1923ffc15852ea423558283a95",
+      "bytes": 28
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-wheel-install.log",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\logs\\release-wheel-install.log",
+      "sha256": "a4e46c8c76fb5d77802291a5c9e96eaf5fdbd9d8f3b98cb5c1caf7701603c23d",
+      "bytes": 1876
+    },
+    {
+      "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-directory-egg-info.log",
+      "original_temporary_path": null,
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\logs\\release-directory-egg-info.log",
+      "sha256": "61bb0b33c33cadf21398ad99818055dc184ffaba698086fec6304291ef3f5217",
+      "bytes": 443
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\task-ownership.json",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\task-ownership.json",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\provenance\\task-ownership.json",
+      "sha256": "d9d314db3f6619200ccbdaf501baa7e1b1888b2f6b5e669e2ed7b83db018276a",
+      "bytes": 236
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\trusted-zstd-wheel\\provenance.json",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\trusted-zstd-wheel\\provenance.json",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\provenance\\trusted-wheel-provenance.json",
+      "sha256": "0b5dd2d2747f7ea089707ced46b85fa9f95809523451e8a9fa1a5e8405f7720b",
+      "bytes": 1375
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\cloud-v050-assets\\SHA256SUMS.txt",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\cloud-v050-assets\\SHA256SUMS.txt",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\provenance\\SHA256SUMS.txt",
+      "sha256": "c6a7067d535dbab49ec03d5d49403f267c09053955cd83ec56acdf53fc08a84e",
+      "bytes": 174
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\cloud-v050-assets\\build-info.json",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\cloud-v050-assets\\build-info.json",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\provenance\\build-info.json",
+      "sha256": "a34df29fdd2796da70994fdc70514302bd874bbcc693be8a42fd9e936a8861d6",
+      "bytes": 4179
+    },
+    {
+      "original_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\build\\runtime-versions.json",
+      "original_temporary_path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\build\\runtime-versions.json",
+      "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\provenance\\local-build-runtime-versions.json",
+      "sha256": "e29a745937f6a7fcd213f1a0c75b15fab9ee1e7b7bdcfd1b6a38f68c6cb76add",
+      "bytes": 232
+    }
+  ],
+  "purpose": "Whitelisted small synthetic UI/Office and release QA records only",
+  "existing_acceptance_report_bytes_unchanged": true,
+  "single_file_limit_bytes": 10485760,
+  "total_limit_bytes": 20971520,
+  "generated_cleanup_receipt": {
+    "original_path": "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-12-project-record-continuity\\research\\release-cleanup.json",
+    "original_temporary_path": null,
+    "path": "D:\\aha-backups\\project-record-continuity-20261112-135506-f8009f\\acceptance-records-v0.5.0\\release-cleanup.json",
+    "sha256": "a3d945c89fe1e5a08a4dd212908c139a38ad9599fb08967ae88ad377343bd7a0",
+    "bytes": 6380
+  }
+}

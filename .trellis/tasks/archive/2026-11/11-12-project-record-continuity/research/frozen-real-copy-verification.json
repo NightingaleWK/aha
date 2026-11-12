@@ -1,0 +1,19 @@
+{
+  "verified": true,
+  "executable_sha256": "9ccd827d1dc4edbbda8b4a8bf30abe3867143950b828a7ffc5217c97e334e97a",
+  "timings_ms": {
+    "launch_and_schema3_migration": 11367,
+    "recovery_preview": 2004,
+    "atomic_recovery": 17745
+  },
+  "recovered_sessions": 347,
+  "recovered_detail_count": 37165,
+  "assigned_detail_count": 38665,
+  "unassigned_detail_count": 3438,
+  "facts_cost_tokens_claims_old_materials_unchanged": true,
+  "ownership_survives_frozen_restart": true,
+  "original_ledger_unchanged": true,
+  "native_tray_enabled": true,
+  "physical_tray_input": false,
+  "completed_at": "2026-11-12T15:01:30.446394+08:00"
+}

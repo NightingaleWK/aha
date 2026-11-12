@@ -1,0 +1,45 @@
+{
+  "verified": true,
+  "original_written": false,
+  "data_directory": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\real-schema3-copy",
+  "migration_preserves_all_facts_current_assignments_claims_and_materials": true,
+  "migration_rollback_archive_count": 1,
+  "preview": {
+    "selected_detail_count": 38978,
+    "selected_rollup_count": 0,
+    "selected_record_count": 38978,
+    "changed_count": 37165,
+    "session_count": 347,
+    "recovered_sessions": 347,
+    "directory_only_sessions": 50,
+    "manual_exceptions": 0
+  },
+  "counts_before": {
+    "detail_count": 42103,
+    "assigned_detail_count": 1500,
+    "unassigned_detail_count": 40603,
+    "unassigned_rollup_count": 110
+  },
+  "counts_after": {
+    "detail_count": 42103,
+    "assigned_detail_count": 38665,
+    "unassigned_detail_count": 3438,
+    "unassigned_rollup_count": 110
+  },
+  "matched_sessions_after": 411,
+  "durable_links": 42220,
+  "all_projects_plus_unassigned_conserve_records_amount_and_tokens": true,
+  "represented_record_count": 77603,
+  "project_detail_counts": [
+    4817,
+    1266,
+    6562,
+    25901,
+    119
+  ],
+  "missing_old_logs_do_not_remove_recovered_links": true,
+  "schema4_full_backup_and_independent_restore_keep_recovered_links": true,
+  "schema4_archive_sha256": "cdab6df7d2be2b3cf0acf02774f18761f9782c02f3330690b6b9fb5295ffc84b",
+  "original_logically_unchanged": true,
+  "completed_at": "2026-11-12T14:17:06.546037+08:00"
+}

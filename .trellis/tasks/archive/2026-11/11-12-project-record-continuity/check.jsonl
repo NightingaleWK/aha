@@ -1,0 +1,8 @@
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"真实业务断言、隔离资料、原生检查与未执行证据边界"}
+{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"项目统计可追溯逐条成员、未归属与总量守恒、保存占用和材料不漂移"}
+{"file":".trellis/spec/backend/project-association-contract.md","reason":"全任务复核的归属优先级、批量选择、旧missing与本机matched区分、升级/旧包/覆盖修订合同"}
+{"file":".trellis/spec/backend/recovery-and-device-contract.md","reason":"恢复、历史版本、原包和旧备份兼容"}
+{"file":".trellis/spec/backend/time-range-contract.md","reason":"明细/日汇总范围和冻结材料一致性"}
+{"file":".trellis/spec/backend/delivery-and-cleanup.md","reason":"最终源码对应桌面成品、真实数据恢复和清理不能被代码检查替代"}
+{"file":".trellis/spec/frontend/state-management.md","reason":"陈旧预览和迟到请求不能影响新筛选或保存"}
+{"file":".trellis/tasks/11-12-project-record-continuity/research/association-findings.md","reason":"区分唯一历史目录、按当前规则重建和已执行恢复"}

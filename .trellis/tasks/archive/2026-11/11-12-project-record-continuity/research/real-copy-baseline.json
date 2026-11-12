@@ -1,0 +1,44 @@
+{
+  "verified": true,
+  "at": "2026-11-12T13:56:57.744242+08:00",
+  "destination": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-record-continuity-20261112\\real-schema3-copy",
+  "archive_sha256": "8cee2ce51a1880baf8e0915166243ac4fd5e9c42c10e08e472c7a20475ebb622",
+  "snapshot": {
+    "schema": 3,
+    "business_revisions": {
+      "claim_revision": "0",
+      "data_revision": "27",
+      "revision": "11"
+    },
+    "fact_identity_content": {
+      "sha256": "5a58d961765a0ba80ff74041e31e63185eae1b4e6d25aea3ea7a5dfaf5715dd7"
+    },
+    "versions": {
+      "sha256": "caa0c855bbe436388d0f82692432303e55405a28abb7488ca67e4afe37a738fe"
+    },
+    "projects": {
+      "sha256": "908055944dcce63b690f75229be949a469d0b9d6d96d43a2c89d315ad01351e2"
+    },
+    "claims": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "revisions": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "coverage": {
+      "sha256": "e1d173909e2a2a5afd6d08eac2a1b69f91742e1957403897a101690be6f62288"
+    },
+    "counts": {
+      "usage_records": 42220,
+      "usage_versions": 42220,
+      "projects": 5,
+      "sessions": 411,
+      "usage_claims": 0,
+      "revisions": 0
+    },
+    "assigned": 1500
+  },
+  "source_logically_equal": true,
+  "source_modified": false,
+  "restore_format_version": 1
+}

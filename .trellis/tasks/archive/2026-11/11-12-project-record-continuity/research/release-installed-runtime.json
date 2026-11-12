@@ -1,0 +1,60 @@
+{
+  "verified": true,
+  "completed_at": "2026-11-12T08:06:23.626338+00:00",
+  "wheel_sha256": "a1c09646b16f6c5c3dfbd6d2074bbe5bdb6cac88d1566762b6ad2d7b4003e178",
+  "workflow_run_id": "43178376925",
+  "install_returncode": 0,
+  "fixed_requirements_returncode": 0,
+  "fixed_build_packages": {
+    "pyinstaller": "6.22.3",
+    "setuptools": "84.2.1",
+    "wheel": "0.48.0",
+    "zstandard": "0.25.0",
+    "altgraph": "0.17.5",
+    "packaging": "26.3",
+    "pefile": "2024.8.26",
+    "pyinstaller-hooks-contrib": "2026.9",
+    "pywin32-ctypes": "0.2.3"
+  },
+  "build_runtime": {
+    "python": [
+      3,
+      15,
+      2
+    ],
+    "sqlite": [
+      3,
+      53,
+      4
+    ],
+    "sqlite_version": "3.53.4",
+    "windows": true,
+    "bits": 64,
+    "machine": "AMD64",
+    "packages": {
+      "pyinstaller": "6.22.3",
+      "setuptools": "84.2.1",
+      "wheel": "0.48.0",
+      "zstandard": "0.25.0",
+      "altgraph": "0.17.5",
+      "packaging": "26.3",
+      "pefile": "2024.8.26",
+      "pyinstaller-hooks-contrib": "2026.9",
+      "pywin32-ctypes": "0.2.3"
+    }
+  },
+  "qa_tools": {
+    "ruff": "0.17.4",
+    "mypy": "2.4.1",
+    "playwright": "1.65.1",
+    "pywin32": "312",
+    "pypdf": "7.0.1",
+    "pymupdf": "1.26.7"
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "runtime_matches_previous_public": true,
+  "native_backend": "cext",
+  "native_backend_sha256": "5d0068e7a369558a8ae80c0276924504675802d1ce52d7ec2fd546087b2ee55c",
+  "native_import_and_roundtrip_verified": true,
+  "real_profile_used": false
+}

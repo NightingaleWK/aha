@@ -1,0 +1,66 @@
+{
+  "mode": "read_only_inventory",
+  "task_root": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112",
+  "inventory": {
+    "files": 11550,
+    "directories": 1621,
+    "logical_bytes": 585271718,
+    "categories": {
+      "root-files": 13240828,
+      "verify-onefile-188cb1cae7cc": 875225,
+      "verify-directory-2f50cc42c79c": 875169,
+      "verify-desktop-v050": 875215,
+      "verify-cloud-onefile-observed-5a79b73c": 875219,
+      "verify-cloud-onefile": 875214,
+      "trusted-zstd-wheel": 268323,
+      "runtime315-sqlite3534": 49129401,
+      "runtime-provenance": 14554877,
+      "ruff-cache": 3794,
+      "qa315": 263892332,
+      "qa-profile-6696": 4392596,
+      "qa-profile-5348": 2313315,
+      "qa-profile-37128": 2296083,
+      "qa-profile-10320": 4310855,
+      "pycache": 39643516,
+      "pip-cache": 99375568,
+      "mypy-release-win": 3928293,
+      "compiled-source": 725835,
+      "cloud-v050-assets": 12837923,
+      "build": 62360602,
+      "baseline-source": 633695,
+      "association-ui-release-directory-79d2fc4e": 3012316,
+      "association-ui-release-cloud-onefile-3ee6718f": 3012410,
+      "association-ui-fixture-v2": 963114
+    },
+    "known_internal_edge_junctions": [
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-6696\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-6696\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach_link_only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-5348\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-5348\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach_link_only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-37128\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-37128\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach_link_only"
+      },
+      {
+        "path": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-10320\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+        "target": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-release-v050-20261112\\qa-profile-10320\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE",
+        "action": "detach_link_only"
+      }
+    ],
+    "blocked_entries": [],
+    "entry_manifest_sha256": "7134bbf6fc0421307c8dc060dd31e68faac4082444f96766909b9d82b1cc2443"
+  },
+  "active_processes": {
+    "task_root_processes": [],
+    "excel_processes_requiring_closed_workbooks": []
+  },
+  "c_free_bytes": 323860103168,
+  "will_not_clean_without_completed_publication_gates": true
+}

@@ -1,0 +1,16 @@
+test_backup_worker_is_cancellable_and_keeps_local_queries_available (test_http_backup.BackupHTTPTests.test_backup_worker_is_cancellable_and_keeps_local_queries_available) ... ok
+test_binary_upload_requires_auth_origin_csrf_type_length_and_exact_offset (test_http_backup.BackupHTTPTests.test_binary_upload_requires_auth_origin_csrf_type_length_and_exact_offset) ... ok
+test_binding_metadata_error_does_not_prevent_querying_saved_history (test_http_backup.BackupHTTPTests.test_binding_metadata_error_does_not_prevent_querying_saved_history) ... ok
+test_cancel_by_upload_id_also_cancels_restore_after_response_is_lost (test_http_backup.BackupHTTPTests.test_cancel_by_upload_id_also_cancels_restore_after_response_is_lost) ... ok
+test_corrupt_backup_fails_in_new_directory_without_mutating_current_usage (test_http_backup.BackupHTTPTests.test_corrupt_backup_fails_in_new_directory_without_mutating_current_usage) ... ok
+test_full_http_roundtrip_keeps_current_ledger_and_original_packages (test_http_backup.BackupHTTPTests.test_full_http_roundtrip_keeps_current_ledger_and_original_packages) ... ok
+test_invalid_sizes_incomplete_restore_and_existing_or_nested_target_are_safe (test_http_backup.BackupHTTPTests.test_invalid_sizes_incomplete_restore_and_existing_or_nested_target_are_safe) ... ok
+test_mark_stopping_closes_allocation_gate_before_cancelling_transfers (test_http_backup.BackupHTTPTests.test_mark_stopping_closes_allocation_gate_before_cancelling_transfers) ... ok
+test_new_computer_binding_preserves_old_usage_and_never_quarantines_history (test_http_backup.BackupHTTPTests.test_new_computer_binding_preserves_old_usage_and_never_quarantines_history) ... ok
+test_shutdown_closes_allocation_gate_before_cancelling_transfers (test_http_backup.BackupHTTPTests.test_shutdown_closes_allocation_gate_before_cancelling_transfers) ... ok
+test_unfinished_uploads_are_visible_and_cancellable_after_a_page_reload (test_http_backup.BackupHTTPTests.test_unfinished_uploads_are_visible_and_cancellable_after_a_page_reload) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 7.835s
+
+OK

@@ -1,0 +1,58 @@
+{
+  "verified": true,
+  "purpose": "release-v050",
+  "label": "release-cloud-onefile",
+  "ui_report": "release-native-ui-cloud-onefile.json",
+  "ui_report_sha256": "c07e4a08a401c9edb7a7da2b8185e47619a7c851412ad23b83c6d4c2c0375b42",
+  "qa_python": "3.15.2",
+  "qa_sqlite": "3.53.4",
+  "ui_source_sha256": {
+    "app.js": "8318e5177f275b1219281d90353421111d7ddee22a67ef71bf9ceafebc13d91a",
+    "index.html": "3b5d26dc97c6d99a061a5fa84674b04f277d631ee7f52d85f13d60cf2ac999e1",
+    "style.css": "9dd6a94af5fd2d61d75fe8f5fd7ff91f8f9a5c5a24f9baebf919874eb7bff992"
+  },
+  "real_profile_used": false,
+  "executable_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+  "material_sha256": "26b7e01d3b72a2f2f47a8c67725398647a634dcb4c922878c31dc8a81b6b1c76",
+  "physical_office_input": false,
+  "excel": [
+    {
+      "file": "使用明细.csv",
+      "rows": 81,
+      "columns": 23,
+      "all_cells_match": true,
+      "semantic_date_cells": 0,
+      "columns_autofit_for_inspection": true,
+      "no_formulas": true,
+      "version": "16.0"
+    },
+    {
+      "file": "每日汇总.csv",
+      "rows": 1,
+      "columns": 17,
+      "all_cells_match": true,
+      "semantic_date_cells": 1,
+      "columns_autofit_for_inspection": true,
+      "no_formulas": true,
+      "version": "16.0"
+    }
+  ],
+  "print": {
+    "pages": 1,
+    "a4_page_sizes_pt": [
+      [
+        594.95996,
+        841.91998
+      ]
+    ],
+    "precise_cost_and_assignment_note_preserved": true,
+    "pdf_sha256": "024d1337331e01f92234183e4ff03cd09c54e95515241bf3f4b49c2b48363f02",
+    "pdf_relative_path": "association-ui-release-cloud-onefile-3ee6718f/office-validation-8d2bdd/project-c-a4.pdf",
+    "rendered_pages": [
+      "association-ui-release-cloud-onefile-3ee6718f/office-validation-8d2bdd/a4-page-1.png"
+    ],
+    "all_rendered_pages_visually_reviewed": true,
+    "visual_findings": "主会话逐页查看A4渲染图：一页完整，项目期间、81条明细、精确成本9.9999927USD及同期16条明细/1行日汇总待归属说明清晰，无截断或重叠。"
+  },
+  "completed_at": "2026-11-12T16:34:16.408204+08:00"
+}
