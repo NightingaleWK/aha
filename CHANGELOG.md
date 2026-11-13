@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/NightingaleWK/aha/compare/v0.5.1...v0.6.0) (2026-11-13)
+
+
+### 新增功能
+
+* 按目录整体关联项目记录 ([803bffc](https://github.com/NightingaleWK/aha/commit/803bffc6cf6a21a5b4b6decc6038f76ef144d703))
+
 ## [0.5.1](https://github.com/NightingaleWK/aha/compare/v0.5.0...v0.5.1) (2026-11-13)
 
 
