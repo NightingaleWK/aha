@@ -383,11 +383,11 @@ def restored_executable(
         for _ in range(2):
             job = client.sync({})
             require(job["status"] == "completed"
-                    and job["result"]["source_schema_version"] == 25
+                    and job["result"]["source_schema_version"] == 26
                     and job["result"]["new_count"] == 0
                     and job["result"]["revised_count"] == 0
                     and job["result"]["unchanged_count"] == ROW_COUNT,
-                    "Restored CCS25 repeat sync duplicated or revised known usage.")
+                    "Restored CCS26 repeat sync duplicated or revised known usage.")
         require(ledger_basis(data_dir) == expected_basis,
                 "Restored source binding or repeat sync changed facts or existing claims.")
         raw = client.request("GET", f"/api/batches/{batch_id}/revisions/1/download")[2]
@@ -500,7 +500,7 @@ def verify(
                 require(job["status"] == "completed"
                         and job["result"]["source_schema_version"] == 23,
                         "Synthetic CCS23 startup sync failed.")
-                for schema_version in (24, 25):
+                for schema_version in (24, 25, 26):
                     with closing(sqlite3.connect(source)) as connection:
                         connection.execute(f"PRAGMA user_version={schema_version}")
                         connection.commit()
@@ -511,26 +511,33 @@ def verify(
                             and job["result"]["revised_count"] == 0
                             and job["result"]["unchanged_count"] == ROW_COUNT,
                             f"Synthetic CCS{schema_version} sync did not preserve existing usage.")
-                raw_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=25)
-                job = client.sync({"name": "synthetic-25.sql",
+                    ledger = client.json("GET", "/api/ledger")
+                    require(ledger["last_sync"]["source_schema_version"] == schema_version,
+                            "Ledger did not retain the observed CCS source version.")
+                raw_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=26)
+                job = client.sync({"name": "synthetic-26.sql",
                                    "content_base64": base64.b64encode(raw_sql).decode()}, sql=True)
                 require(job["status"] == "completed"
-                        and job["result"]["source_schema_version"] == 25,
-                        "Synthetic SQL25 import failed.")
+                        and job["result"]["source_schema_version"] == 26
+                        and job["result"]["new_count"] == 0
+                        and job["result"]["revised_count"] == 0
+                        and job["result"]["unchanged_count"] == ROW_COUNT,
+                        "Synthetic SQL26 import failed or duplicated existing usage.")
                 for sql in (False, True):
                     before = client.json("GET", "/api/ledger")
                     with closing(sqlite3.connect(source)) as connection:
-                        connection.execute("PRAGMA user_version=26")
+                        connection.execute("PRAGMA user_version=27")
                         connection.commit()
-                    unknown_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=26)
-                    invalid = ({"name": "synthetic-26.sql",
+                    unknown_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=27)
+                    invalid = ({"name": "synthetic-27.sql",
                                 "content_base64": base64.b64encode(unknown_sql).decode()}
                                if sql else {})
                     failed = client.sync(invalid, sql=sql)
                     require(failed["status"] == "failed"
                             and failed.get("code") == "unsupported_schema"
-                            and "26" in failed.get("message", ""),
-                            "Unknown CCS26/SQL26 was not explicitly rejected.")
+                            and "27" in failed.get("message", "")
+                            and "23、24、25、26" in failed.get("message", ""),
+                            "Unknown CCS27/SQL27 was not explicitly rejected.")
                     after = client.json("GET", "/api/ledger")
                     require(after["counts"] == before["counts"]
                             and after["last_successful_sync_at"]
@@ -544,13 +551,13 @@ def verify(
                             and Decimal(retained["summary"]["total_cost_usd"]) == EXPECTED_COST,
                             "Known local history was not queryable after the unsupported source.")
                     with closing(sqlite3.connect(source)) as connection:
-                        connection.execute("PRAGMA user_version=25")
+                        connection.execute("PRAGMA user_version=26")
                         connection.commit()
                     recovered_sync = client.sync({})
                     require(recovered_sync["status"] == "completed"
-                            and recovered_sync["result"]["source_schema_version"] == 25
+                            and recovered_sync["result"]["source_schema_version"] == 26
                             and recovered_sync["result"]["new_count"] == 0,
-                            "CCS25 did not recover after the unknown source failure.")
+                            "CCS26 did not recover after the unknown source failure.")
                 analysis = client.json("POST", "/api/analysis", {
                     "start_date": "2026-10-26", "end_date": "2026-10-26",
                     "project_id": "all", "availability_mode": "available",
@@ -559,7 +566,7 @@ def verify(
                         "Version changes or SQL import duplicated synthetic usage.")
                 require(analysis["schema_version"] == 23
                         and analysis["usage_projection_schema_version"] == 23,
-                        "External CCS25 changed the internal usage projection version.")
+                        "External CCS26 changed the internal usage projection version.")
                 saved = client.json("POST", "/api/batches", {
                     "analysis_id": analysis["analysis_id"],
                     "claim": {"purpose": "合成成品验收", "amount": "", "currency": "CNY",
@@ -591,6 +598,13 @@ def verify(
                         == startup_job_id,
                         "Reopening did not preserve the startup job.")
             else:
+                job = client.sync({"trigger": "startup"})
+                require(job["status"] == "completed"
+                        and job["result"]["source_schema_version"] == 26
+                        and job["result"]["new_count"] == 0
+                        and job["result"]["revised_count"] == 0
+                        and job["result"]["unchanged_count"] == ROW_COUNT,
+                        "CCS26 startup sync after restart changed known usage.")
                 raw = client.request("GET", f"/api/batches/{batch_id}/revisions/1/download")[2]
                 require(hashlib.sha256(raw).hexdigest() == material_sha,
                         "Frozen evidence changed after a complete restart.")
@@ -604,7 +618,8 @@ def verify(
         "complete_backup": full_backup,
         "verified_at": datetime.now(BEIJING).isoformat(timespec="seconds"),
         "scopes": ["native-exe", "pe-version", "http-authentication", "resource-bytes",
-                   "ccs-23-24-25", "sql-25", "unsupported-26-history-preserved",
+                   "ccs-23-24-25-26", "ccs-26-startup", "sql-26",
+                   "unsupported-27-history-preserved",
                    "usage-projection-23",
                    "full-backup-download", "chunked-backup-upload", "new-directory-restore",
                    "restored-source-rebinding", "restored-repeat-sync-idempotence",

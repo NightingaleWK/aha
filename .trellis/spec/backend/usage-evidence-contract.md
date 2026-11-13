@@ -28,7 +28,7 @@ Store.create_batch(analysis, claim, idempotency_key, batch_id=None, **kwargs)
 Store.download(batch_id, version) -> tuple[Path, str]
 ```
 
-CCS 外部结构版本 23、24、25，内部用量投影版本 23，与应用 schema4 独立；来源观测、兼容边界和材料字段见 [CCS 来源兼容](./ccs-source-compatibility.md)。新库显式创建，schema3 先完整备份再无损升级；旧 schema1/2 或未知资料仍拒绝自动打开/升级。试用资料经单独清单工具保全历史用量后重建，不接续旧报销。Windows 默认 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。完整备份/独立还原和来源重绑遵循[恢复合同](./recovery-and-device-contract.md)，持久归属/升级遵循[项目归属合同](./project-association-contract.md)。开发测试必须独立data-dir和机器设置profile。
+CCS 外部结构版本 23、24、25、26，内部用量投影版本 23，与应用 schema4 独立；来源观测、兼容边界和材料字段见 [CCS 来源兼容](./ccs-source-compatibility.md)。新库显式创建，schema3 先完整备份再无损升级；旧 schema1/2 或未知资料仍拒绝自动打开/升级。试用资料经单独清单工具保全历史用量后重建，不接续旧报销。Windows 默认 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。完整备份/独立还原和来源重绑遵循[恢复合同](./recovery-and-device-contract.md)，持久归属/升级遵循[项目归属合同](./project-association-contract.md)。开发测试必须独立data-dir和机器设置profile。
 
 CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`；同目录单实例，复用不新增启动同步。runtime.json 含本次 PID/run_id/私有启动地址，不能加入材料或公开记录；持久锁文件退出后保留。详见 [实例与生命周期契约](./runtime-lifecycle-contract.md)。
 

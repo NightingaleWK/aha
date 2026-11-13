@@ -1,0 +1,13 @@
+{
+  "verified": true,
+  "source_sha": "48939350113fb9918413623e7b6b4e000b0d7644",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "required_checks": [
+    "excel",
+    "print"
+  ],
+  "missing_checks": [],
+  "same_product_fingerprints_as_tested_worktree": true,
+  "cloud_candidate_verified": false,
+  "public_release_authorized": false
+}

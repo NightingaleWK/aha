@@ -1,0 +1,14 @@
+{
+  "verified": true,
+  "destination": "C:\\Users\\djsyw\\Desktop\\aha.exe",
+  "executable_sha256": "77894d2128ddcd44eb130065ac39154d58439bbd7f08896a0492f3771aaab83b",
+  "version": "0.5.0",
+  "single_file": true,
+  "known_folder_checked": true,
+  "backup": null,
+  "genuine_aha_accessed": false,
+  "from_desktop_executable_run": true,
+  "isolated_data_checked": true,
+  "shutdown_cleaned": true,
+  "sha_matches_validated_onefile": true
+}

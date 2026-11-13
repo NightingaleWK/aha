@@ -21,7 +21,7 @@ aha 是 Python 3.12+ 本机 Codex 台账与费用证据工具。主线是长期�
 | [目录与模块职责](./directory-structure.md) | 功能放在哪里、如何通过 Store 门面复用领域模块 |
 | [SQLite 与持久化](./database-guidelines.md) | 只读来源、事务、备份、迁移及不可变文件 |
 | [逐笔归属与项目费用](./project-association-contract.md) | 持久记录关系、待归属批量处理、历史恢复/追溯、schema3升级与冻结覆盖说明 |
-| [CCS 来源版本兼容](./ccs-source-compatibility.md) | 外部 23/24/25、内部投影 23、实际版本观测与材料说明 |
+| [CCS 来源版本兼容](./ccs-source-compatibility.md) | 外部 23/24/25/26、内部投影 23、实际版本观测与材料说明 |
 | [换机与完整恢复](./recovery-and-device-contract.md) | 本机来源绑定、旧目录依据、完整备份/还原与独立资料目录 |
 | [错误处理](./error-handling.md) | AppError、状态码、安全消息和故障回滚 |
 | [运行输出与操作历史](./logging-guidelines.md) | 私有启动输出、关闭的默认日志和库内审计事件 |

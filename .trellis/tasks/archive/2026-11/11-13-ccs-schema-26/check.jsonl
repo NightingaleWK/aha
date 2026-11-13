@@ -1,0 +1,7 @@
+{"file":".trellis/spec/backend/ccs-source-compatibility.md","reason":"核查26支持仍保留未知版本拒绝、身份和投影稳定"}
+{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"核查历史、归属、占用与冻结材料保护"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"核查SQLite只读、SQL不可执行、失败回滚与旧成功进度"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"审查回归测试与实际验证证据，禁止将未执行检查写成通过"}
+{"file":".trellis/spec/backend/delivery-and-cleanup.md","reason":"检查最终源码到桌面成品的一致性与清理合同"}
+{"file":".trellis/spec/backend/release-contract.md","reason":"核查中文片段、版本不手改及运行时变化的专项边界"}
+{"file":".trellis/tasks/11-13-ccs-schema-26/research/compatibility-findings.md","reason":"用固定上游及本机证据审查修改边界"}

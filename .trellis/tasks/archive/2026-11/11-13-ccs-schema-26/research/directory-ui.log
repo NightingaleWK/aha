@@ -1,0 +1,52 @@
+Traceback (most recent call last):
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\.trellis\tasks\11-13-ccs-schema-26\research\extra-native.py", line 173, in <module>
+    main()
+    ~~~~^^
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\.trellis\tasks\11-13-ccs-schema-26\research\extra-native.py", line 165, in main
+    result=ui(args.exe.resolve(strict=True),args.label) if args.mode=="ui" else office(args.label)
+           ~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\.trellis\tasks\11-13-ccs-schema-26\research\extra-native.py", line 50, in ui
+    page.wait_for_function("document.querySelector('#source-mode').textContent === '已同步'")
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages\playwright\sync_api\_generated.py", line 21268, in wait_for_function
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.wait_for_function(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        )
+        ^
+    )
+    ^
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages\playwright\_impl\_sync_base.py", line 124, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages\playwright\_impl\page.py", line 1609, in wait_for_function
+    return await self._main_frame.wait_for_function(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        expression=expression, arg=arg, timeout=timeout, polling=polling
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages\playwright\_impl\frame.py", line 1209, in wait_for_function
+    result = await self._channel.waitForFunction(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<8 lines>...
+    )
+    ^
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages\playwright\_impl\channel_owner.py", line 398, in _mapped
+    return mapper(await awaitable)
+                  ^^^^^^^^^^^^^^^
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages\playwright\_impl\channel_owner.py", line 387, in finish
+    raise e from None
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages\playwright\_impl\channel_owner.py", line 352, in finish
+    result = await zone.run_async(lambda: awaitable)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages\playwright\_impl\utils\zones.py", line 58, in run_async
+    return await func()
+           ^^^^^^^^^^^^
+playwright._impl._errors.Error: Page.wait_for_function: EvalError: Evaluating a string as JavaScript violates the following Content Security Policy directive because 'unsafe-eval' is not an allowed source of script: script-src 'self'".
+
+    at eval (<anonymous>)
+    at predicate (eval at evaluate (:370:30), <anonymous>:4:60)
+    at next (eval at evaluate (:370:30), <anonymous>:29:33)

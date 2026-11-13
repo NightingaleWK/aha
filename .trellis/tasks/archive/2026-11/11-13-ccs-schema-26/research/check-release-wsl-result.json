@@ -1,0 +1,18 @@
+{
+  "verified": true,
+  "returncode": 0,
+  "command": [
+    "python3",
+    "-B",
+    "scripts/release.py",
+    "validate",
+    "--base",
+    "v0.5.0",
+    "--ref",
+    "WORKTREE"
+  ],
+  "seconds": 5.082,
+  "execution_host": "WSL with native Git",
+  "log": "check-release-wsl.log",
+  "native_unc_attempt_failed_before_validation": true
+}

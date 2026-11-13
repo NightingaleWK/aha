@@ -1,0 +1,11 @@
+test_amount_validation_and_windows_filename_rules (test_evidence.EvidenceTests.test_amount_validation_and_windows_filename_rules) ... ok
+test_available_export_freezes_exclusions_but_not_private_context (test_evidence.EvidenceTests.test_available_export_freezes_exclusions_but_not_private_context) ... ok
+test_formula_protection_html_escaping_and_private_field_projection (test_evidence.EvidenceTests.test_formula_protection_html_escaping_and_private_field_projection) ... ok
+test_four_files_exact_decimals_member_count_and_content_hashes (test_evidence.EvidenceTests.test_four_files_exact_decimals_member_count_and_content_hashes) ... ok
+test_full_selection_export_is_independent_of_visible_page_and_uses_streams (test_evidence.EvidenceTests.test_full_selection_export_is_independent_of_visible_page_and_uses_streams) ... ok
+test_report_cost_note_is_not_repeated_and_specific_warning_survives (test_evidence.EvidenceTests.test_report_cost_note_is_not_repeated_and_specific_warning_survives) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 4.083s
+
+OK

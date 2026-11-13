@@ -1,0 +1,323 @@
+{
+  "task": "ccs-schema-26",
+  "owned_processes": [],
+  "root_symlink_checked": true,
+  "tracked_source_outside_root": true,
+  "detached_known_edge_junctions": [
+    {
+      "path": "profile-onefile-ui\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+      "target": "profile-onefile-ui\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE"
+    },
+    {
+      "path": "profile-onefile-office\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+      "target": "profile-onefile-office\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE"
+    },
+    {
+      "path": "profile-directory-ui-retry\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+      "target": "profile-directory-ui-retry\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE"
+    },
+    {
+      "path": "profile-directory-ui\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+      "target": "profile-directory-ui\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE"
+    },
+    {
+      "path": "profile-directory-office\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+      "target": "profile-directory-office\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE"
+    },
+    {
+      "path": "profile-desktop-ui\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.IE5",
+      "target": "profile-desktop-ui\\AppData\\Local\\Microsoft\\Windows\\INetCache\\IE"
+    }
+  ],
+  "entries": [
+    {
+      "path": "build",
+      "bytes": 62347087,
+      "files": 82,
+      "ownership_verified": true
+    },
+    {
+      "path": "initial-requirements.txt",
+      "bytes": 195,
+      "files": 1,
+      "ownership_verified": true
+    },
+    {
+      "path": "metadata-source",
+      "bytes": 1497930,
+      "files": 74,
+      "ownership_verified": true
+    },
+    {
+      "path": "mypy-check-mypy",
+      "bytes": 3928293,
+      "files": 18,
+      "ownership_verified": true
+    },
+    {
+      "path": "mypy-implement-mypy",
+      "bytes": 3928293,
+      "files": 18,
+      "ownership_verified": true
+    },
+    {
+      "path": "pip-cache",
+      "bytes": 98105577,
+      "files": 123,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-build-directory",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-build-onefile",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-check-compileall",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-check-full-tests",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-check-mypy",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-check-release",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-check-ruff",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-compileall",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-deliver-desktop",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-desktop-ui",
+      "bytes": 1058776,
+      "files": 9,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-directory-office",
+      "bytes": 68498012,
+      "files": 42,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-directory-ui",
+      "bytes": 75736,
+      "files": 9,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-directory-ui-retry",
+      "bytes": 1058776,
+      "files": 9,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-implement-evidence",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-implement-http",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-implement-mypy",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-implement-ruff",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-implement-sources",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-implement-storage",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-onefile-office",
+      "bytes": 3276004,
+      "files": 896,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-onefile-ui",
+      "bytes": 1058776,
+      "files": 9,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-real-source",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-real-source-retry",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-setup-material-tools",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-verify-directory",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "profile-verify-onefile",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "provenance",
+      "bytes": 13374715,
+      "files": 5,
+      "ownership_verified": true
+    },
+    {
+      "path": "pycache",
+      "bytes": 41071564,
+      "files": 3077,
+      "ownership_verified": true
+    },
+    {
+      "path": "qa-profile",
+      "bytes": 0,
+      "files": 0,
+      "ownership_verified": true
+    },
+    {
+      "path": "qa315",
+      "bytes": 264777897,
+      "files": 5024,
+      "ownership_verified": true
+    },
+    {
+      "path": "real-source-projection",
+      "bytes": 19976316,
+      "files": 6,
+      "ownership_verified": true
+    },
+    {
+      "path": "real-source-projection-942af19f",
+      "bytes": 19943548,
+      "files": 4,
+      "ownership_verified": true
+    },
+    {
+      "path": "ruff-cache",
+      "bytes": 3794,
+      "files": 5,
+      "ownership_verified": true
+    },
+    {
+      "path": "runtime315-sqlite3534",
+      "bytes": 49129347,
+      "files": 1211,
+      "ownership_verified": true
+    },
+    {
+      "path": "task-ownership.json",
+      "bytes": 133,
+      "files": 1,
+      "ownership_verified": true
+    },
+    {
+      "path": "ui-desktop-60d65e86",
+      "bytes": 405628,
+      "files": 5,
+      "ownership_verified": true
+    },
+    {
+      "path": "ui-directory",
+      "bytes": 438396,
+      "files": 7,
+      "ownership_verified": true
+    },
+    {
+      "path": "ui-directory-3aaea4f6",
+      "bytes": 405628,
+      "files": 5,
+      "ownership_verified": true
+    },
+    {
+      "path": "ui-onefile-856b8d07",
+      "bytes": 405628,
+      "files": 5,
+      "ownership_verified": true
+    },
+    {
+      "path": "verify-desktop",
+      "bytes": 875217,
+      "files": 16,
+      "ownership_verified": true
+    },
+    {
+      "path": "verify-directory",
+      "bytes": 990609,
+      "files": 17,
+      "ownership_verified": true
+    },
+    {
+      "path": "verify-onefile",
+      "bytes": 990859,
+      "files": 17,
+      "ownership_verified": true
+    }
+  ],
+  "total_bytes": 657622734
+}

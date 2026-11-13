@@ -1,0 +1,21 @@
+Collecting playwright==1.65.1
+  Downloading playwright-1.65.1-py3-none-win_amd64.whl.metadata (3.3 kB)
+Collecting pywin32==312
+  Downloading pywin32-312-cp315-cp315-win_amd64.whl.metadata (11 kB)
+Collecting pypdf==7.0.1
+  Downloading pypdf-7.0.1-py3-none-any.whl.metadata (7.6 kB)
+Collecting PyMuPDF==1.26.7
+  Downloading pymupdf-1.26.7-cp310-abi3-win_amd64.whl.metadata (3.4 kB)
+Collecting greenlet<4.0.0,>=3.1.1 (from playwright==1.65.1)
+  Downloading greenlet-3.5.6-cp315-cp315-win_amd64.whl.metadata (3.9 kB)
+Downloading playwright-1.65.1-py3-none-win_amd64.whl (42.7 MB)
+   ---------------------------------------- 42.7/42.7 MB 10.1 MB/s  0:00:04
+Downloading pywin32-312-cp315-cp315-win_amd64.whl (7.0 MB)
+   ---------------------------------------- 7.0/7.0 MB 9.8 MB/s  0:00:00
+Downloading pypdf-7.0.1-py3-none-any.whl (416 kB)
+Downloading pymupdf-1.26.7-cp310-abi3-win_amd64.whl (18.4 MB)
+   ---------------------------------------- 18.4/18.4 MB 10.1 MB/s  0:00:01
+Downloading greenlet-3.5.6-cp315-cp315-win_amd64.whl (327 kB)
+Installing collected packages: pywin32, pypdf, PyMuPDF, greenlet, playwright
+
+Successfully installed PyMuPDF-1.26.7 greenlet-3.5.6 playwright-1.65.1 pypdf-7.0.1 pywin32-312

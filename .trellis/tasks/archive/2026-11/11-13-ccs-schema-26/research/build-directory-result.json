@@ -1,0 +1,18 @@
+{
+  "verified": true,
+  "returncode": 0,
+  "command": [
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "scripts/build_windows.py",
+    "--build-root",
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\build",
+    "--stage",
+    "Directory"
+  ],
+  "seconds": 35.663,
+  "synthetic_profile": true,
+  "log": "build-directory.log"
+}

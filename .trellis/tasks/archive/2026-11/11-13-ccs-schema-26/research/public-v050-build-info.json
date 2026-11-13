@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "version": "0.5.0",
+  "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "tag": "v0.5.0",
+  "notes_sha256": "2e3c7c5f976b2326842f6abebc8e774ecbe7650d0321f36714acc56410ea0e77",
+  "fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime": {
+    "windows": true,
+    "bits": 64,
+    "isolated": true,
+    "python": [
+      3,
+      15
+    ],
+    "machine": "AMD64",
+    "sqlite": [
+      3,
+      53,
+      4
+    ],
+    "sqlite_version": "3.53.4",
+    "application_version": "0.5.0"
+  },
+  "build_runtime": {
+    "windows": true,
+    "isolated": true,
+    "bits": 64,
+    "python": [
+      3,
+      15,
+      2
+    ],
+    "machine": "AMD64",
+    "sqlite": [
+      3,
+      53,
+      4
+    ],
+    "sqlite_version": "3.53.4",
+    "packages": {
+      "aha-usage": "0.5.0",
+      "altgraph": "0.17.5",
+      "ast-serialize": "0.13.1",
+      "librt": "0.16.0",
+      "mypy": "2.4.0",
+      "mypy-extensions": "1.2.0",
+      "packaging": "26.3",
+      "pathspec": "1.1.1",
+      "pefile": "2024.8.26",
+      "pip": "26.2.2",
+      "pyinstaller": "6.22.3",
+      "pyinstaller-hooks-contrib": "2026.9",
+      "pywin32-ctypes": "0.2.3",
+      "ruff": "0.17.3",
+      "setuptools": "84.2.1",
+      "typing-extensions": "4.16.0",
+      "wheel": "0.48.0",
+      "zstandard": "0.25.0"
+    }
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "executable": {
+    "name": "aha-0.5.0-windows-x64.exe",
+    "sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+    "size": 12833570
+  },
+  "automatic_checks": [
+    {
+      "verified": true,
+      "version": "0.5.0",
+      "executable_sha256": "04a8e720b17678afa23c9d85533687f0cc403cb3dd7b48d186c4a00d07a08898",
+      "pe_version": {
+        "file_version_parts": [
+          0,
+          5,
+          0,
+          0
+        ],
+        "file_version": "0.5.0",
+        "product_version_parts": [
+          0,
+          5,
+          0,
+          0
+        ],
+        "product_version": "0.5.0"
+      },
+      "material_sha256": "fbc05e3503e6088791ea8d77b73dde84bf172963c47216e860bd4ffa0a71d497",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "ccs-23-24-25",
+        "sql-25",
+        "unsupported-26-history-preserved",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ]
+    },
+    {
+      "verified": true,
+      "version": "0.5.0",
+      "executable_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+      "pe_version": {
+        "file_version_parts": [
+          0,
+          5,
+          0,
+          0
+        ],
+        "file_version": "0.5.0",
+        "product_version_parts": [
+          0,
+          5,
+          0,
+          0
+        ],
+        "product_version": "0.5.0"
+      },
+      "material_sha256": "b282409d7550caf7e4cef1b304ba1910b1b92a3d03f209c7935742e50cd562f5",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "ccs-23-24-25",
+        "sql-25",
+        "unsupported-26-history-preserved",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ]
+    }
+  ],
+  "actions_run_id": "43181532576",
+  "actions_artifact": "aha-assets-12d213b5b3c3c505d24f73fc7888966f24435337-1"
+}

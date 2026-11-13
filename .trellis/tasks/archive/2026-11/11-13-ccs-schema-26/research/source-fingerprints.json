@@ -1,0 +1,24 @@
+{
+  "verified": true,
+  "previous": "v0.5.0",
+  "fingerprints": {
+    "full": "55e634caa45d7cff1471ab7f8313350509a67719328ef405e2ed6ceed2ce8569",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "cfadd52c7c30f6315b42e8cd595bcaadbbdc3fb8fa0303c03088da203608544c",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "previous_fingerprints": {
+    "full": "710753fd2f5b8e8dea4562d2f8c59c6f7551e1f69ded1aaff2965865a46413a1",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "48bcab624b49fc104f08a67ed50f006d735a3373e01eeaf7a60a69119f586857",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "required_checks": [
+    "excel",
+    "print"
+  ],
+  "unchanged_scopes": [
+    "tray",
+    "recipe"
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "verified": true,
+  "runtime": {
+    "python": [
+      3,
+      15,
+      2
+    ],
+    "sqlite": [
+      3,
+      53,
+      4
+    ],
+    "sqlite_version": "3.53.4",
+    "windows": true,
+    "bits": 64,
+    "machine": "AMD64",
+    "packages": {
+      "pyinstaller": "6.22.3",
+      "setuptools": "84.2.1",
+      "wheel": "0.48.0",
+      "zstandard": "0.25.0",
+      "altgraph": "0.17.5",
+      "packaging": "26.3",
+      "pefile": "2024.8.26",
+      "pyinstaller-hooks-contrib": "2026.9",
+      "pywin32-ctypes": "0.2.3"
+    }
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "native_zstandard_roundtrip": true,
+  "qa_python": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Scripts\\python.exe",
+  "task": "ccs-schema-26",
+  "completed_at": "2026-11-13T01:00:31.820657+00:00",
+  "runtime_matches_public_v050": true,
+  "base_runtime_unchanged": true,
+  "public_executable_executed": false,
+  "public_executable_sha256": "8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5",
+  "extracted_sqlite": {
+    "sqlite3.dll": {
+      "member": "sqlite3.dll",
+      "sha256": "73530e8f4555605d716352ee98fe0ce205a09e5eec57e7e6360d4c915efcacd8"
+    },
+    "_sqlite3.pyd": {
+      "member": "_sqlite3.pyd",
+      "sha256": "851e8bfa65328162ddad2dff9f7c213f8eceb2d90baf179aa472704ec3ca6295"
+    }
+  },
+  "wheel_sha256": "a1c09646b16f6c5c3dfbd6d2074bbe5bdb6cac88d1566762b6ad2d7b4003e178"
+}

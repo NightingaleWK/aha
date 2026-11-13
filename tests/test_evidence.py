@@ -42,7 +42,7 @@ class EvidenceTests(unittest.TestCase):
             ],
             [rollup()],
         )
-        data["source"]["source_schema_version"] = 25
+        data["source"]["source_schema_version"] = 26
         result = seed_analysis(self.store, data)
         self.assertEqual(result["schema_version"], 23)
         self.assertEqual(result["usage_projection_schema_version"], 23)
