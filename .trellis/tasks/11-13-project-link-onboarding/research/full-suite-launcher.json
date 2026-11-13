@@ -1,0 +1,21 @@
+{
+  "launched": true,
+  "pid": 39172,
+  "command": [
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-link-20261113\\qa315\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\.trellis\\tasks\\11-13-project-link-onboarding\\research\\run-native.py",
+    "check-full-final",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-v"
+  ],
+  "stdout_stderr": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-link-20261113\\full-suite-detached-launcher.log",
+  "detached": true,
+  "real_data_used": false
+}

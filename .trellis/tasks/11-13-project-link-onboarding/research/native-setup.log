@@ -1,0 +1,26 @@
+Processing .\provenance\wheel\zstandard-0.25.0-cp315-cp315-win_amd64.whl
+Installing collected packages: zstandard
+Successfully installed zstandard-0.25.0
+Requirement already satisfied: pyinstaller==6.22.3 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 1)) (6.22.3)
+Requirement already satisfied: setuptools==84.2.1 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 2)) (84.2.1)
+Requirement already satisfied: wheel==0.48.0 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 3)) (0.48.0)
+Requirement already satisfied: zstandard==0.25.0 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 4)) (0.25.0)
+Requirement already satisfied: altgraph==0.17.5 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 5)) (0.17.5)
+Requirement already satisfied: packaging==26.3 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 6)) (26.3)
+Requirement already satisfied: pefile==2024.8.26 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 7)) (2024.8.26)
+Requirement already satisfied: pyinstaller-hooks-contrib==2026.9 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 8)) (2026.9)
+Requirement already satisfied: pywin32-ctypes==0.2.3 in .\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 9)) (0.2.3)
+Processing .\metadata-source
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: aha-usage
+  Building wheel for aha-usage (pyproject.toml): started
+  Building wheel for aha-usage (pyproject.toml): finished with status 'done'
+  Created wheel for aha-usage: filename=aha_usage-0.5.1-py3-none-any.whl size=226919 sha256=9f76e6bec5047bc3edd97ca078ea424bd799304143baa2cecdcddcdf2066315f
+  Stored in directory: C:\Users\djsyw\AppData\Local\Temp\pip-ephem-wheel-cache-y_iymlgy\wheels\ab\e4\3d\f847dc615f93070300d272d2071a090c3849c7407d27072c80
+Successfully built aha-usage
+Installing collected packages: aha-usage
+Successfully installed aha-usage-0.5.1
+
+[notice] A new release of pip is available: 26.2.2 -> 26.3
+[notice] To update, run: C:\Users\djsyw\AppData\Local\Temp\aha-project-link-20261113\qa315\Scripts\python.exe -m pip install --upgrade pip

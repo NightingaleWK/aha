@@ -355,6 +355,16 @@ class Store:
 
         return save_project(self, project_id, name, description, directories)
 
+    def preview_project_binding(self, draft: dict[str, Any]) -> dict[str, Any]:
+        from .directory_bindings import preview_project_binding
+
+        return preview_project_binding(self, draft)
+
+    def apply_project_binding(self, preview_id: str, idempotency_key: str) -> dict[str, Any]:
+        from .directory_bindings import apply_project_binding
+
+        return apply_project_binding(self, preview_id, idempotency_key)
+
     def assign(
         self, rows: list[dict[str, Any]], project_id: str | None, grain: str = "detail"
     ) -> dict[str, Any]:

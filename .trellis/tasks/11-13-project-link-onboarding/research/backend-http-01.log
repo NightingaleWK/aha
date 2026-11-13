@@ -1,0 +1,24 @@
+test_all_preview_tabs_use_local_cursor_pages_and_revision_binding (test_http.HTTPTests.test_all_preview_tabs_use_local_cursor_pages_and_revision_binding) ... ok
+test_assignment_and_project_queries_use_local_records (test_http.HTTPTests.test_assignment_and_project_queries_use_local_records) ... ok
+test_association_preview_expires_after_project_rules_change (test_http.HTTPTests.test_association_preview_expires_after_project_rules_change) ... ok
+test_association_worklist_preview_and_atomic_apply_use_auth_and_full_filter (test_http.HTTPTests.test_association_worklist_preview_and_atomic_apply_use_auth_and_full_filter) ... ok
+test_auth_origin_csrf_static_and_payload_boundaries (test_http.HTTPTests.test_auth_origin_csrf_static_and_payload_boundaries) ... ok
+test_directory_project_preview_and_confirm_are_atomic_authenticated_and_replayable (test_http.HTTPTests.test_directory_project_preview_and_confirm_are_atomic_authenticated_and_replayable) ... ok
+test_download_streams_original_package_and_head_has_no_body (test_http.HTTPTests.test_download_streams_original_package_and_head_has_no_body) ... ok
+test_exact_time_analysis_both_routes_save_and_old_download (test_http.HTTPTests.test_exact_time_analysis_both_routes_save_and_old_download) ... ok
+test_failed_first_sync_has_recoverable_status_and_no_success_time (test_http.HTTPTests.test_failed_first_sync_has_recoverable_status_and_no_success_time) ... ok
+test_failed_sync_keeps_local_data_and_previous_preview (test_http.HTTPTests.test_failed_sync_keeps_local_data_and_previous_preview) ... ok
+test_job_reports_failure_while_database_cleanup_waits_for_writer (test_http.HTTPTests.test_job_reports_failure_while_database_cleanup_waits_for_writer) ... ok
+test_partial_day_rollup_http_saves_certain_members_and_keeps_incompleteness (test_http.HTTPTests.test_partial_day_rollup_http_saves_certain_members_and_keeps_incompleteness) ... ok
+test_persistent_idempotency_replays_after_preview_cache_is_cleared (test_http.HTTPTests.test_persistent_idempotency_replays_after_preview_cache_is_cleared) ... ok
+test_source_needing_review_finishes_without_becoming_success (test_http.HTTPTests.test_source_needing_review_finishes_without_becoming_success) ... ok
+test_source_versions_report_actual_version_and_unknown_keeps_local_data (test_http.HTTPTests.test_source_versions_report_actual_version_and_unknown_keeps_local_data) ... ok
+test_startup_is_once_per_launch_and_queries_are_not_locked_by_sync (test_http.HTTPTests.test_startup_is_once_per_launch_and_queries_are_not_locked_by_sync) ... ok
+test_target_preview_cannot_be_used_for_new_batch_and_frozen_revision_is_stable (test_http.HTTPTests.test_target_preview_cannot_be_used_for_new_batch_and_frozen_revision_is_stable) ... ok
+test_time_range_status_assets_and_invalid_requests_do_not_create_previews (test_http.HTTPTests.test_time_range_status_assets_and_invalid_requests_do_not_create_previews) ... ok
+test_two_instances_keep_sessions_in_one_browser_cookie_jar (test_http.HTTPTests.test_two_instances_keep_sessions_in_one_browser_cookie_jar) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 17.773s
+
+OK

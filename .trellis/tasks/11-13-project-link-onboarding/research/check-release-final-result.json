@@ -1,0 +1,14 @@
+{
+  "verified": true,
+  "returncode": 0,
+  "host": "Linux",
+  "command": [
+    "/usr/bin/python3",
+    "scripts/release.py",
+    "validate",
+    "--base",
+    "f044119cb683ac7c118abf7b7abe00e3f0416452",
+    "--ref",
+    "WORKTREE"
+  ]
+}

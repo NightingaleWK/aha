@@ -1,0 +1,23 @@
+{
+  "latest_public_version": "0.5.1",
+  "latest_public_source_sha": "f044119cb683ac7c118abf7b7abe00e3f0416452",
+  "latest_public_url": "https://github.com/NightingaleWK/aha/releases/tag/v0.5.1",
+  "current_local_product_version": "0.5.1",
+  "local_build_is_public_release": false,
+  "recommended_next_version": "0.6.0",
+  "recommendation": "积累到下一版",
+  "reason": "目录整体关联属于用户可见新功能，按feat升minor；本机已可用，不涉及当前已核实的金额丢失，不必立即单独发版。",
+  "cumulative_unreleased_user_changes": [
+    "选择目录即可整体关联项目记录（本次）"
+  ],
+  "other_product_changes_after_public_source_before_this_task": [],
+  "whats_new_preview": "whats-new-preview.md",
+  "release_gaps": [
+    "物理托盘双击/菜单操作未完成：Windows Computer Use在WSL路径初始化失败",
+    "功能PR/发布PR、云端候选构建和对应发布门禁尚未执行"
+  ],
+  "user_choice": "积累到下一版",
+  "commit_approval": "approved",
+  "public_release_authorized": false,
+  "user_confirmation": "同意提交，积累到下一版（推荐）"
+}

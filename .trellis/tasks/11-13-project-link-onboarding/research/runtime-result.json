@@ -1,0 +1,15 @@
+{
+  "verified": true,
+  "returncode": 0,
+  "command": [
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-link-20261113\\qa315\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "-c",
+    "import sqlite3,sys;print(sys.version,sqlite3.sqlite_version)"
+  ],
+  "seconds": 0.332,
+  "synthetic_profile": true,
+  "log": "runtime.log"
+}

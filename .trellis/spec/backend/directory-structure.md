@@ -15,6 +15,7 @@
 | storage.py / migrations.py | Store门面、全部连接/事务/文件、schema4初始化/schema3受控升级与运行时门禁 |
 | sync.py | run/staging、来源/修订核对、差异写与成功进度 |
 | ledger.py / projects.py | 当前事实、覆盖/核对、派生可用性/日统计、目录规则与人工归属 |
+| directory_bindings.py | 目录整体保存预览、配置/历史原子确认、同目录整体转移和已确认目录模式 |
 | project_links.py / associations.py | 持久逐笔关系/会话默认、待归属清单、批量影响预览/审核、历史依据恢复及显式追溯 |
 | queries.py / analysis.py | SQL筛选、摘要、游标、冻结迭代；analysis仅再导出新查询入口 |
 | time_ranges.py | 北京时间意图解析、半开秒边界、完整/部分日分段与旧冻结元数据兼容 |

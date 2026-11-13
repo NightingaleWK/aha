@@ -1,0 +1,25 @@
+test_atomic_rollback_stale_digest_and_persistent_idempotency (test_directory_bindings.DirectoryBindingTests.test_atomic_rollback_stale_digest_and_persistent_idempotency) ... ok
+test_complete_history_transfer_includes_manual_and_defaults_and_preserves_frozen (test_directory_bindings.DirectoryBindingTests.test_complete_history_transfer_includes_manual_and_defaults_and_preserves_frozen) ... FAIL
+test_directory_overlap_boundaries_and_no_double_count_for_same_project_roots (test_directory_bindings.DirectoryBindingTests.test_directory_overlap_boundaries_and_no_double_count_for_same_project_roots) ... ok
+test_late_directory_replaces_null_baseline_and_old_mode_is_not_changed (test_directory_bindings.DirectoryBindingTests.test_late_directory_replaces_null_baseline_and_old_mode_is_not_changed) ... ok
+test_legacy_saved_directory_remains_unconfirmed_until_explicit_adoption (test_directory_bindings.DirectoryBindingTests.test_legacy_saved_directory_remains_unconfirmed_until_explicit_adoption) ... ok
+test_manual_override_mutation_without_revision_invalidates_preview (test_directory_bindings.DirectoryBindingTests.test_manual_override_mutation_without_revision_invalidates_preview) ... ok
+test_preview_cancel_and_zero_history_then_later_records (test_directory_bindings.DirectoryBindingTests.test_preview_cancel_and_zero_history_then_later_records) ... ok
+test_pure_classification_matches_managed_directory_authority (test_directory_bindings.DirectoryBindingTests.test_pure_classification_matches_managed_directory_authority) ... ok
+test_repeat_configuration_does_not_repeat_assignment_events (test_directory_bindings.DirectoryBindingTests.test_repeat_configuration_does_not_repeat_assignment_events) ... ok
+test_retiring_directory_preserves_old_records_but_stops_future_and_legacy_guards (test_directory_bindings.DirectoryBindingTests.test_retiring_directory_preserves_old_records_but_stops_future_and_legacy_guards) ... ok
+test_rollups_are_not_guessed_and_corrupt_policy_rejects (test_directory_bindings.DirectoryBindingTests.test_rollups_are_not_guessed_and_corrupt_policy_rejects) ... ok
+
+======================================================================
+FAIL: test_complete_history_transfer_includes_manual_and_defaults_and_preserves_frozen (test_directory_bindings.DirectoryBindingTests.test_complete_history_transfer_includes_manual_and_defaults_and_preserves_frozen)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\tests\test_directory_bindings.py", line 96, in test_complete_history_transfer_includes_manual_and_defaults_and_preserves_frozen
+    self.assertEqual(self.summary(project)["record_count"], 81)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 80 != 81
+
+----------------------------------------------------------------------
+Ran 11 tests in 2.410s
+
+FAILED (failures=1)

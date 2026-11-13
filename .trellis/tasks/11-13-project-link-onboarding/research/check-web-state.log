@@ -1,0 +1,406 @@
+TAP version 13
+# Subtest: source card prioritizes failure, running, review and recovery with historical data
+ok 1 - source card prioritizes failure, running, review and recovery with historical data
+  ---
+  duration_ms: 60.104719
+  type: 'test'
+  ...
+# Subtest: a restored failed job keeps the detailed reason in its persisted result
+ok 2 - a restored failed job keeps the detailed reason in its persisted result
+  ---
+  duration_ms: 5.861562
+  type: 'test'
+  ...
+# Subtest: a failed first attempt never presents an empty local ledger as actual usage
+ok 3 - a failed first attempt never presents an empty local ledger as actual usage
+  ---
+  duration_ms: 5.048188
+  type: 'test'
+  ...
+# Subtest: saved review data can exist before the first successful sync
+ok 4 - saved review data can exist before the first successful sync
+  ---
+  duration_ms: 4.915651
+  type: 'test'
+  ...
+# Subtest: a retry immediately hides failure and restores the card after success
+ok 5 - a retry immediately hides failure and restores the card after success
+  ---
+  duration_ms: 10.776801
+  type: 'test'
+  ...
+# Subtest: a completed job carrying a review result uses review status and feedback
+ok 6 - a completed job carrying a review result uses review status and feedback
+  ---
+  duration_ms: 8.919077
+  type: 'test'
+  ...
+# Subtest: a failed job retains its reason when the later status refresh disconnects
+ok 7 - a failed job retains its reason when the later status refresh disconnects
+  ---
+  duration_ms: 8.609566
+  type: 'test'
+  ...
+# Subtest: a completed or review job is not misreported as failed when refresh disconnects
+ok 8 - a completed or review job is not misreported as failed when refresh disconnects
+  ---
+  duration_ms: 14.982832
+  type: 'test'
+  ...
+# Subtest: terminal success or review invalidates old previews even when refresh fails
+ok 9 - terminal success or review invalidates old previews even when refresh fails
+  ---
+  duration_ms: 23.50995
+  type: 'test'
+  ...
+# Subtest: a terminal polling response updates the card before slow refresh requests finish
+ok 10 - a terminal polling response updates the card before slow refresh requests finish
+  ---
+  duration_ms: 507.510937
+  type: 'test'
+  ...
+# Subtest: late refresh success or failure from an older job cannot affect a retry
+ok 11 - late refresh success or failure from an older job cannot affect a retry
+  ---
+  duration_ms: 24.879527
+  type: 'test'
+  ...
+# Subtest: initial rendering uses the current job before an older successful ledger
+ok 12 - initial rendering uses the current job before an older successful ledger
+  ---
+  duration_ms: 6.62792
+  type: 'test'
+  ...
+# Subtest: initial rendering restores a persisted failed attempt when no job exists
+ok 13 - initial rendering restores a persisted failed attempt when no job exists
+  ---
+  duration_ms: 6.589101
+  type: 'test'
+  ...
+# Subtest: initialization failure cannot abandon a running job or leave sync disabled
+ok 14 - initialization failure cannot abandon a running job or leave sync disabled
+  ---
+  duration_ms: 506.268662
+  type: 'test'
+  ...
+# Subtest: sync completion during initial analysis schedules a fresh preview
+ok 15 - sync completion during initial analysis schedules a fresh preview
+  ---
+  duration_ms: 508.847642
+  type: 'test'
+  ...
+# Subtest: manual sync during slow initialization does not start another startup sync
+ok 16 - manual sync during slow initialization does not start another startup sync
+  ---
+  duration_ms: 10.468736
+  type: 'test'
+  ...
+# Subtest: late initialization refreshes cannot replace newer sync results or report stale errors
+ok 17 - late initialization refreshes cannot replace newer sync results or report stale errors
+  ---
+  duration_ms: 1019.725403
+  type: 'test'
+  ...
+# Subtest: a late ledger refresh cannot replace newer data or invalidate its preview
+ok 18 - a late ledger refresh cannot replace newer data or invalidate its preview
+  ---
+  duration_ms: 14.125969
+  type: 'test'
+  ...
+# Subtest: a stale detail failure cannot invalidate a newer preview or save identity
+ok 19 - a stale detail failure cannot invalidate a newer preview or save identity
+  ---
+  duration_ms: 5.529724
+  type: 'test'
+  ...
+# Subtest: a stale successful detail response cannot replace newer rows
+ok 20 - a stale successful detail response cannot replace newer rows
+  ---
+  duration_ms: 3.69566
+  type: 'test'
+  ...
+# Subtest: a stale connection error does not surface after a filter change
+ok 21 - a stale connection error does not surface after a filter change
+  ---
+  duration_ms: 4.897076
+  type: 'test'
+  ...
+# Subtest: a current detail 409 still clears analysis, revision and save identity
+ok 22 - a current detail 409 still clears analysis, revision and save identity
+  ---
+  duration_ms: 5.471956
+  type: 'test'
+  ...
+# Subtest: batch rows show precise saved ranges and retain legacy date precision
+ok 23 - batch rows show precise saved ranges and retain legacy date precision
+  ---
+  duration_ms: 5.533844
+  type: 'test'
+  ...
+# Subtest: an omitted-only revision preview does not present unknown usage as zero cost
+ok 24 - an omitted-only revision preview does not present unknown usage as zero cost
+  ---
+  duration_ms: 6.88232
+  type: 'test'
+  ...
+# Subtest: empty current filters explain retained history without changing the chosen range
+ok 25 - empty current filters explain retained history without changing the chosen range
+  ---
+  duration_ms: 8.674433
+  type: 'test'
+  ...
+# Subtest: an unbound copied ledger opens source confirmation while retaining the local preview
+ok 26 - an unbound copied ledger opens source confirmation while retaining the local preview
+  ---
+  duration_ms: 5.530053
+  type: 'test'
+  ...
+# Subtest: source confirmation records the explicit reason before starting continuation
+ok 27 - source confirmation records the explicit reason before starting continuation
+  ---
+  duration_ms: 5.482823
+  type: 'test'
+  ...
+# Subtest: reconciliation immediately expires saving and automatically previews the same filters
+ok 28 - reconciliation immediately expires saving and automatically previews the same filters
+  ---
+  duration_ms: 10.212219
+  type: 'test'
+  ...
+# Subtest: a reconciliation refresh failure leaves the old save identity expired
+ok 29 - a reconciliation refresh failure leaves the old save identity expired
+  ---
+  duration_ms: 13.86801
+  type: 'test'
+  ...
+# Subtest: late reconciliation refreshes cannot overwrite a newer filter preview
+ok 30 - late reconciliation refreshes cannot overwrite a newer filter preview
+  ---
+  duration_ms: 22.906095
+  type: 'test'
+  ...
+# Subtest: full backup completion retains the current query and exposes a streamed download
+ok 31 - full backup completion retains the current query and exposes a streamed download
+  ---
+  duration_ms: 5.680946
+  type: 'test'
+  ...
+# Subtest: cancelled late backup creation cannot replace a newer operation
+ok 32 - cancelled late backup creation cannot replace a newer operation
+  ---
+  duration_ms: 7.350459
+  type: 'test'
+  ...
+# Subtest: restore uploads binary chunks and ignores late chunk success after cancellation
+ok 33 - restore uploads binary chunks and ignores late chunk success after cancellation
+  ---
+  duration_ms: 8.231587
+  type: 'test'
+  ...
+# Subtest: directory and rollup-origin reconciliation display their real choices
+ok 34 - directory and rollup-origin reconciliation display their real choices
+  ---
+  duration_ms: 4.553469
+  type: 'test'
+  ...
+# Subtest: directory save previews all impact without writing a project or asking for record selection
+ok 35 - directory save previews all impact without writing a project or asking for record selection
+  ---
+  duration_ms: 10.598035
+  type: 'test'
+  ...
+# Subtest: directory creation retains its saved identity and refresh failures retry only reads
+ok 36 - directory creation retains its saved identity and refresh failures retry only reads
+  ---
+  duration_ms: 24.322757
+  type: 'test'
+  ...
+# Subtest: directory preview ignores stale success, 409 and disconnect after closing or replacement
+ok 37 - directory preview ignores stale success, 409 and disconnect after closing or replacement
+  ---
+  duration_ms: 11.436813
+  type: 'test'
+  ...
+# Subtest: editing a directory draft or a known ledger mutation expires its impact
+ok 38 - editing a directory draft or a known ledger mutation expires its impact
+  ---
+  duration_ms: 8.88449
+  type: 'test'
+  ...
+# Subtest: directory apply retries a lost response with the identical persistent key
+ok 39 - directory apply retries a lost response with the identical persistent key
+  ---
+  duration_ms: 6.390922
+  type: 'test'
+  ...
+# Subtest: directory confirmation rejects changed drafts and stale authority without partial saving
+ok 40 - directory confirmation rejects changed drafts and stale authority without partial saving
+  ---
+  duration_ms: 10.613665
+  type: 'test'
+  ...
+# Subtest: an older directory apply cannot alter a new editor or invalidate its newer analysis
+ok 41 - an older directory apply cannot alter a new editor or invalidate its newer analysis
+  ---
+  duration_ms: 5.454859
+  type: 'test'
+  ...
+# Subtest: sync during a submitted directory change does not lose its committed identity
+ok 42 - sync during a submitted directory change does not lose its committed identity
+  ---
+  duration_ms: 7.432634
+  type: 'test'
+  ...
+# Subtest: post-save association refreshes belong to the directory editor that requested them
+ok 43 - post-save association refreshes belong to the directory editor that requested them
+  ---
+  duration_ms: 31.720324
+  type: 'test'
+  ...
+# Subtest: an inactive directory editor cannot start another association refresh
+ok 44 - an inactive directory editor cannot start another association refresh
+  ---
+  duration_ms: 4.222137
+  type: 'test'
+  ...
+# Subtest: empty directory history still offers a usable binding confirmation
+ok 45 - empty directory history still offers a usable binding confirmation
+  ---
+  duration_ms: 4.895686
+  type: 'test'
+  ...
+# Subtest: directory candidates include saved old-machine paths and identify whole-folder transfers
+ok 46 - directory candidates include saved old-machine paths and identify whole-folder transfers
+  ---
+  duration_ms: 5.591826
+  type: 'test'
+  ...
+# Subtest: usage records are read-only by default and advanced selection excludes known directories
+ok 47 - usage records are read-only by default and advanced selection excludes known directories
+  ---
+  duration_ms: 11.813325
+  type: 'test'
+  ...
+# Subtest: association all-filtered selection sends the filter, not only the visible page
+ok 48 - association all-filtered selection sends the filter, not only the visible page
+  ---
+  duration_ms: 4.334072
+  type: 'test'
+  ...
+# Subtest: association explicit selection retains records from earlier pages
+ok 49 - association explicit selection retains records from earlier pages
+  ---
+  duration_ms: 5.294386
+  type: 'test'
+  ...
+# Subtest: closing or replacing an association preview rejects stale success, 409 and disconnect
+ok 50 - closing or replacing an association preview rejects stale success, 409 and disconnect
+  ---
+  duration_ms: 17.304701
+  type: 'test'
+  ...
+# Subtest: an association target change invalidates an in-flight preview
+ok 51 - an association target change invalidates an in-flight preview
+  ---
+  duration_ms: 5.632348
+  type: 'test'
+  ...
+# Subtest: a newer association overview owns project costs after old success or failure
+ok 52 - a newer association overview owns project costs after old success or failure
+  ---
+  duration_ms: 13.143907
+  type: 'test'
+  ...
+# Subtest: association record requests ignore stale data and failures after filters change
+ok 53 - association record requests ignore stale data and failures after filters change
+  ---
+  duration_ms: 13.30167
+  type: 'test'
+  ...
+# Subtest: association apply expires saving immediately and retries the same request idempotently
+ok 54 - association apply expires saving immediately and retries the same request idempotently
+  ---
+  duration_ms: 14.660016
+  type: 'test'
+  ...
+# Subtest: a saved association with a refresh failure retries only the refresh
+ok 55 - a saved association with a refresh failure retries only the refresh
+  ---
+  duration_ms: 6.166103
+  type: 'test'
+  ...
+# Subtest: an expired association preview cannot be resubmitted without a new preview
+ok 56 - an expired association preview cannot be resubmitted without a new preview
+  ---
+  duration_ms: 5.03197
+  type: 'test'
+  ...
+# Subtest: an old apply response cannot clear a newer preview after its dialog closes
+ok 57 - an old apply response cannot clear a newer preview after its dialog closes
+  ---
+  duration_ms: 8.043517
+  type: 'test'
+  ...
+# Subtest: assignment coverage states physical grains and exact cost without blocking known project saving
+ok 58 - assignment coverage states physical grains and exact cost without blocking known project saving
+  ---
+  duration_ms: 6.256319
+  type: 'test'
+  ...
+# Subtest: dynamic project refresh retains the association target and filter by identity
+ok 59 - dynamic project refresh retains the association target and filter by identity
+  ---
+  duration_ms: 5.456124
+  type: 'test'
+  ...
+# Subtest: new association rows become selectable when the loading operation ends
+ok 60 - new association rows become selectable when the loading operation ends
+  ---
+  duration_ms: 5.755668
+  type: 'test'
+  ...
+# Subtest: truncated directory metadata marks recovery metrics and groups as partial
+ok 61 - truncated directory metadata marks recovery metrics and groups as partial
+  ---
+  duration_ms: 4.194559
+  type: 'test'
+  ...
+# Subtest: keyboard record selection preserves focus on the replacement checkbox
+ok 62 - keyboard record selection preserves focus on the replacement checkbox
+  ---
+  duration_ms: 5.062927
+  type: 'test'
+  ...
+# Subtest: a known ledger mutation expires association previews and in-flight overview reads
+ok 63 - a known ledger mutation expires association previews and in-flight overview reads
+  ---
+  duration_ms: 4.926147
+  type: 'test'
+  ...
+# Subtest: record exception clearing and future session-default removal have distinct explanations
+ok 64 - record exception clearing and future session-default removal have distinct explanations
+  ---
+  duration_ms: 4.290463
+  type: 'test'
+  ...
+# Subtest: identity-confirmed record ownership displays its Chinese provenance
+ok 65 - identity-confirmed record ownership displays its Chinese provenance
+  ---
+  duration_ms: 3.63781
+  type: 'test'
+  ...
+# Subtest: advanced page selection never includes directory-managed records
+ok 66 - advanced page selection never includes directory-managed records
+  ---
+  duration_ms: 6.357057
+  type: 'test'
+  ...
+1..66
+# tests 66
+# suites 0
+# pass 66
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7733.139334

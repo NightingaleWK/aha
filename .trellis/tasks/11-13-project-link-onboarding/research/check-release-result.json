@@ -1,0 +1,19 @@
+{
+  "verified": false,
+  "returncode": 1,
+  "command": [
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-link-20261113\\qa315\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "scripts/release.py",
+    "validate",
+    "--base",
+    "v0.5.1",
+    "--ref",
+    "WORKTREE"
+  ],
+  "seconds": 1.591,
+  "synthetic_profile": true,
+  "log": "check-release.log"
+}

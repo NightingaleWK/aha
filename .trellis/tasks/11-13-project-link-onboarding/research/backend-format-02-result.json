@@ -1,0 +1,18 @@
+{
+  "verified": true,
+  "returncode": 0,
+  "command": [
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-link-20261113\\qa315\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "-m",
+    "ruff",
+    "format",
+    "src/aha/directory_bindings.py",
+    "tests/test_directory_bindings.py"
+  ],
+  "seconds": 0.665,
+  "synthetic_profile": true,
+  "log": "backend-format-02.log"
+}

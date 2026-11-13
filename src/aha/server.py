@@ -696,6 +696,14 @@ class Application:
         raise AppError("not_found", "未找到此内容。", 404)
 
     def post(self, path: str, body: dict[str, Any]) -> Any:
+        if path == "/api/projects/preview":
+            return self.store.preview_project_binding(body)
+        if path == "/api/projects/apply":
+            result = self.store.apply_project_binding(
+                _string(body, "preview_id", limit=128), _retry_key(body)
+            )
+            self.invalidate()
+            return result
         if path == "/api/project-associations/preview":
             return self.store.preview_associations(body)
         if path == "/api/project-associations/apply":
@@ -744,11 +752,25 @@ class Application:
             return result
         if path == "/api/projects" or re.fullmatch(r"/api/projects/" + SAFE_ID, path):
             project_id = None if path == "/api/projects" else path.rsplit("/", 1)[1]
+            directories = _strings(body, "directories", 500)
+            existing = next(
+                (p for p in self.store.config()["projects"] if p["id"] == project_id), None
+            )
+            if directories or (existing and existing["directories"]):
+                from .projects import canonical_path
+
+                if not existing or {canonical_path(d) for d in directories} != {
+                    canonical_path(d) for d in existing["directories"]
+                }:
+                    raise AppError(
+                        "project_binding_preview_required",
+                        "请先预览目录关联影响，再确认保存。", 409,
+                    )
             result = self.store.save_project(
                 project_id,
                 _string(body, "name", limit=160),
                 _string(body, "description", limit=4000),
-                _strings(body, "directories", 500),
+                directories,
             )
             self.invalidate()
             return result

@@ -1,0 +1,9 @@
+{
+  "verified": false,
+  "check": "physical_tray_input",
+  "attempted": "Computer Use node_repl initialization and sky.list_apps",
+  "error": "codex/sandbox-state-meta: sandboxCwd is not a local file URI: file:///home/wangkai/code/aha",
+  "automatic_native_tray_lifecycle_checked": true,
+  "physical_clicks_claimed": false,
+  "release_condition": "补齐物理托盘交互验收及正式候选流水线后再考虑公开发版"
+}

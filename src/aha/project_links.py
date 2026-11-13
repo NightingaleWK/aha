@@ -7,8 +7,33 @@ import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
-from .domain import canonical_bytes
+from .domain import AppError, canonical_bytes
 from .projects import _contains, canonical_path
+
+POLICY_KEY = "directory_assignment_policy"
+
+
+def managed_projects(connection: sqlite3.Connection) -> set[str]:
+    """Only explicitly confirmed projects adopt directory-wide authority."""
+    row = connection.execute("SELECT value FROM settings WHERE key=?", (POLICY_KEY,)).fetchone()
+    if row is None:
+        return set()
+    try:
+        value = json.loads(row[0])
+        if (not isinstance(value, dict) or set(value) != {"version", "projects"}
+                or type(value["version"]) is not int or value["version"] != 1
+                or not isinstance(value["projects"], list)
+                or any(not isinstance(item, str) or not item for item in value["projects"])):
+            raise ValueError
+        result = set(value["projects"])
+        existing = {r[0] for r in connection.execute("SELECT id FROM projects")}
+        if result - existing:
+            raise ValueError
+        return result
+    except (ValueError, TypeError, KeyError):
+        raise AppError(
+            "invalid_directory_policy", "目录关联设置无法识别，请使用完整备份核对资料。", 409
+        ) from None
 
 
 def directory_rules(connection: sqlite3.Connection) -> list[tuple[int, str, str]]:
@@ -42,8 +67,12 @@ def choose_project(
     manual: tuple[str, str] | None = None,
     retained: tuple[str | None, str] | None = None,
     session: tuple[str, str] | None = None,
+    managed: set[str] | None = None,
 ) -> tuple[str | None, str]:
     """Single precedence contract for pure classification and indexed projection refreshes."""
+    authoritative = match_directory(cwd, [r for r in rules if r[2] in (managed or set())])
+    if authoritative:
+        return authoritative, "directory_binding"
     if manual and manual[1] == fingerprint:
         return manual[0], "manual"
     if retained is not None:
@@ -57,7 +86,7 @@ def choose_project(
             if project
             else "unassigned"
         )
-    if session:
+    if session and session[0] not in (managed or set()):
         return session[0], "directory_rule" if session[1] == "directory_rule" else "session_binding"
     project = match_directory(cwd, rules)
     return project, "directory_rule" if project else "unassigned"
@@ -73,11 +102,13 @@ def link_record(
     operation: str,
     reason: str,
     now: str | None = None,
+    replace_basis: bool = False,
+    force: bool = False,
 ) -> bool:
     old = connection.execute(
-        "SELECT project_id FROM record_project_links WHERE record_key=?", (key,)
+        "SELECT project_id,basis FROM record_project_links WHERE record_key=?", (key,)
     ).fetchone()
-    if old and old[0] == project:
+    if old and old[0] == project and (not replace_basis or old[1] == basis) and not force:
         return False
     previous = connection.execute(
         "SELECT project_id,session_id FROM usage_records WHERE record_key=?", (key,)
@@ -143,3 +174,21 @@ def forget_directory_links(connection: sqlite3.Connection, session_id: str) -> N
         "DELETE FROM session_project_bindings WHERE session_id=? AND basis='directory_rule'",
         (session_id,),
     )
+
+
+def require_directory_target(
+    connection: sqlite3.Connection, session_id: str | None, target: str | None
+) -> None:
+    """Legacy actions may not create exceptions within an authoritative directory."""
+    if not session_id:
+        return
+    row = connection.execute("SELECT cwd,status FROM sessions WHERE id=?", (session_id,)).fetchone()
+    if row is None or row["status"] != "matched":
+        return
+    managed = managed_projects(connection)
+    owner = match_directory(row["cwd"], [r for r in directory_rules(connection) if r[2] in managed])
+    if owner and target != owner:
+        raise AppError(
+            "directory_assignment_required",
+            "这个目录的记录整体归属同一项目，请在项目管理中调整目录。", 409,
+        )

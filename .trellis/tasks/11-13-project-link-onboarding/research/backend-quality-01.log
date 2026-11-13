@@ -1,0 +1,121 @@
+E501 Line too long (106 > 100)
+   --> src\aha\directory_bindings.py:150:101
+    |
+148 |     change_groups: dict[str, dict[str, Any]] = {}
+149 |     total = DecimalSum()
+150 |     digest = hashlib.sha256(canonical_bytes([draft, future, sorted(policy), store.revisions(connection)]))
+    |                                                                                                     ^^^^^^
+151 |     used_sessions: set[str] = set()
+152 |     for index, row in enumerate(_members(connection, list(sessions))):
+    |
+
+E501 Line too long (101 > 100)
+   --> src\aha\directory_bindings.py:292:101
+    |
+290 |                 for root in evaluated["removed"]
+291 |             ):
+292 |                 connection.execute("DELETE FROM session_project_bindings WHERE session_id=?", (sid,))
+    |                                                                                                     ^
+293 |         scopes: set[str] = set()
+294 |         for row in _members(connection, [], frozen=True):
+    |
+
+E501 Line too long (108 > 100)
+   --> src\aha\project_links.py:191:74
+    |
+189 |     if owner and target != owner:
+190 |         raise AppError(
+191 |             "directory_assignment_required", "这个目录的记录整体归属同一项目，请在项目管理中调整目录。", 409
+    |                                                                                                     ^^^^^^^^
+192 |         )
+    |
+
+E501 Line too long (101 > 100)
+   --> src\aha\server.py:766:84
+    |
+764 |                 }:
+765 |                     raise AppError(
+766 |                         "project_binding_preview_required", "请先预览目录关联影响，再确认保存。", 409
+    |                                                                                                     ^
+767 |                     )
+768 |             result = self.store.save_project(
+    |
+
+E501 Line too long (103 > 100)
+  --> tests\test_directory_bindings.py:58:101
+   |
+56 |         ).fetchone()[0], 0)
+57 |
+58 |     def test_complete_history_transfer_includes_manual_and_defaults_and_preserves_frozen(self) -> None:
+   |                                                                                                     ^^^
+59 |         original = self.store.save_project(None, "原目录项目", "", ["/work/a"])["project"]["id"]
+60 |         other = self.store.save_project(None, "旧人工项目", "", [])["project"]["id"]
+   |
+
+E501 Line too long (103 > 100)
+  --> tests\test_directory_bindings.py:94:101
+   |
+92 |             "SELECT COUNT(*) FROM session_project_bindings"
+93 |         ).fetchone()[0], 0)
+94 |         self.assertEqual(next(p for p in result["projects"] if p["id"] == original)["directories"], [])
+   |                                                                                                     ^^^
+95 |         self.store.sync_data(source_data([*rows, detail("future", created_at=rows[0]["created_at"] + 1)]),
+96 |                              metadata(), trust="live")
+   |
+
+E501 Line too long (106 > 100)
+  --> tests\test_directory_bindings.py:95:101
+   |
+93 |         ).fetchone()[0], 0)
+94 |         self.assertEqual(next(p for p in result["projects"] if p["id"] == original)["directories"], [])
+95 |         self.store.sync_data(source_data([*rows, detail("future", created_at=rows[0]["created_at"] + 1)]),
+   |                                                                                                     ^^^^^^
+96 |                              metadata(), trust="live")
+97 |         self.assertEqual(self.summary(project)["record_count"], 81)
+   |
+
+E501 Line too long (103 > 100)
+   --> tests\test_directory_bindings.py:126:101
+    |
+124 |         self.store.sync_data(source_data(), metadata(), trust="live")
+125 |         project = self.apply(self.preview())["project"]["id"]
+126 |         before = self.store._db.execute("SELECT COUNT(*) FROM project_assignment_events").fetchone()[0]
+    |                                                                                                     ^^^
+127 |         repeat = self.preview(project_id=project)
+128 |         self.assertEqual(repeat["summary"]["changed_count"], 0)
+    |
+
+E501 Line too long (101 > 100)
+   --> tests\test_directory_bindings.py:137:101
+    |
+135 |         self.store.sync_data(source_data(), metadata(), trust="live")
+136 |         preview = self.preview()
+137 |         with patch("aha.ledger.refresh_availability", side_effect=RuntimeError("injected rollback")):
+    |                                                                                                     ^
+138 |             with self.assertRaises(RuntimeError):
+139 |                 self.apply(preview)
+    |
+
+E501 Line too long (103 > 100)
+   --> tests\test_directory_bindings.py:176:101
+    |
+174 |         self.assertEqual(sum(d["detail_count"] for d in repeat["directories"]), 1)
+175 |
+176 |     def test_retiring_directory_preserves_old_records_but_stops_future_and_legacy_guards(self) -> None:
+    |                                                                                                     ^^^
+177 |         self.store.sync_data(source_data(), metadata(), trust="live")
+178 |         project = self.apply(self.preview())["project"]["id"]
+    |
+
+E501 Line too long (101 > 100)
+   --> tests\test_directory_bindings.py:213:101
+    |
+211 |             "SELECT project_id FROM usage_records WHERE kind='rollup'"
+212 |         ).fetchone()[0], "")
+213 |         self.store._db.execute("UPDATE settings SET value=? WHERE key='directory_assignment_policy'",
+    |                                                                                                     ^
+214 |                                (json.dumps({"version": 99, "projects": []}),))
+215 |         with self.assertRaises(AppError) as caught:
+    |
+
+Found 11 errors.

@@ -1,0 +1,21 @@
+{
+  "verified": false,
+  "returncode": 1,
+  "command": [
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-link-20261113\\qa315\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-p",
+    "test_directory_bindings.py",
+    "-v"
+  ],
+  "seconds": 5.323,
+  "synthetic_profile": true,
+  "log": "backend-target-01.log"
+}

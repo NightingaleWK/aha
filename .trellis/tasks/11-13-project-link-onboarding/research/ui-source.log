@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\.trellis\tasks\11-13-project-link-onboarding\research\verify-ui.py", line 119, in <module>
+    if __name__=='__main__':main()
+                            ~~~~^^
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\.trellis\tasks\11-13-project-link-onboarding\research\verify-ui.py", line 36, in main
+    with Store(store_dir) as store:
+         ~~~~~^^^^^^^^^^^
+TypeError: 'aha.storage.Store' object does not support the context manager protocol (missed __exit__ method)

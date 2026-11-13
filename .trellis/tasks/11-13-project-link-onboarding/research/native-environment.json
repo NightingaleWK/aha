@@ -1,0 +1,27 @@
+{
+  "verified": true,
+  "python": [
+    3,
+    15,
+    2
+  ],
+  "sqlite": "3.53.4",
+  "packages": {
+    "pyinstaller": "6.22.3",
+    "setuptools": "84.2.1",
+    "wheel": "0.48.0",
+    "zstandard": "0.25.0",
+    "altgraph": "0.17.5",
+    "packaging": "26.3",
+    "pefile": "2024.8.26",
+    "pyinstaller-hooks-contrib": "2026.9",
+    "pywin32-ctypes": "0.2.3"
+  },
+  "qa_python": "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-link-20261113\\qa315\\Scripts\\python.exe",
+  "identified_public_exe_sha256": "af79950072a347461f686f2c986d1a36182ceccab178aa3d8d926f49ca6dd01f",
+  "extracted_dll_sha256": {
+    "sqlite3.dll": "73530e8f4555605d716352ee98fe0ce205a09e5eec57e7e6360d4c915efcacd8",
+    "_sqlite3.pyd": "851e8bfa65328162ddad2dff9f7c213f8eceb2d90baf179aa472704ec3ca6295"
+  },
+  "base_runtime_unchanged": true
+}

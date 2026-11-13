@@ -1,0 +1,36 @@
+Traceback (most recent call last):
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\.trellis\tasks\11-13-project-link-onboarding\research\verify-ui.py", line 119, in <module>
+    if __name__=='__main__':main()
+                            ~~~~^^
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\.trellis\tasks\11-13-project-link-onboarding\research\verify-ui.py", line 63, in main
+    page.goto(launch['bootstrap_url']);expect(page.locator('#source-mode')).to_have_text('已同步',timeout=30000)
+                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-project-link-20261113\qa315\Lib\site-packages\playwright\sync_api\_generated.py", line 20080, in to_have_text
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.to_have_text(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        )
+        ^
+    )
+    ^
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-project-link-20261113\qa315\Lib\site-packages\playwright\_impl\_sync_base.py", line 115, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-project-link-20261113\qa315\Lib\site-packages\playwright\_impl\_assertions.py", line 561, in to_have_text
+    await self._expect_impl(
+    ...<9 lines>...
+    )
+  File "C:\Users\djsyw\AppData\Local\Temp\aha-project-link-20261113\qa315\Lib\site-packages\playwright\_impl\_assertions.py", line 85, in _expect_impl
+    raise AssertionError(
+        f"{out_message}\nActual value: {actual}{error_message} {format_call_log(result.get('log'))}"
+    )
+AssertionError: Locator expected to have text '已同步'
+Actual value: 待确认本机来源 
+Call log:
+  - Expect "to_have_text" with timeout 30000ms
+  - waiting for locator("#source-mode")
+    33 × locator resolved to <span class="tag" id="source-mode">待确认本机来源</span>
+       - unexpected value "待确认本机来源"
+

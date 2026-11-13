@@ -71,6 +71,7 @@ def classify(
                          retained.get("project_id") in project_map) else None,
         session=(binding["project_id"], binding.get("basis", "manual"))
         if binding and binding.get("project_id") in project_map else None,
+        managed={p["id"] for p in project_map.values() if p.get("directory_managed")},
     )
     return {
         "project_id": project_id,
@@ -84,12 +85,16 @@ def configuration(store: Store, connection: Any = None) -> dict[str, Any]:
     if connection is None:
         with store.read_connection() as reader:
             return configuration(store, reader)
+    from .project_links import managed_projects
+
+    managed = managed_projects(connection)
     projects = [
         {
             "id": row["id"],
             "name": row["name"],
             "description": row["description"],
             "directories": store._decode(row["directories_json"]),
+            "directory_managed": row["id"] in managed,
         }
         for row in connection.execute("SELECT * FROM projects ORDER BY name,id")
     ]
@@ -116,7 +121,21 @@ def save_project(
         existing = next((p for p in config["projects"] if p["id"] == project_id), None)
         if project_id is not None and existing is None:
             raise AppError("project_not_found", "项目不存在，请刷新。", 404)
+        if existing and existing["directory_managed"] and {
+            canonical_path(d) for d in existing["directories"]
+        } != set(normalized):
+            raise AppError(
+                "project_binding_preview_required", "请先预览目录关联影响，再确认保存。", 409
+            )
         for project in config["projects"]:
+            if project["id"] != project_id and project["directory_managed"] and any(
+                _contains(canonical_path(d), selected) or _contains(selected, canonical_path(d))
+                for d in project["directories"] for selected in normalized
+            ):
+                raise AppError(
+                    "project_binding_preview_required",
+                    "目录已由项目整体管理，请先预览目录关联影响。", 409,
+                )
             if project["id"] != project_id and any(
                 canonical_path(d) in normalized for d in project["directories"]
             ):
@@ -186,10 +205,14 @@ def assign_keys(store: Store, keys: list[str], project_id: str | None) -> dict[s
         for raw_key in dict.fromkeys(keys):
             key = ledger.canonical_record_key(connection, raw_key)
             row = connection.execute(
-                "SELECT content_hash,scope_key FROM usage_records WHERE record_key=?", (key,)
+                "SELECT content_hash,scope_key,session_id FROM usage_records WHERE record_key=?",
+                (key,),
             ).fetchone()
             if row is None:
                 raise AppError("record_not_found", "所选用量不存在，请刷新。", 404)
+            from .project_links import require_directory_target
+
+            require_directory_target(connection, row["session_id"], project_id)
             _override(connection, key, row["content_hash"], project_id)
             connection.execute(
                 """INSERT INTO project_assignment_events(operation_id,record_key,old_project_id,
@@ -244,6 +267,9 @@ def assign_sessions(store: Store, session_ids: list[str], project_id: str | None
         scopes: set[str] = set()
         operation = "session:" + uuid4().hex
         for session_id in dict.fromkeys(session_ids):
+            from .project_links import require_directory_target
+
+            require_directory_target(connection, session_id, project_id)
             if connection.execute(
                 "SELECT 1 FROM sessions WHERE id=?", (session_id,)
             ).fetchone() is None:

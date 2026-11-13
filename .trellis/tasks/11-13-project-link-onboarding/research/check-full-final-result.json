@@ -1,0 +1,19 @@
+{
+  "verified": true,
+  "returncode": 0,
+  "command": [
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-link-20261113\\qa315\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+    "-v"
+  ],
+  "seconds": 482.807,
+  "synthetic_profile": true,
+  "log": "check-full-final.log"
+}

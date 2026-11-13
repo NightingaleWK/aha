@@ -16,10 +16,10 @@ const state = {
   associationSummaryRequest: 0, associationRecordsRequest: 0, associationPreviewRequest: 0,
   associationRows: [], associationPage: 1, associationCursor: null, associationNextCursor: null,
   associationCursors: [null], associationSelected: new Map(), associationAllFiltered: false,
-  associationPreview: null,
+  associationPreview: null, projectEditor: null, projectGeneration: 0,
 };
 const labels = {draft: "草稿", submitted: "已提交", reimbursed: "已报销", voided: "已作废"};
-const origins = {manual: "手动分配", directory_rule: "目录匹配", session_binding: "会话默认归属", history_restore: "历史依据恢复", identity_confirmation: "身份核对归属", retained: "已保存归属", unassigned: "未归属"};
+const origins = {directory_binding: "目录整体关联", manual: "手动分配", directory_rule: "目录匹配", session_binding: "会话默认归属", history_restore: "历史依据恢复", identity_confirmation: "身份核对归属", retained: "已保存归属", unassigned: "未归属"};
 const associationReasons = {recoverable: "历史依据可恢复", directory_unbound: "有目录，待确认归属", missing: "缺少目录依据", conflict: "目录依据存在冲突"};
 const counts = (value) => new Intl.NumberFormat("zh-CN").format(value ?? 0);
 const money = (value) => String(value ?? "0").replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
@@ -156,7 +156,9 @@ function syncActions() {
   $("restore-destination").disabled = state.busy || state.backupBusy;
   $("cancel-backup").disabled = !state.backupBusy;
   $("clear-unfinished-uploads").disabled = state.busy || state.backupBusy;
+  document.querySelectorAll("[data-usage-select]").forEach((control) => { control.disabled = state.busy || control.getAttribute("data-unselectable") === "true"; });
   syncAssociationActions();
+  syncProjectActions();
   timeRange.setDisabled(state.busy || !state.now);
   revisionTimeRange.setDisabled(state.busy || !state.now || !state.revision || $("revision-basis").value !== "current");
   AhaForms.sync();
@@ -376,6 +378,7 @@ async function refreshProjects(isCurrent = () => true) {
   const active = refreshRequest("projectsRequest", isCurrent);
   const config = await currentResult("/api/projects", active);
   if (!active()) return;
+  if (state.config.revision !== config.revision) expireProjectBinding("项目配置已更新，请重新查看关联影响。");
   state.config = config;
   const previous = $("project-select").value;
   const select = $("project-select");
@@ -429,10 +432,18 @@ function renderProjects() {
   for (const project of state.config.projects) {
     const card = node("article", "project-card");
     const heading = node("div", "project-card-heading");
-    const edit = node("button", "button small", "编辑");
+    const edit = node("button", "button small", "管理目录");
     edit.addEventListener("click", () => openProject(project));
     heading.append(node("h2", "", project.name), edit);
     card.append(heading, node("p", "", project.description || "未填写项目说明"));
+    const directoryStatus = node("p", "project-binding-status", project.directory_managed
+      ? "已按目录整体关联 · 新增用量随同步自动归入" : project.directories.length ? "目录尚未确认整体关联" : "添加工作目录后自动关联用量");
+    card.append(directoryStatus);
+    if (!project.directory_managed && project.directories.length) {
+      card.append(actionButton("确认目录关联", () => {
+        openProject(project); void run("正在检查目录关联影响…", saveProject);
+      }, "button small project-confirm-directories"));
+    }
     const usage = state.associations?.projects?.find((item) => item.id === project.id);
     const metrics = node("div", "project-usage");
     if (usage) {
@@ -469,47 +480,170 @@ function renderDirectories() {
   const unresolved = state.ledger?.unresolved_sessions || [];
   if (unresolved.length) {
     const conflicts = unresolved.filter((session) => session.status === "conflict").length;
-    target.append(node("p", "field-help", `${counts(unresolved.length)} 个会话的目录待确认，其中 ${counts(conflicts)} 个存在冲突。可在上方“记录归属”中批量处理。`));
+    target.append(node("p", "field-help", `${counts(unresolved.length)} 个会话的目录待确认，其中 ${counts(conflicts)} 个存在冲突。可刷新目录识别，或在“高级：处理无目录与历史资料”中检查依据。`));
   }
+}
+function projectDraft() {
+  const selected = [...$("project-candidates").querySelectorAll("input:checked")].map((input) => input.value);
+  const id = $("edit-project-id").value;
+  return {
+    ...(id ? {project_id: id} : {}), name: $("edit-project-name").value,
+    description: $("edit-project-description").value,
+    directories: [...new Set([...selected, ...lines($("edit-project-directories").value)])],
+  };
+}
+function syncProjectActions() {
+  const editor = state.projectEditor;
+  $("preview-project-binding").disabled = state.busy || !editor || Boolean(editor.applied || editor.submitting);
+  $("apply-project-binding").disabled = state.busy || !editor?.preview || Boolean(editor.submitting);
+  $("apply-project-binding").textContent = editor?.applied ? "刷新已保存结果" : editor?.uncertain ? "重试确认保存结果" : "确认保存并关联";
+  $("back-project-editor").disabled = state.busy || !editor || Boolean(editor.applied || editor.submitting || editor.uncertain);
+}
+function showProjectEditor(message = "") {
+  $("project-editor").hidden = false;
+  $("project-binding-impact").hidden = true;
+  $("project-edit-status").textContent = message;
+  $("project-dialog-title").textContent = $("edit-project-id").value ? "管理项目目录" : "新建项目";
+  syncProjectActions();
+}
+function expireProjectBinding(message = "设置已更改，请重新查看关联影响。") {
+  const editor = state.projectEditor;
+  if (!editor || editor.applied) return;
+  editor.request += 1;
+  if (editor.submitting || editor.uncertain) {
+    editor.stale = true;
+    return;
+  }
+  editor.preview = null; editor.signature = null; editor.key = null; editor.stale = false;
+  showProjectEditor(message);
 }
 function openProject(project = null) {
   clearFeedback();
+  state.projectEditor = {generation: ++state.projectGeneration, request: 0, preview: null,
+    signature: null, key: null, applied: false, submitting: false, trigger: document.activeElement};
   $("edit-project-id").value = project?.id || "";
-  $("project-dialog-title").textContent = project ? "编辑项目" : "新建项目";
   $("edit-project-name").value = project?.name || "";
   $("edit-project-description").value = project?.description || "";
   const selected = new Set(project?.directories || []);
+  const candidates = new Map((state.ledger?.directories || []).map((candidate) => [candidate.path, candidate]));
+  for (const saved of state.config.projects) {
+    for (const path of saved.directories) if (!candidates.has(path)) candidates.set(path, {path});
+  }
   const known = new Set();
   const target = $("project-candidates"); target.replaceChildren();
-  for (const candidate of state.ledger?.directories || []) {
+  for (const candidate of candidates.values()) {
     known.add(candidate.path);
     const label = node("label", "candidate-item");
     const check = node("input"); check.type = "checkbox"; check.value = candidate.path;
     check.checked = selected.has(candidate.path);
+    const owner = state.config.projects.find((saved) => saved.directories.includes(candidate.path));
     const text = node("span");
-    text.append(node("code", "", candidate.path), node("small", "", `${counts(candidate.session_count)} 个会话${candidate.detail_count === undefined ? "" : ` · ${counts(candidate.detail_count)} 条明细`}`));
+    text.append(node("code", "", candidate.path));
+    const detail = candidate.session_count === undefined ? "尚无本机识别记录" : `${counts(candidate.session_count)} 个会话${candidate.detail_count === undefined ? "" : ` · ${counts(candidate.detail_count)} 条明细`}`;
+    text.append(node("small", "", `${detail}${owner ? ` · 当前属于 ${owner.name}${owner.id === project?.id ? "" : "，选中后整体转入"}` : " · 尚未绑定项目"}`));
     label.append(check, text); target.append(label);
   }
   $("edit-project-directories").value = [...selected].filter((directory) => !known.has(directory)).join("\n");
+  showProjectEditor();
   $("project-dialog").showModal();
 }
-async function saveProject() {
-  const selected = [...$("project-candidates").querySelectorAll("input:checked")].map((input) => input.value);
-  const id = $("edit-project-id").value;
-  const result = await api(id ? `/api/projects/${encodeURIComponent(id)}` : "/api/projects", {
-    name: $("edit-project-name").value, description: $("edit-project-description").value,
-    directories: [...new Set([...selected, ...lines($("edit-project-directories").value)])],
-  });
-  $("edit-project-id").value = result.project.id;
-  invalidate("项目已保存，请重新预览");
-  invalidateAssociations("项目已保存，请刷新项目费用与归属记录。");
-  try {
-    await refreshProjects();
-    if (state.activePage === "projects") await refreshAssociations();
-  } catch (error) {
-    throw new Error(`项目已保存，但刷新未完成。可重试保存以更新同一项目。${error.message || ""}`);
+function renderProjectBindingImpact(result) {
+  const summary = result.summary || {};
+  $("project-editor").hidden = true;
+  $("project-binding-impact").hidden = false;
+  $("project-dialog-title").textContent = "确认目录关联";
+  $("project-binding-caption").textContent = result.project.directories.length
+    ? `以下目录将整体关联到“${result.project.name}”。请核对已有记录和费用变化。`
+    : `将保存“${result.project.name}”。当前未选择目录，暂不关联用量。`;
+  const target = $("project-binding-summary");
+  target.replaceChildren(
+    node("p", "", `${counts(result.project.directories.length)} 个目录 · ${counts(summary.detail_count)} 条已有明细 · ${counts(summary.session_count)} 个会话`),
+    node("p", "project-binding-cost", `参考成本 ${money(summary.total_cost_usd)} USD`),
+    node("p", "", `已有 ${counts(summary.already_assigned_count)} 条属于此项目；本次将更新 ${counts(summary.changed_count)} 条记录的归属或关联依据。`));
+  if (!summary.detail_count && result.project.directories.length) target.append(node("p", "field-help", "这些目录目前没有可确定的已有记录，确认后识别到的新用量会自动归入。"));
+  if (summary.claimed_count) target.append(node("p", "field-help", `其中 ${counts(summary.claimed_count)} 条已有报销占用；占用及已保存材料保持不变。`));
+  if (summary.pending_count) target.append(node("p", "field-help", `其中 ${counts(summary.pending_count)} 条用量待核对，参考金额以核对结果为准。`));
+  if (summary.recovered_sessions) target.append(node("p", "field-help", `将采用已保存的唯一有效历史目录，恢复 ${counts(summary.recovered_sessions)} 个会话的目录依据。`));
+  const directories = $("project-binding-directories"); directories.replaceChildren();
+  for (const directory of result.directories || []) {
+    const item = node("div", "project-binding-directory");
+    item.append(node("code", "", directory.path), node("span", "field-help", `${counts(directory.detail_count)} 条明细 · ${counts(directory.session_count)} 个会话 · ${money(directory.total_cost_usd)} USD`));
+    directories.append(item);
   }
-  $("project-dialog").close(); notify("已保存项目。");
+  const changes = $("project-binding-changes"); changes.replaceChildren();
+  if (result.changes?.length) changes.append(node("h3", "", "已有记录归属对照"), table([
+    {title: "原项目", value: (row) => row.from_project_name || "未归属", wrap: true},
+    {title: "归入项目", value: (row) => row.to_project_name || result.project.name, wrap: true},
+    {title: "明细", value: (row) => counts(row.detail_count), numeric: true},
+    {title: "参考成本 USD", value: (row) => money(row.total_cost_usd), numeric: true},
+  ], result.changes));
+  const transfers = $("project-binding-transfers"); transfers.replaceChildren();
+  for (const transfer of result.transfers || []) transfers.append(node("p", "warning", `目录 ${transfer.path} 将从“${transfer.from_project_name}”整体转入“${result.project.name}”，原项目不再绑定这个目录。`));
+  const warnings = $("project-binding-warnings"); warnings.replaceChildren();
+  for (const warning of result.warnings || []) warnings.append(node("p", "warning", typeof warning === "string" ? warning : warning.message || warning.code));
+  syncProjectActions();
+}
+async function saveProject() {
+  const editor = state.projectEditor;
+  if (!editor) throw new Error("请重新打开项目设置。");
+  if (editor.applied || editor.uncertain) return applyProjectBinding();
+  const draft = projectDraft();
+  const request = ++editor.request;
+  const active = () => state.projectEditor === editor && editor.request === request && !state.stopped;
+  editor.preview = null; editor.signature = null; editor.key = null; editor.stale = false;
+  $("project-edit-status").textContent = "正在核对这些目录的全部已有记录与费用…";
+  syncProjectActions();
+  let result;
+  try { result = await api("/api/projects/preview", draft, active); }
+  catch (error) { if (!active()) return; $("project-edit-status").textContent = "未能完成影响检查，项目与目录尚未保存。可重试。"; throw error; }
+  if (!active()) return;
+  editor.preview = result;
+  editor.signature = JSON.stringify(draft);
+  editor.key = crypto.randomUUID();
+  renderProjectBindingImpact(result);
+}
+async function applyProjectBinding() {
+  const editor = state.projectEditor;
+  if (!editor?.preview?.preview_id) throw new Error("请重新查看目录关联影响后再确认。");
+  const active = () => state.projectEditor === editor && !state.stopped;
+  if (!editor.applied) {
+    if (editor.signature !== JSON.stringify(projectDraft())) {
+      expireProjectBinding();
+      throw new Error("项目设置已更改，请重新查看关联影响。");
+    }
+    editor.submitting = true;
+    syncProjectActions();
+    let result;
+    try { result = await api("/api/projects/apply", {preview_id: editor.preview.preview_id, idempotency_key: editor.key}, active); }
+    catch (error) {
+      if (!active()) return;
+      editor.submitting = false;
+      editor.uncertain = !error.code;
+      if (editor.uncertain) $("project-binding-caption").textContent = "保存结果尚未确认，请重试确认结果。重试会沿用同一次操作，不会重复创建项目。";
+      if (["project_binding_preview_required", "project_binding_preview_expired"].includes(error.code) || editor.stale && !editor.uncertain) expireProjectBinding("台账或目录依据已变化，请重新查看关联影响。");
+      syncProjectActions();
+      throw error;
+    }
+    if (!active()) return;
+    editor.submitting = false; editor.uncertain = false; editor.applied = true; editor.result = result;
+    $("edit-project-id").value = result.project.id;
+    invalidate("项目目录已关联，请重新预览");
+    invalidateAssociations("目录关联已保存，请刷新项目费用。");
+    syncProjectActions();
+  }
+  try {
+    await refreshProjects(active);
+    await refreshLedger(active);
+    if (state.activePage === "projects") await refreshAssociations(active);
+  } catch (error) {
+    if (!active()) return;
+    $("project-binding-caption").textContent = "项目与目录关联已保存。刷新结果未完成，点击下方按钮重试刷新。";
+    syncProjectActions();
+    throw new Error(`项目与目录关联已保存，但刷新未完成。${error.message || ""}`);
+  }
+  if (!active()) return;
+  $("project-dialog").close();
+  notify("项目与目录已保存，已有记录已整体关联；以后新增用量随同步自动归入。");
 }
 
 function associationFilters() {
@@ -535,6 +669,7 @@ function clearAssociationSelection() {
   renderAssociationSelection();
 }
 function invalidateAssociations(message) {
+  expireProjectBinding("台账或目录依据已更新，请重新查看关联影响。");
   clearAssociationSelection();
   state.associationSummaryRequest += 1; state.associationRecordsRequest += 1;
   state.associations = null; state.associationRows = [];
@@ -551,13 +686,16 @@ function syncAssociationActions() {
   $("clear-association-selection").disabled = state.busy || !selected;
   $("association-prev-page").disabled = state.busy || state.associationPage <= 1;
   $("association-next-page").disabled = state.busy || !state.associationNextCursor;
+  const filter = $("association-filter-project").value;
+  const includesManaged = state.config.projects.some((project) => project.directory_managed && (filter === "all" || filter === project.id));
+  $("association-all-filtered").disabled = state.busy || includesManaged;
   const operation = state.associationPreview;
   const summary = operation?.result?.summary;
   const actionable = operation?.applied || summary && (summary.changed_count > 0 || summary.recovered_sessions > 0 || operation.request.bind_sessions && summary.session_count > 0);
   $("apply-associations").disabled = state.busy || !operation || !actionable;
   $("apply-associations").textContent = operation?.applied ? "刷新已保存结果" : "确认保存归属";
   $("association-reason").readOnly = Boolean(operation?.applied);
-  document.querySelectorAll("[data-association-select]").forEach((control) => { control.disabled = state.busy || state.associationAllFiltered; });
+  document.querySelectorAll("[data-association-select]").forEach((control) => { control.disabled = state.busy || state.associationAllFiltered || control.getAttribute("data-directory-managed") === "true"; });
   document.querySelectorAll("[data-association-group]").forEach((control) => { control.disabled = state.busy; });
 }
 function renderAssociationSelection() {
@@ -633,13 +771,14 @@ async function refreshAssociationRecords(isCurrent = () => true) {
   renderAssociationRecords();
   $("association-status").textContent = "记录已更新。修改筛选后请重新查询；项目合计与材料按实际保存的归属计算。";
 }
-async function refreshAssociations() {
+async function refreshAssociations(isCurrent = () => true) {
+  if (!isCurrent()) return;
   associationFilters();
   clearAssociationSelection();
   state.associationPage = 1; state.associationCursor = null;
   state.associationNextCursor = null; state.associationCursors = [null];
   const generation = state.associationGeneration;
-  const active = () => generation === state.associationGeneration && !state.stopped;
+  const active = () => generation === state.associationGeneration && isCurrent() && !state.stopped;
   await Promise.all([refreshAssociationOverview(active), refreshAssociationRecords(active)]);
 }
 function renderAssociationRecords(focus = null) {
@@ -652,11 +791,13 @@ function renderAssociationRecords(focus = null) {
     const item = node("table"); const head = node("thead"); const header = node("tr");
     const selectCell = node("th", "table-check"); const select = node("input"); select.type = "checkbox";
     select.setAttribute("data-association-select", "");
-    select.checked = state.associationAllFiltered || rows.every((row) => state.associationSelected.has(row.record_key));
-    select.disabled = state.busy || state.associationAllFiltered;
+    const selectableRows = rows.filter((row) => row.assignment_origin !== "directory_binding");
+    select.setAttribute("data-directory-managed", String(!selectableRows.length));
+    select.checked = state.associationAllFiltered || selectableRows.length > 0 && selectableRows.every((row) => state.associationSelected.has(row.record_key));
+    select.disabled = state.busy || state.associationAllFiltered || !selectableRows.length;
     select.setAttribute("aria-label", "选择当前页全部归属记录");
     select.addEventListener("change", () => {
-      rows.forEach((row) => select.checked ? state.associationSelected.set(row.record_key, row) : state.associationSelected.delete(row.record_key));
+      selectableRows.forEach((row) => select.checked ? state.associationSelected.set(row.record_key, row) : state.associationSelected.delete(row.record_key));
       clearAssociationPreview(); renderAssociationRecords({page: true});
     });
     if (focus?.page) focusTarget = select;
@@ -668,9 +809,12 @@ function renderAssociationRecords(focus = null) {
       const line = node("tr", selected ? "selected-row" : "");
       const cell = node("td", "table-check"); const check = node("input"); check.type = "checkbox"; check.checked = selected;
       check.setAttribute("data-association-select", "");
-      check.disabled = state.busy || state.associationAllFiltered;
+      const managed = row.assignment_origin === "directory_binding";
+      check.setAttribute("data-directory-managed", String(managed));
+      check.disabled = state.busy || state.associationAllFiltered || managed;
       check.setAttribute("aria-label", `选择 ${row.date || ""} ${row.model || ""} ${row.kind === "rollup" ? "历史日汇总" : "消费明细"}`);
       check.addEventListener("change", () => {
+        if (managed) return;
         check.checked ? state.associationSelected.set(row.record_key, row) : state.associationSelected.delete(row.record_key);
         clearAssociationPreview(); renderAssociationRecords({key: row.record_key});
       });
@@ -831,7 +975,7 @@ async function analyze() {
   $("token-write").textContent = counts(summary.cache_creation_tokens);
   $("token-strip").hidden = omittedOnly;
   const coverage = result.metadata_coverage || state.ledger.metadata_coverage || {matched_sessions: 0, total_sessions: 0};
-  $("coverage-note").textContent = `已识别 ${counts(coverage.matched_sessions)} / ${counts(coverage.total_sessions)} 个会话的工作目录。项目按目录设置或手动分配。`;
+  $("coverage-note").textContent = `已识别 ${counts(coverage.matched_sessions)} / ${counts(coverage.total_sessions)} 个会话的工作目录。项目按已确认的工作目录整体关联。`;
   $("coverage-note").hidden = false;
   $("analysis-warnings").replaceChildren();
   for (const warning of result.warnings || []) {
@@ -842,13 +986,17 @@ async function analyze() {
   await renderPreview(); syncActions();
 }
 function table(columns, rows, selectable = false) {
+  const canSelect = (row) => !row.cwd && row.assignment_origin !== "directory_binding";
+  const selectableRows = selectable ? rows.filter(canSelect) : [];
   const item = node("table"); const head = node("thead"); const tr = node("tr");
   if (selectable) {
     const cell = node("th", "table-check"); const check = node("input");
-    check.type = "checkbox"; check.setAttribute("aria-label", "选择当前页全部记录");
-    check.checked = rows.length > 0 && rows.every((row) => state.selected.has(row.record_key));
+    check.type = "checkbox"; check.setAttribute("aria-label", "选择当前页全部无目录记录");
+    check.setAttribute("data-usage-select", ""); check.setAttribute("data-unselectable", String(!selectableRows.length));
+    check.disabled = state.busy || !selectableRows.length;
+    check.checked = selectableRows.length > 0 && selectableRows.every((row) => state.selected.has(row.record_key));
     check.addEventListener("change", () => {
-      rows.forEach((row) => check.checked ? state.selected.set(row.record_key, row) : state.selected.delete(row.record_key));
+      selectableRows.forEach((row) => check.checked ? state.selected.set(row.record_key, row) : state.selected.delete(row.record_key));
       renderRowTable(); renderSelection();
     });
     cell.append(check); tr.append(cell);
@@ -860,8 +1008,11 @@ function table(columns, rows, selectable = false) {
     if (selectable) {
       const cell = node("td", "table-check"); const check = node("input");
       check.type = "checkbox"; check.checked = state.selected.has(row.record_key);
+      check.setAttribute("data-usage-select", ""); check.setAttribute("data-unselectable", String(!canSelect(row)));
+      check.disabled = state.busy || !canSelect(row);
       check.setAttribute("aria-label", `选择 ${row.time || row.date} ${row.model} 记录`);
       check.addEventListener("change", () => {
+        if (!canSelect(row)) return;
         check.checked ? state.selected.set(row.record_key, row) : state.selected.delete(row.record_key);
         line.classList.toggle("selected-row", check.checked); renderSelection();
       }); cell.append(check); line.append(cell);
@@ -912,10 +1063,10 @@ function renderRowTable() {
     {title: "缓存写入", numeric: true, value: (row) => counts(row.cache_creation_tokens)},
     {title: "参考成本 USD", numeric: true, value: costCell},
   ];
-  $("preview-table").replaceChildren(table(columns, state.rows, true));
+  $("preview-table").replaceChildren(table(columns, state.rows, $("usage-legacy-tools").open));
 }
 function renderSelection() {
-  $("assignment-bar").hidden = !state.selected.size;
+  $("assignment-bar").hidden = !$("usage-legacy-tools").open || !state.selected.size;
   $("selection-count").textContent = `已选 ${counts(state.selected.size)} 条${state.tab === "rollups" ? "完整日汇总" : "明细"}`;
   $("session-scope-label").hidden = state.tab !== "details";
   renderAssignmentMode();
@@ -1657,7 +1808,21 @@ $("metadata-form").addEventListener("submit", (event) => { event.preventDefault(
 $("refresh-metadata").addEventListener("click", () => { clearFeedback(); $("source-dialog").showModal(); });
 for (const id of ["analyze", "refresh-availability"]) $(id).addEventListener("click", () => run("正在更新预览…", analyze));
 $("new-project").addEventListener("click", () => openProject());
-$("project-form").addEventListener("submit", (event) => { event.preventDefault(); run("正在保存项目…", saveProject); });
+$("project-form").addEventListener("submit", (event) => { event.preventDefault(); if (!$("project-editor").hidden) void run("正在检查目录关联影响…", saveProject); });
+for (const id of ["edit-project-name", "edit-project-description", "edit-project-directories", "project-candidates"]) $(id).addEventListener("input", () => expireProjectBinding());
+$("project-candidates").addEventListener("change", () => expireProjectBinding());
+$("back-project-editor").addEventListener("click", () => { expireProjectBinding(); $("preview-project-binding").focus({preventScroll: true}); });
+$("apply-project-binding").addEventListener("click", () => { void run("正在保存目录关联…", applyProjectBinding); });
+$("project-dialog").addEventListener("close", () => {
+  const trigger = state.projectEditor?.trigger;
+  state.projectEditor = null; state.projectGeneration += 1; syncProjectActions();
+  if (trigger?.isConnected && !trigger.disabled) trigger.focus({preventScroll: true});
+});
+$("usage-legacy-tools").addEventListener("toggle", () => {
+  state.selected.clear();
+  if (["details", "rollups"].includes(state.tab) && state.rows.length) renderRowTable();
+  renderSelection();
+});
 $("refresh-associations").addEventListener("click", () => run("正在读取项目费用与归属…", refreshAssociations));
 $("association-filter-form").addEventListener("submit", (event) => { event.preventDefault(); void run("正在查询消费记录…", refreshAssociations); });
 for (const id of ["project", "reason", "directory", "session", "start", "end"]) $("association-filter-" + id).addEventListener("change", () => {
@@ -1693,7 +1858,7 @@ $("manage-unassigned").addEventListener("click", () => run("正在查询待归�
   $("association-filter-directory").value = ""; $("association-filter-session").value = "";
   $("association-filter-start").value = state.analysis?.start_date || "";
   $("association-filter-end").value = state.analysis?.end_date || "";
-  AhaForms.sync(); page("projects"); await refreshAssociations();
+  AhaForms.sync(); page("projects"); $("association-advanced").open = true; await refreshAssociations();
   $("association-heading").focus?.({preventScroll: true});
   $("association-panel").scrollIntoView?.({behavior: "smooth", block: "start"});
 }));

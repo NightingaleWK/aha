@@ -1,0 +1,50 @@
+{
+  "id": "project-link-onboarding",
+  "name": "project-link-onboarding",
+  "title": "简化项目目录绑定与历史记录关联",
+  "description": "保存项目目录后提示归入已有记录，并让后续用量按目录持续自动关联，减少手动筛选和会话分配操作",
+  "status": "in_progress",
+  "dev_type": "fullstack",
+  "scope": "project-association",
+  "package": null,
+  "priority": "P2",
+  "creator": "NightingaleWK",
+  "assignee": "NightingaleWK",
+  "createdAt": "2026-11-13",
+  "completedAt": null,
+  "branch": "codex/project-link-onboarding",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    ".trellis/tasks/11-13-project-link-onboarding/prd.md",
+    ".trellis/tasks/11-13-project-link-onboarding/design.md",
+    ".trellis/tasks/11-13-project-link-onboarding/implement.md",
+    ".trellis/tasks/11-13-project-link-onboarding/research/findings.md"
+  ],
+  "notes": "产品及本机交付、检查和清理完成；用户已批准按计划提交并积累到下一版，执行本地提交/归档/会话记录。",
+  "meta": {
+    "planning": {
+      "model": "directory_all_records",
+      "legacy_manual_assignments": "transfer_after_impact_confirmation",
+      "implementation_approval": "用户于2026-11-13回复“开始实施”，批准最新最终规划及测试和桌面单文件EXE交付。"
+    },
+    "delivery": {
+      "path": "C:\\Users\\djsyw\\Desktop\\aha.exe",
+      "sha256": "f04c016789ee03c75d8e3b2d21722aefc616968826e7811bc11d2d80bd76fb3c",
+      "local_version": "0.5.1",
+      "official_publication": false,
+      "verification": "verification.md",
+      "temporary_bytes_removed": 743234710
+    },
+    "commit_approval": {
+      "status": "approved",
+      "user_reply": "同意提交，积累到下一版（推荐）"
+    },
+    "release_decision": "积累到下一版；保留中文片段，建议候选v0.6.0；未授权推送或公开发布。"
+  }
+}

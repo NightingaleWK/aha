@@ -553,3 +553,24 @@ td .subline { display: block; font-size: var(--text-meta); color: var(--muted); 
   .form-segmented { width: 100%; }
   .form-segment { flex: 1; }
 }
+
+/* Directory ownership keeps the common project flow at folder level. */
+.project-directory-help { margin-bottom: 16px; }
+.project-card .project-binding-status { color: var(--teal-dark); background: var(--teal-bg); border-radius: 7px; padding: 10px 12px; font-size: var(--text-meta); }
+.project-confirm-directories { margin-bottom: 18px; }
+.project-binding-cost { font-size: 1.375rem; font-weight: 600; color: var(--teal-dark); overflow-wrap: anywhere; }
+.project-binding-directories { display: grid; gap: 10px; margin-bottom: 18px; }
+.project-binding-directory { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; min-width: 0; }
+.project-binding-directory code { overflow-wrap: anywhere; font-size: var(--text-table); }
+.project-binding-transfers .warning { margin-top: 12px; }
+#project-binding-warnings { margin: 18px 0; }
+#project-binding-changes h3 { margin-top: 0; }
+#project-binding-impact > .field-help { margin-top: 18px; }
+#project-edit-status:empty { display: none; }
+.advanced-associations { margin: 20px 0; }
+.advanced-associations > summary, .legacy-tools > summary { cursor: pointer; padding: 16px 20px; font-size: var(--text-table); color: var(--muted); }
+.advanced-associations[open] > summary { color: var(--ink); }
+.advanced-associations .association-panel { margin-top: 12px; }
+.legacy-tools { border-bottom: 1px solid var(--line); }
+.legacy-tools > .field-help { padding: 0 20px 14px; }
+.legacy-tools .assignment-bar { border-bottom: 0; }

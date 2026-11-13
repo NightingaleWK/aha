@@ -1,0 +1,18 @@
+{
+  "verified": true,
+  "returncode": 0,
+  "command": [
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-project-link-20261113\\qa315\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    ".trellis/tasks/11-13-project-link-onboarding/research/verify-ui.py",
+    "--exe",
+    "C:/Users/djsyw/AppData/Local/Temp/aha-project-link-20261113/build/release/directory/aha/aha.exe",
+    "--label",
+    "directory"
+  ],
+  "seconds": 20.539,
+  "synthetic_profile": true,
+  "log": "ui-directory.log"
+}

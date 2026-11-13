@@ -1,0 +1,16 @@
+{
+  "verified": true,
+  "tests": 66,
+  "failed": 0,
+  "command": "node --test --test-reporter=tap tests/web_state.test.cjs",
+  "syntax": [
+    "src/aha/web/app.js",
+    "src/aha/web/form-controls.js",
+    "src/aha/web/time-range-picker.js"
+  ],
+  "regressions": [
+    "post-save association stale success/409/disconnect retains newer editor and analysis",
+    "inactive project editor does not clear selection or start refresh"
+  ],
+  "log": "check-web-state.log"
+}

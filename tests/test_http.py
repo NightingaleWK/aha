@@ -181,8 +181,12 @@ class HTTPTests(unittest.TestCase):
         preview = self.json("POST", "/api/project-associations/preview", {
             "action": "assign", "project_id": project,
         })
-        self.json("POST", "/api/projects/" + project, {
-            "name": "项目", "description": "规则改变", "directories": ["/new/repo"],
+        changed = self.json("POST", "/api/projects/preview", {
+            "project_id": project, "name": "项目", "description": "规则改变",
+            "directories": ["/new/repo"],
+        })
+        self.json("POST", "/api/projects/apply", {
+            "preview_id": changed["preview_id"], "idempotency_key": "http-project-rule-update",
         })
         code, _, payload = self.request("POST", "/api/project-associations/apply", {
             "preview_id": preview["preview_id"], "reason": "迟到的确认",
@@ -192,6 +196,32 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(json.loads(payload)["code"], "association_preview_expired")
         self.assertEqual(self.json("GET", "/api/project-associations")["summary"]
                          ["unassigned_detail_count"], 1)
+
+    def test_directory_project_preview_and_confirm_are_atomic_authenticated_and_replayable(
+        self,
+    ) -> None:
+        from test_storage_helpers import metadata, source_data
+
+        self.server.app.store.sync_data(source_data(), metadata(), trust="live")
+        draft = {"name": "目录整体项目", "directories": ["/work/a"]}
+        self.assertEqual(self.request("POST", "/api/projects/preview", draft,
+                                      {"X-AHA-CSRF": "wrong"})[0], 403)
+        self.assertEqual(self.request("POST", "/api/projects", draft)[0], 409)
+        preview = self.json("POST", "/api/projects/preview", draft)
+        self.assertEqual(preview["summary"]["detail_count"], 1)
+        self.assertEqual(self.json("GET", "/api/projects")["projects"], [])
+        request = {"preview_id": preview["preview_id"],
+                   "idempotency_key": "http-project-directory-confirm"}
+        result = self.json("POST", "/api/projects/apply", request)
+        self.assertTrue(result["project"]["directory_managed"])
+        self.assertEqual(self.analyze(result["project"]["id"])["summary"]["detail_count"], 1)
+        self.assertEqual(self.json("POST", "/api/projects/apply", request), result)
+        wrong_endpoint, _, payload = self.request("POST", "/api/project-associations/apply", {
+            "preview_id": preview["preview_id"], "reason": "不能混用预览",
+            "idempotency_key": "http-project-wrong-preview-kind",
+        })
+        self.assertEqual(wrong_endpoint, 409)
+        self.assertEqual(json.loads(payload)["code"], "association_preview_required")
 
     @staticmethod
     def claim(purpose: str = "项目开发") -> dict[str, Any]:

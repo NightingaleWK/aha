@@ -19,7 +19,8 @@
 | `POST /api/source/sql` | `{name,content_base64}`，流式解析受限 SQL，返回异步 job |
 | `POST /api/session-metadata` | `{roots?:string[]}`，刷新本地目录依据 |
 | `GET /api/projects` | 项目配置与分类 revision |
-| `POST /api/projects`、`/api/projects/{id}` | `name/description/directories`，名称最多160字符 |
+| `POST /api/projects/preview`、`/api/projects/apply` | 目录草稿→整体影响→一次确认，原子保存配置和历史，见[目录整体合同](../backend/project-association-contract.md#8-已确认目录的整体归属合同) |
+| `POST /api/projects`、`/api/projects/{id}` | 旧兼容路径，目录变更须先预览确认；仅允许不改目录的元信息更新 |
 | `POST /api/assignments` | `project_id` 加 keys 或 session_ids；rollup 按整条记录处理 |
 | `GET /api/project-associations`、`/records` | 项目费用/待归属分组及修订绑定的keyset记录清单 |
 | `POST /api/project-associations/preview`、`/apply` | 全筛选/逐条/整会话的归属影响预览与原子幂等应用；协议见[项目归属合同](../backend/project-association-contract.md) |
@@ -68,7 +69,7 @@
 
 来源/协议细节放按需帮助；不向产品流程加入内部 epoch、迁移协议或助手旁白。成功提示短浮动，操作错误持续可见并进入当前弹窗。
 
-项目页首先回答项目费用、成员数量与待归属进度，目录维护作为辅助入口。批量须明确“当前页/所选记录/全部筛选/整个会话及未来”范围；有效关系保存在aha中。查看全部费用仍是all只读口径，申请报销切回可用用量。同期未归属单独说明，不能混算成某项目或假称全部已完成；覆盖与冻结合同见[项目归属合同](../backend/project-association-contract.md)。
+项目页首先回答项目费用与已纳入目录。常用流程为新建/管理项目目录→查看完整影响→确认保存并关联，不提供逐条挑选、跨页全选或整会话开关；旧项目通过确认目录关联采用新模式，目录内旧人工跨项目归属在预览后整体迁入。无目录旧资料处理收纳高级区域。兼容旧模式批量仍须明确“当前页/所选记录/全部筛选/整个会话及未来”范围；有效关系保存在aha中。查看全部费用仍是all只读口径，申请报销切回可用用量。同期未归属单独说明，不能混算成某项目或假称全部已完成；覆盖与冻结合同见[项目归属合同](../backend/project-association-contract.md)。
 
 ## 6. 验证
 

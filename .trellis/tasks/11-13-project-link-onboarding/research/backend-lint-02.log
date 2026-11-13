@@ -1,0 +1,23 @@
+E501 Line too long (102 > 100)
+  --> tests\test_directory_bindings.py:80:101
+   |
+78 |         facts = list(
+79 |             self.store._db.execute(
+80 |                 "SELECT record_key,content_hash,total_cost_usd FROM usage_records ORDER BY record_key"
+   |                                                                                                     ^^
+81 |             )
+82 |         )
+   |
+
+E501 Line too long (106 > 100)
+   --> tests\test_directory_bindings.py:98:101
+    |
+ 96 |             list(
+ 97 |                 self.store._db.execute(
+ 98 |                     "SELECT record_key,content_hash,total_cost_usd FROM usage_records ORDER BY record_key"
+    |                                                                                                     ^^^^^^
+ 99 |                 )
+100 |             ),
+    |
+
+Found 2 errors.

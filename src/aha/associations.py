@@ -673,6 +673,7 @@ def _evaluate(
                 "assignment_too_large", "一次最多处理十万条记录，请缩小筛选或分批。", 413
             )
         target = _target(row, request, metadata, rules)
+        project_links.require_directory_target(connection, row["session_id"], target)
         entry = metadata.get(row["session_id"], {})
         summary[
             "selected_detail_count" if row["kind"] == "detail" else "selected_rollup_count"
@@ -844,7 +845,7 @@ def apply_associations(
             if prior["payload_hash"] != signature:
                 raise AppError("idempotency_conflict", "同一重试标识对应不同内容。", 409)
             return dict(store._decode(prior["result_json"]))
-        if cached is None:
+        if cached is None or "request" not in cached:
             raise AppError("association_preview_required", "请先预览本次项目关联调整。", 409)
         if cached["deadline"] < monotonic() or cached["revisions"] != store.revisions(connection):
             raise AppError("association_preview_expired", "台账或归属依据已变化，请重新预览。", 409)

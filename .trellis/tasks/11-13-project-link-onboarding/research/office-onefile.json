@@ -1,0 +1,30 @@
+{
+  "verified": true,
+  "material_sha256": "80120a55623d275bc2d9bdb5dd16d002c9e6537b582c8fd35f72c3bc9f8a8bc9",
+  "physical_office_input": false,
+  "native_excel": [
+    {
+      "file": "使用明细.csv",
+      "rows": 4,
+      "all_cells_checked": true
+    },
+    {
+      "file": "每日汇总.csv",
+      "rows": 2,
+      "all_cells_checked": true
+    }
+  ],
+  "print": {
+    "pages": 1,
+    "a4_page_sizes_pt": [
+      [
+        594.95996,
+        841.91998
+      ]
+    ],
+    "precise_cost_preserved": true,
+    "pdf_sha256": "5e63f4e6ceee55a9b46334f641b719007ee09f2eadebcc3b730446fc59d9c164",
+    "first_page_rendered": "a4-onefile.png"
+  },
+  "label": "onefile"
+}

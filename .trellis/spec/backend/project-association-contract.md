@@ -9,6 +9,8 @@
 ## 2. 签名与所有者
 
 ```python
+Store.preview_project_binding(draft)
+Store.apply_project_binding(preview_id, idempotency_key)
 Store.association_status()
 Store.association_records(filters, *, cursor=None, size=50)
 Store.preview_associations(request)
@@ -16,7 +18,8 @@ Store.apply_associations(preview_id, reason, idempotency_key)
 Store.assign_keys(keys, project_id) / Store.assign_sessions(session_ids, project_id)
 ```
 
-- `associations.py`：本地工作清单、筛选、影响预览、原子应用和审核。
+- `directory_bindings.py`：目录整体保存草稿、归属影响、配置/历史一次确认和原子审核。
+- `associations.py`：本地工作清单、筛选、旧模式影响预览、原子应用和审核。
 - `project_links.py`：已接受逐条关系、会话默认及目录匹配的共享规则。
 - `projects.py`：项目 UUID/目录配置、内容指纹人工例外；Store 保持薄门面。
 - `ledger.py`：归属查询投影、可用性和精确日/月统计；`queries/batches/evidence` 负责项目选择与冻结。
@@ -26,13 +29,13 @@ Store.assign_keys(keys, project_id) / Store.assign_sessions(session_ids, project
 
 ### 持久关系
 
-有效记录 override（内容指纹匹配）优先于已接受逐条关系；已有关系不被同步、找不到日志或保存目录规则清除。新成员可使用会话默认/唯一目录规则，第一次分类即留持久基线。`record_project_links.project_id=NULL` 是待归属基线，不代表完成或已确定项目，避免其他 scope 刷新把旧未归属记录无提示认领。
+先判断已明确确认的目录整体规则：命中已纳管目录时目录所有者优先于旧人工 override、持久关系及会话默认，详见第8节。未纳管旧模式下，有效记录 override（内容指纹匹配）优先于已接受逐条关系；已有关系不被同步、找不到日志或普通配置草稿清除。新成员可使用会话默认/唯一目录规则，第一次分类即留持久基线。`record_project_links.project_id=NULL` 是待归属基线，不代表完成或已确定项目，避免其他 scope 刷新把旧未归属记录无提示认领。
 
-目录和会话是识别/批量辅助，业务身份沿用 aha 项目 UUID 与 canonical 消费 key。已有人工 override 不根据数量推断成整会话意图；费用内容修订仍走原核对和指纹规则。显式采用相反目录候选可重新判断其自动目录关系，不能覆盖有效逐条例外。
+目录和会话是识别/批量辅助，业务身份沿用 aha 项目 UUID 与 canonical 消费 key。已有人工 override 不根据数量推断成整会话意图；费用内容修订仍走原核对和指纹规则。显式采用相反目录候选可重新判断其自动目录关系；未纳管旧模式保留有效逐条例外，命中已确认目录整体规则时按第8节统一归属。
 
 确认两key为同一消费时，双方不同非空项目仍需核对；只有一方已有项目时保留唯一已知关系到canonical，记录identity_confirmation依据/审计，不将候选override原内容hash硬套到canonical，也不跳过费用修订或占用核对。清除逐条例外和解除整会话未来默认是两种不同操作，文案和权威写入必须对应。
 
-保存目录用于新会话识别，不回算已确认历史。纠正历史用独立预览/应用；整会话分配展开全部现存非 suppressed 明细并使后续新增明细继承，预览展示范围和有效人工例外。日汇总无会话，只能按完整留存行分配，不拆分或虚构逐笔成员。
+旧模式普通保存不回算已确认历史；新的目录整体保存流程必须预览影响并明确确认，原子绑定目录并统一已有成员，不能复用保留逐条例外的旧批量动作。旧资料纠正历史仍可用独立预览/应用；整会话分配展开全部现存非 suppressed 明细并使后续新增明细继承，预览展示范围和有效人工例外。日汇总无会话，只能按完整留存行分配，不拆分或虚构逐笔成员。
 
 ### 工作清单与 API
 
@@ -40,6 +43,8 @@ Store.assign_keys(keys, project_id) / Store.assign_sessions(session_ids, project
 
 | 接口 | 输入与结果 |
 | --- | --- |
+| `POST /api/projects/preview` | `{project_id?,name,description,directories}`，一致快照预览目录整体保存，含零记录目录 |
+| `POST /api/projects/apply` | `{preview_id,idempotency_key}`，原子保存项目、目录所有权、模式和全部有依据历史 |
 | `GET /api/project-associations` | 三修订号、summary、projects、按原因/目录分组；项目参考成本为已核实 available+claimed，pending 单列 |
 | `GET /api/project-associations/records` | `project_id/start_date/end_date/directory/session_id/reason`、cursor、size1–200；event_time/record_key keyset |
 | `POST /api/project-associations/preview` | `action=assign|recover|reclassify`、filters、keys 或 session_ids；assign 需目标 project_id，可 bind_sessions |
@@ -112,4 +117,59 @@ preview = store.preview_associations({
     "filters": {"project_id": "unassigned", "directory": directory},
 })  # keys/session_ids为空表示整个筛选，服务端有界流式选择
 store.apply_associations(preview["preview_id"], reason, idempotency_key)
+```
+
+## 8. 已确认目录的整体归属合同
+
+### 范围与决定
+
+用户已明确一个aha项目汇集多个实际目录／Codex项目，目录内记录全部使用，不逐条排除。确认前展示影响，旧人工跨项目记录也统一迁入。模式只在明确确认后启用，升级和启动不能顺带转换旧项目。缺日志、换机或停用目录不得撤销已确认历史。
+
+### 签名与数据合同
+
+`Store.preview_project_binding(draft)`、`Store.apply_project_binding(preview_id, idempotency_key)` 位于目录领域模块，HTTP统一经过Store门面和原鉴权。draft仅含可选project_id、name、description、directories；每项目最多200目录。预览返回稳定目标project、summary、directories、changes、transfers、warnings及三修订号；金额始终十进制字符串。changes按原项目→目标项目聚合，summary含detail_count/session_count/total_cost_usd/changed_count/already_assigned_count/claimed_count/pending_count/recovered_sessions。零记录允许绑定。
+
+settings键`directory_assignment_policy`存`{"version":1,"projects":["项目UUID"]}`；配置中每个项目返回directory_managed布尔值。schema4无DDL改变，旧备份无设置视为未纳管。逐笔关系basis=`directory_binding`留存依据，审计保留旧项目和确认操作；不能删除历史审核来冒充从来没有人工例外。
+
+确认在一个写事务内核对预览三修订号、期限、规则／成员／元数据／旧例外摘要，冻结选择，再更新项目配置、同目录转移双方、模式、必要历史元数据、override和相反会话默认、持久成员、日/月统计与幂等结果。原事实、版本、claims、coverage和旧原包不改。取消或任一失败全部不生效。响应丢失先查持久幂等，即使重启／缓存过期仍可重放已成功结果。
+
+### 目录与持续识别
+
+复用平台规范化与包含关系，同项目重叠去重。同一规范目录可在预览明确后整体转移，不同项目严格父子重叠拒绝，不能最长前缀切割目录整体。新会话、旧会话新增及以后首次导入记录按目录识别；已留NULL基线的记录在依据迟到且命中已确认目录时也可补齐。唯一有效留存历史目录复用原恢复校验，目录冲突不猜。目录整体操作不展开整个会话到目录外。
+
+未命中当前纳管规则时保留已确认成员以支持停用和换机；被停用的目录不得通过残留会话默认继续认领新记录。已有项目需点击确认目录关联，普通升级不重算。旧assignments及association写接口不得在已纳管目录写入相反项目，提示改为调整目录；无目录旧日汇总仍按完整行处理。
+
+### 校验与错误矩阵
+
+| 条件 | 结果 |
+| --- | --- |
+| 非法项目／目录／策略版本 | invalid_project / invalid_directory / invalid_directory_policy，业务不变 |
+| 不同项目的父子目录重叠 | directory_overlap_conflict，先调整目录范围 |
+| 目录范围超记录／会话上限或元数据不完整 | assignment_too_large / assignment_metadata_limit，不静默截断 |
+| 缺少或过期项目绑定预览 | project_binding_preview_required / project_binding_preview_expired，重新预览 |
+| 重复key相同请求／不同请求 | 持久重放／idempotency_conflict |
+| 旧接口绕过目录整体确认／试图拆分 | project_binding_preview_required / directory_assignment_required，目录层处理 |
+
+### 正常、基础、错误场景
+
+- 正常：项目选择两个目录，预览旧人工跨项目成员与费用，确认后整体迁入；以后同步和迟到目录识别均自动归入。
+- 基础：零历史目录确认后仍可接收新记录；无依据旧资料保持待处理。已有项目未确认前沿旧模式不变。
+- 错误：先保存目录再问历史、迁移时保留有效旧override、下一次同步被相反会话默认改回、只迁当前页或展开整个混合会话。
+
+### 必需测试
+
+test_directory_bindings覆盖取消无写入、有效override整体覆盖、相反会话默认、跨页完整选择、零记录、转移双方、子目录冲突、迟到依据、目录停用、旧模式兼容、身份及修订、失效／故障回滚／重放和备份设置。HTTP和web_state覆盖真实边界及关闭／迟到成功409断连、提交与刷新分开；原生浏览器和Directory／OneFile覆盖完整目录选择到费用下钻。
+
+### 错误与正确
+
+```python
+# 错误：先保存配置，再把当前页的记录逐条分配，且人工override仍然优先。
+store.save_project(None, name, description, directories)
+store.assign_keys(current_page_keys, project_id)
+
+# 正确：完整目录范围先预览影响，再以同一提交原子采用整体规则。
+preview = store.preview_project_binding({
+    "name": name, "description": description, "directories": directories,
+})
+store.apply_project_binding(preview["preview_id"], idempotency_key)
 ```

@@ -1,0 +1,14 @@
+Collecting pywin32==312
+  Downloading pywin32-312-cp315-cp315-win_amd64.whl.metadata (11 kB)
+Collecting pypdf==7.0.1
+  Downloading pypdf-7.0.1-py3-none-any.whl.metadata (7.6 kB)
+Collecting PyMuPDF==1.26.7
+  Downloading pymupdf-1.26.7-cp310-abi3-win_amd64.whl.metadata (3.4 kB)
+Downloading pywin32-312-cp315-cp315-win_amd64.whl (7.0 MB)
+   ---------------------------------------- 7.0/7.0 MB 4.2 MB/s  0:00:02
+Downloading pypdf-7.0.1-py3-none-any.whl (416 kB)
+Downloading pymupdf-1.26.7-cp310-abi3-win_amd64.whl (18.4 MB)
+   ---------------------------------------- 18.4/18.4 MB 7.0 MB/s  0:00:02
+Installing collected packages: pywin32, pypdf, PyMuPDF
+
+Successfully installed PyMuPDF-1.26.7 pypdf-7.0.1 pywin32-312

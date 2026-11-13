@@ -243,9 +243,16 @@ def update_coverage(connection: sqlite3.Connection, groups: Iterable[str]) -> se
 
 
 def reclassify(connection: sqlite3.Connection, scopes: set[str] | None = None) -> None:
-    from .project_links import bind_session, choose_project, directory_rules, link_record
+    from .project_links import (
+        bind_session,
+        choose_project,
+        directory_rules,
+        link_record,
+        managed_projects,
+    )
 
     rules = directory_rules(connection)
+    managed = managed_projects(connection)
     operation = "classify:" + uuid4().hex
     if scopes is not None:
         _scope_table(connection, scopes)
@@ -279,10 +286,21 @@ def reclassify(connection: sqlite3.Connection, scopes: set[str] | None = None) -
                 manual=(row["override_id"], row["override_hash"]) if row["override_id"] else None,
                 retained=(row["link_id"], row["link_basis"]) if row["linked_record"] else None,
                 session=(row["binding_id"], row["binding_basis"]) if row["binding_id"] else None,
+                managed=managed,
             )
             if row["linked_record"]:
                 cwd = cwd or row["saved_cwd"]
-            if not row["linked_record"] and origin != "manual":
+            if origin == "directory_binding":
+                connection.execute("DELETE FROM overrides WHERE record_key=?", (row["record_key"],))
+                connection.execute(
+                    "DELETE FROM session_project_bindings WHERE session_id=?", (row["session_id"],)
+                )
+                link_record(
+                    connection, row["record_key"], project_id, origin, {"cwd": cwd},
+                    operation=operation, reason="按已确认目录整体关联", replace_basis=True,
+                    force=row["override_id"] is not None or row["binding_id"] is not None,
+                )
+            elif not row["linked_record"] and origin != "manual":
                 link_record(connection, row["record_key"], project_id, origin, {"cwd": cwd},
                             operation=operation,
                             reason="沿用已确认项目依据" if project_id else "留存待归属消费")

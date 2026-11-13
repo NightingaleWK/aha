@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\.trellis\tasks\11-13-project-link-onboarding\research\verify-ui.py", line 122, in <module>
+    if __name__=='__main__':main()
+                            ~~~~^^
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\.trellis\tasks\11-13-project-link-onboarding\research\verify-ui.py", line 89, in main
+    page.locator('summary.metadata-toggle').click();page.locator('#refresh-metadata').click();wait_count(target,68)
+                                                                                              ~~~~~~~~~~^^^^^^^^^^^
+  File "\\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\.trellis\tasks\11-13-project-link-onboarding\research\verify-ui.py", line 52, in wait_count
+    raise AssertionError(('count',n,count(pid)))
+AssertionError: ('count', 68, 67)

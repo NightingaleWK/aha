@@ -24,8 +24,17 @@ function page() {
     emit(name) { for (const listener of this.listeners.get(name) || []) listener({target: this, preventDefault() {}}); }
     get options() { return this.children; }
     setAttribute(name, value) { this.attributes.set(name, value); }
+    getAttribute(name) { return this.attributes.get(name) ?? null; }
     removeAttribute(name) { this.attributes.delete(name); }
-    querySelectorAll() { return []; }
+    querySelectorAll(selector) {
+      const matches = [];
+      function visit(element) {
+        if (selector === "input:checked" && element.type === "checkbox" && element.checked) matches.push(element);
+        element.children.forEach(visit);
+      }
+      this.children.forEach(visit);
+      return matches;
+    }
     append(...items) { this.children.push(...items); }
     replaceChildren(...items) { this.children = items; }
     close() { if (this.open) { this.open = false; this.emit("close"); } }
@@ -54,7 +63,7 @@ function page() {
       querySelector() { return null; },
       querySelectorAll(selector) {
         if (selector === "[data-sync-control]") return [this.getElementById("sync-control")];
-        if (["[data-association-select]", "[data-association-group]"].includes(selector)) {
+        if (["[data-association-select]", "[data-association-group]", "[data-usage-select]"].includes(selector)) {
           const matches = new Set(); const attribute = selector.slice(1, -1);
           function visit(element) {
             if (element.attributes.has(attribute)) matches.add(element);
@@ -683,33 +692,244 @@ test("directory and rollup-origin reconciliation display their real choices", ()
   assert.match(text, /确认重叠，保留历史汇总/);
 });
 
-test("project creation retains its saved identity before a failed follow-up refresh", async () => {
-  for (const failedRefresh of ["projects", "associations"]) {
-    const app = page();
-    app.evaluate(`state.activePage = "projects"; $("edit-project-id").value = "";
-      $("edit-project-name").value = "合成新项目"; $("edit-project-description").value = "";
-      $("edit-project-directories").value = ""; $("project-dialog").showModal();
-      state.pendingBatch = {signature: "old"};
+function directoryPreview(overrides = {}) {
+  return {
+    preview_id: "directory-preview-1",
+    project: {id: "saved-project", name: "合成新项目", description: "", directories: ["/work/a"], directory_managed: true},
+    summary: {detail_count: 80, session_count: 2, total_cost_usd: "0.000000000000000000000000123", changed_count: 79, already_assigned_count: 1, claimed_count: 2, pending_count: 1, recovered_sessions: 0},
+    directories: [{path: "/work/a", detail_count: 80, session_count: 2, total_cost_usd: "0.000000000000000000000000123"}],
+    changes: [{from_project_id: "old-project", from_project_name: "旧项目", to_project_id: "saved-project", to_project_name: "合成新项目", detail_count: 79, total_cost_usd: "0.000000000000000000000000123"}],
+    transfers: [{path: "/work/a", from_project_id: "old-project", from_project_name: "旧项目"}], warnings: [],
+    ...overrides,
+  };
+}
+function prepareDirectoryEditor(app) {
+  app.evaluate(`openProject(); $("edit-project-name").value = "合成新项目";
+    $("edit-project-directories").value = "/work/a";`);
+}
+function stubProjectRefreshes(app) {
+  app.evaluate(`refreshProjects = async () => {}; refreshLedger = async () => {};
+    refreshAssociations = async () => {}; state.activePage = "projects";`);
+}
+
+test("directory save previews all impact without writing a project or asking for record selection", async () => {
+  const app = page(); prepareDirectoryEditor(app);
+  const preview = app.evaluate("saveProject()");
+  assert.deepEqual(app.pendingUrls(), ["/api/projects/preview"]);
+  assert.deepEqual(JSON.parse(app.pendingRequests()[0].options.body), {name: "合成新项目", description: "", directories: ["/work/a"]});
+  assert.equal(app.evaluate('$("edit-project-id").value'), "");
+  app.replyTo("/api/projects/preview", true, directoryPreview());
+  await preview;
+  assert.equal(app.evaluate('$("project-editor").hidden'), true);
+  assert.equal(app.evaluate('$("project-binding-impact").hidden'), false);
+  assert.equal(app.evaluate('$("apply-project-binding").disabled'), false);
+  // In the minimal DOM separate static containers are not parented to the section.
+  assert.match(app.evaluate('$("project-binding-summary").children[1].textContent'), /0\.000000000000000000000000123 USD/);
+  assert.match(app.evaluate('$("project-binding-transfers").children[0].textContent'), /旧项目.*整体转入.*合成新项目/);
+  assert.equal(app.evaluate('$("edit-project-id").value'), "");
+  assert.equal(app.pendingUrls().includes("/api/projects/apply"), false);
+  app.evaluate('$("project-dialog").close();');
+  assert.equal(app.evaluate("state.projectEditor"), null);
+  assert.equal(app.pendingUrls().length, 0);
+});
+
+test("directory creation retains its saved identity and refresh failures retry only reads", async () => {
+  for (const failedRefresh of ["projects", "ledger", "associations"]) {
+    const app = page(); prepareDirectoryEditor(app); stubProjectRefreshes(app);
+    const preview = app.evaluate("saveProject()");
+    app.replyTo("/api/projects/preview", true, directoryPreview()); await preview;
+    app.evaluate(`state.pendingBatch = {signature: "old"};
       state.associationPreview = {result: {preview_id: "old"}, request: {}};
-      refreshProjects = async () => { ${failedRefresh === "projects" ? 'throw new Error("项目刷新断线");' : ""} };
-      refreshAssociations = async () => { ${failedRefresh === "associations" ? 'throw new Error("归属刷新断线");' : ""} };`);
-    const saved = app.evaluate("saveProject()");
-    app.replyTo("/api/projects", true, {project: {id: "saved-project"}});
-    await assert.rejects(saved, /项目已保存，但刷新未完成/);
+      ${failedRefresh === "projects" ? 'refreshProjects' : failedRefresh === "ledger" ? 'refreshLedger' : 'refreshAssociations'} = async () => { throw new Error("刷新断线"); };`);
+    const saved = app.evaluate("applyProjectBinding()");
+    app.replyTo("/api/projects/apply", true, {applied: true, project: directoryPreview().project});
+    await assert.rejects(saved, /项目与目录关联已保存，但刷新未完成/);
     assert.equal(app.evaluate('$("edit-project-id").value'), "saved-project");
+    assert.equal(app.evaluate("state.projectEditor.applied"), true);
     assert.equal(app.evaluate("state.analysis"), null);
     assert.equal(app.evaluate("state.pendingBatch"), null);
     assert.equal(app.evaluate("state.associationPreview"), null);
-    assert.equal(app.evaluate('$("create-batch").disabled'), true);
-    assert.equal(app.evaluate('$("project-dialog").open'), true);
-
-    app.evaluate("refreshProjects = async () => {}; refreshAssociations = async () => {};");
-    const retried = app.evaluate("saveProject()");
-    assert.deepEqual(app.pendingUrls(), ["/api/projects/saved-project"]);
-    app.replyTo("/api/projects/saved-project", true, {project: {id: "saved-project"}});
-    await retried;
+    assert.equal(app.evaluate('$("apply-project-binding").textContent'), "刷新已保存结果");
+    assert.equal(app.evaluate('$("back-project-editor").disabled'), true);
+    stubProjectRefreshes(app);
+    await app.evaluate("applyProjectBinding()");
+    assert.equal(app.pendingUrls().length, 0);
     assert.equal(app.evaluate('$("project-dialog").open'), false);
   }
+});
+
+test("directory preview ignores stale success, 409 and disconnect after closing or replacement", async () => {
+  for (const outcome of ["success", "expired", "disconnect"]) {
+    const app = page(); prepareDirectoryEditor(app);
+    const preview = app.evaluate("saveProject()");
+    app.evaluate(`$("project-dialog").close(); openProject();
+      $("edit-project-name").value = "较新项目";
+      state.analysis = {analysis_id: "newer"}; state.pendingBatch = {signature: "newer"};`);
+    if (outcome === "disconnect") app.disconnectTo("/api/projects/preview");
+    else app.replyTo("/api/projects/preview", outcome === "success", outcome === "success" ? directoryPreview()
+      : {code: "classification_changed", message: "旧预览已过期"});
+    await preview;
+    assert.equal(app.evaluate("state.projectEditor.preview"), null);
+    assert.equal(app.evaluate('$("edit-project-name").value'), "较新项目");
+    assert.equal(app.evaluate("state.analysis.analysis_id"), "newer");
+    assert.equal(app.evaluate("state.pendingBatch.signature"), "newer");
+  }
+});
+
+test("editing a directory draft or a known ledger mutation expires its impact", async () => {
+  for (const mutation of ['$("edit-project-name").emit("input")', 'invalidateAssociations("同步已更新")']) {
+    const app = page(); prepareDirectoryEditor(app);
+    const preview = app.evaluate("saveProject()");
+    app.evaluate(mutation);
+    app.replyTo("/api/projects/preview", true, directoryPreview()); await preview;
+    assert.equal(app.evaluate("state.projectEditor.preview"), null);
+    assert.equal(app.evaluate('$("project-editor").hidden'), false);
+    assert.equal(app.evaluate('$("apply-project-binding").disabled'), true);
+  }
+});
+
+test("directory apply retries a lost response with the identical persistent key", async () => {
+  const app = page(); prepareDirectoryEditor(app); stubProjectRefreshes(app);
+  const preview = app.evaluate("saveProject()");
+  app.replyTo("/api/projects/preview", true, directoryPreview()); await preview;
+  const first = app.evaluate("applyProjectBinding()");
+  const body = JSON.parse(app.pendingRequests()[0].options.body);
+  assert.equal(body.preview_id, "directory-preview-1");
+  assert.equal(Object.hasOwn(body, "reason"), false);
+  app.disconnectTo("/api/projects/apply"); await assert.rejects(first, /连接中断/);
+  assert.equal(app.evaluate('$("back-project-editor").disabled'), true);
+  assert.equal(app.evaluate('$("apply-project-binding").textContent'), "重试确认保存结果");
+  app.evaluate('invalidateAssociations("同步已更新");');
+  assert.equal(app.evaluate('state.projectEditor.preview.preview_id'), "directory-preview-1");
+  const retried = app.evaluate("applyProjectBinding()");
+  assert.deepEqual(JSON.parse(app.pendingRequests()[0].options.body), body);
+  app.replyTo("/api/projects/apply", true, {applied: true, project: directoryPreview().project}); await retried;
+  assert.equal(app.evaluate('$("project-dialog").open'), false);
+});
+
+test("directory confirmation rejects changed drafts and stale authority without partial saving", async () => {
+  for (const expired of [false, true]) {
+    const app = page(); prepareDirectoryEditor(app);
+    const preview = app.evaluate("saveProject()");
+    app.replyTo("/api/projects/preview", true, directoryPreview()); await preview;
+    if (!expired) {
+      app.evaluate('$("edit-project-directories").value = "/different";');
+      await assert.rejects(app.evaluate("applyProjectBinding()"), /项目设置已更改/);
+    } else {
+      const apply = app.evaluate("applyProjectBinding()");
+      app.replyTo("/api/projects/apply", false, {code: "project_binding_preview_expired", message: "依据已变化"});
+      await assert.rejects(apply, /依据已变化/);
+    }
+    assert.equal(app.evaluate("state.projectEditor.preview"), null);
+    assert.equal(app.evaluate('$("edit-project-id").value'), "");
+    assert.equal(app.evaluate('$("project-editor").hidden'), false);
+    assert.equal(app.pendingUrls().length, 0);
+  }
+});
+
+test("an older directory apply cannot alter a new editor or invalidate its newer analysis", async () => {
+  const app = page(); prepareDirectoryEditor(app);
+  const preview = app.evaluate("saveProject()");
+  app.replyTo("/api/projects/preview", true, directoryPreview()); await preview;
+  const apply = app.evaluate("applyProjectBinding()");
+  app.evaluate(`$("project-dialog").close(); openProject();
+    $("edit-project-name").value = "另一个项目"; state.analysis = {analysis_id: "newer"}; state.pendingBatch = {signature: "newer"};`);
+  app.replyTo("/api/projects/apply", true, {applied: true, project: directoryPreview().project}); await apply;
+  assert.equal(app.evaluate('$("edit-project-id").value'), "");
+  assert.equal(app.evaluate('$("edit-project-name").value'), "另一个项目");
+  assert.equal(app.evaluate("state.analysis.analysis_id"), "newer");
+  assert.equal(app.evaluate("state.pendingBatch.signature"), "newer");
+  assert.equal(app.pendingUrls().length, 0);
+});
+
+test("sync during a submitted directory change does not lose its committed identity", async () => {
+  const app = page(); prepareDirectoryEditor(app); stubProjectRefreshes(app);
+  const preview = app.evaluate("saveProject()");
+  app.replyTo("/api/projects/preview", true, directoryPreview()); await preview;
+  const apply = app.evaluate("applyProjectBinding()");
+  app.evaluate('invalidateAssociations("同步已完成");');
+  assert.equal(app.evaluate("state.projectEditor.stale"), true);
+  app.replyTo("/api/projects/apply", true, {applied: true, project: directoryPreview().project}); await apply;
+  assert.equal(app.evaluate('$("edit-project-id").value'), "saved-project");
+  assert.equal(app.pendingUrls().length, 0);
+});
+
+test("post-save association refreshes belong to the directory editor that requested them", async () => {
+  for (const outcome of ["success", "expired", "disconnect"]) {
+    const app = page(); prepareDirectoryEditor(app);
+    app.evaluate(`refreshProjects = async () => {}; refreshLedger = async () => {};
+      state.activePage = "projects";`);
+    const preview = app.evaluate("saveProject()");
+    app.replyTo("/api/projects/preview", true, directoryPreview()); await preview;
+    const apply = app.evaluate("applyProjectBinding()");
+    app.replyTo("/api/projects/apply", true, {applied: true, project: directoryPreview().project});
+    await new Promise((resolve) => setImmediate(resolve));
+    const recordsUrl = app.pendingUrls().find((url) => url.startsWith("/api/project-associations/records?"));
+    assert.ok(recordsUrl);
+    app.evaluate(`$("project-dialog").close(); openProject();
+      $("edit-project-name").value = "较新项目";
+      state.analysis = {analysis_id: "newer"}; state.pendingBatch = {signature: "newer"};
+      state.associations = {newer: true}; state.associationRows = [{record_key: "newer"}];`);
+    if (outcome === "disconnect") app.disconnectTo("/api/project-associations");
+    else app.replyTo("/api/project-associations", outcome === "success", outcome === "success"
+      ? {summary: {}, projects: [], groups: []} : {code: "classification_changed", message: "旧归属请求过期"});
+    app.replyTo(recordsUrl, true, {rows: []});
+    await apply;
+    assert.equal(app.evaluate("state.associations.newer"), true);
+    assert.equal(app.evaluate("state.associationRows[0].record_key"), "newer");
+    assert.equal(app.evaluate("state.analysis.analysis_id"), "newer");
+    assert.equal(app.evaluate("state.pendingBatch.signature"), "newer");
+    assert.equal(app.evaluate('$("edit-project-name").value'), "较新项目");
+  }
+});
+
+test("an inactive directory editor cannot start another association refresh", async () => {
+  const app = page();
+  app.evaluate('state.associationSelected.set("newer", {record_key: "newer"});');
+  await app.evaluate("refreshAssociations(() => false)");
+  assert.equal(app.pendingUrls().length, 0);
+  assert.equal(app.evaluate('state.associationSelected.has("newer")'), true);
+});
+
+test("empty directory history still offers a usable binding confirmation", async () => {
+  const app = page(); prepareDirectoryEditor(app);
+  const preview = app.evaluate("saveProject()");
+  app.replyTo("/api/projects/preview", true, directoryPreview({summary: {detail_count: 0, session_count: 0, total_cost_usd: "0", changed_count: 0, already_assigned_count: 0}, changes: [], transfers: []}));
+  await preview;
+  assert.equal(app.evaluate('$("apply-project-binding").disabled'), false);
+  assert.match(app.evaluate('$("project-binding-summary").children.at(-1).textContent'), /新用量会自动归入/);
+});
+
+test("directory candidates include saved old-machine paths and identify whole-folder transfers", () => {
+  const app = page();
+  app.evaluate(`state.config.projects = [
+    {id: "old", name: "旧项目", directories: ["/old/repo"]},
+    {id: "current", name: "当前项目", directories: ["/new/repo"]}
+  ]; state.ledger.directories = [{path: "/new/repo", session_count: 2, detail_count: 80}];
+  openProject(state.config.projects[1]);`);
+  const draft = JSON.parse(app.evaluate('JSON.stringify(projectDraft())'));
+  assert.deepEqual(draft.directories, ["/new/repo"]);
+  assert.match(app.evaluate('$("project-candidates").children[1].children[1].children[1].textContent'), /旧项目.*整体转入/);
+  assert.equal(app.evaluate('$("project-candidates").children.length'), 2);
+});
+
+test("usage records are read-only by default and advanced selection excludes known directories", () => {
+  const app = page();
+  app.evaluate(`state.tab = "details"; state.rows = [
+    {record_key: "known", cwd: "/work/a", assignment_origin: "directory_rule"},
+    {record_key: "managed", cwd: null, assignment_origin: "directory_binding"},
+    {record_key: "unknown", cwd: null, assignment_origin: "unassigned"}
+  ]; renderRowTable();`);
+  assert.equal(app.evaluate('document.querySelectorAll("[data-usage-select]").length'), 0);
+  app.evaluate('$("usage-legacy-tools").open = true; $("usage-legacy-tools").emit("toggle");');
+  assert.equal(app.evaluate('document.querySelectorAll("[data-usage-select]").length'), 4);
+  assert.equal(app.evaluate('document.querySelectorAll("[data-usage-select]")[1].disabled'), true);
+  assert.equal(app.evaluate('document.querySelectorAll("[data-usage-select]")[2].disabled'), true);
+  app.evaluate('const all = document.querySelectorAll("[data-usage-select]")[0]; all.checked = true; all.emit("change");');
+  assert.deepEqual(JSON.parse(app.evaluate('JSON.stringify([...state.selected.keys()])')), ["unknown"]);
+  app.evaluate('$("usage-legacy-tools").open = false; $("usage-legacy-tools").emit("toggle");');
+  assert.equal(app.evaluate('state.selected.size'), 0);
+  assert.equal(app.evaluate('$("assignment-bar").hidden'), true);
 });
 
 test("association all-filtered selection sends the filter, not only the visible page", () => {
@@ -962,4 +1182,19 @@ test("record exception clearing and future session-default removal have distinct
 test("identity-confirmed record ownership displays its Chinese provenance", () => {
   const app = page();
   assert.equal(app.evaluate('projectCell({project_name: "已核对项目", assignment_origin: "identity_confirmation"}).children[0].textContent'), "身份核对归属");
+});
+
+
+test("advanced page selection never includes directory-managed records", () => {
+  const app = page();
+  app.evaluate(`state.associationRows = [
+    {record_key: "managed", kind: "detail", assignment_origin: "directory_binding"},
+    {record_key: "unknown", kind: "rollup", assignment_origin: "unassigned"}
+  ]; renderAssociationRecords();
+  const all = document.querySelectorAll("[data-association-select]")[0]; all.checked = true; all.emit("change");`);
+  assert.deepEqual(JSON.parse(app.evaluate('JSON.stringify([...state.associationSelected.keys()])')), ["unknown"]);
+  assert.equal(app.evaluate('document.querySelectorAll("[data-association-select]")[1].disabled'), true);
+  app.evaluate(`state.config.projects = [{id: "managed-project", directory_managed: true}];
+    $("association-filter-project").value = "all"; syncAssociationActions();`);
+  assert.equal(app.evaluate('$("association-all-filtered").disabled'), true);
 });
