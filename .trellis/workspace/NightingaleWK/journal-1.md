@@ -649,3 +649,40 @@ v0.5.1已正式公开，发布源码f044119；功能PR11与发布PR12均合入ma
 ### Status
 
 [OK] **Completed**
+
+
+## Session 22: 项目按目录整体关联与桌面交付
+<!-- trellis-session: v=2 fp=ee8016469a7c7273 -->
+
+**Date**: 2026-11-13
+**Task**: 项目按目录整体关联与桌面交付
+**Branch**: `codex/project-link-onboarding`
+
+### Summary
+
+完成目录整体项目绑定：预览影响后一次迁入已有记录，后续和迟到目录自动关联；369项Python与66项页面测试、原生Directory/OneFile/Desktop及Excel/PDF验收通过，清理708.80MiB；用户确认本地提交并积累到下一版，建议v0.6.0，未推送发布。
+
+### Main Changes
+
+- 目录优先，旧人工跨项目记录整体迁入；已有项目明确确认后采用，换机追加目录保持历史。
+- 桌面aha.exe已交付并从实际位置验证，源码803bffc与产物指纹一致；真实原库只读。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `803bffc6cf6a21a5b4b6decc6038f76ef144d703` | feat: 按目录整体关联项目记录 |
+
+### Testing
+
+- [OK] 369项原生Python测试退出码0、66项Node状态测试、Ruff/strict mypy/compileall/JS语法通过。
+- [OK] Directory、OneFile、桌面副本分别验证HTTP/UI/材料/重开退出；原生Excel与A4 PDF通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 按用户选择积累到下一版，保留中文What’s New，候选v0.6.0由发布PR统一递增。
+- 正式发布前补齐物理托盘双击/菜单操作、功能/发布PR及云端候选门禁；当前未授权推送或公开。
