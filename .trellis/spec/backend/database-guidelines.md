@@ -2,7 +2,7 @@
 
 ## 所有权与连接
 
-本地应用 schema4，外部 CCS 支持结构版本 23、24、25，内部规范化投影仍为 23；版本与指纹合同见 [CCS 来源兼容](./ccs-source-compatibility.md)。职责分别在 [storage.py](../../../src/aha/storage.py)、[migrations.py](../../../src/aha/migrations.py)、[sources.py](../../../src/aha/sources.py)。schema3 先完整备份再无损升级，结构、失败回滚与旧备份独立恢复见[项目归属合同](./project-association-contract.md)。旧试用schema1/2仍须单独保全再重建，不能对schema3/4误用试用清理工具。
+本地应用 schema4，外部 CCS 支持结构版本 23、24、25、26，内部规范化投影仍为 23；版本与指纹合同见 [CCS 来源兼容](./ccs-source-compatibility.md)。职责分别在 [storage.py](../../../src/aha/storage.py)、[migrations.py](../../../src/aha/migrations.py)、[sources.py](../../../src/aha/sources.py)。schema3 先完整备份再无损升级，结构、失败回滚与旧备份独立恢复见[项目归属合同](./project-association-contract.md)。旧试用schema1/2仍须单独保全再重建，不能对schema3/4误用试用清理工具。
 
 Store 检查实际 sqlite3.sqlite_version_info：3.51.3+，或核实的3.50.7/3.44.6回补分支。不要放宽为“所有大于3.44的版本”。测试和打包使用任务隔离运行时，不修改全局 SQLite。
 

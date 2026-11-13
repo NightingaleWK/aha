@@ -13,7 +13,7 @@ from typing import Any
 Row = dict[str, Any]
 # The retained usage projection is stable across compatible external CCS schemas.
 USAGE_PROJECTION_SCHEMA_VERSION = 23
-SUPPORTED_CCS_SCHEMA_VERSIONS = (23, 24, 25)
+SUPPORTED_CCS_SCHEMA_VERSIONS = (23, 24, 25, 26)
 CCS_SCHEMA_VERSIONS_TEXT = "、".join(str(version) for version in SUPPORTED_CCS_SCHEMA_VERSIONS)
 BEIJING = timezone(timedelta(hours=8), name="Asia/Shanghai")
 TOKEN_FIELDS = (
