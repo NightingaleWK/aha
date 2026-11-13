@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "version": "0.6.0",
+  "base_sha": "f044119cb683ac7c118abf7b7abe00e3f0416452",
+  "previous_tag": "v0.5.1",
+  "fragment_ids": [
+    "project-link-onboarding"
+  ],
+  "notes_sha256": "71d985f094f64e4aeceb3d2fbee2bd6926a1a1b34817bd571237d8424483f4c4"
+}
