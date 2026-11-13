@@ -1,0 +1,88 @@
+Requirement already satisfied: pyinstaller==6.22.3 in C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 1)) (6.22.3)
+Requirement already satisfied: setuptools==84.2.1 in C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 2)) (84.2.1)
+Requirement already satisfied: wheel==0.48.0 in C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 3)) (0.48.0)
+Requirement already satisfied: zstandard==0.25.0 in C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 4)) (0.25.0)
+Requirement already satisfied: altgraph==0.17.5 in C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 5)) (0.17.5)
+Requirement already satisfied: packaging==26.3 in C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 6)) (26.3)
+Requirement already satisfied: pefile==2024.8.26 in C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 7)) (2024.8.26)
+Requirement already satisfied: pyinstaller-hooks-contrib==2026.9 in C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 8)) (2026.9)
+Requirement already satisfied: pywin32-ctypes==0.2.3 in C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages (from -r \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\requirements-build.txt (line 9)) (0.2.3)
+908 INFO: PyInstaller: 6.22.3, contrib hooks: 2026.9
+909 INFO: Python: 3.15.2
+974 INFO: Platform: Windows-11-10.0.26300-SP0
+975 INFO: Python environment: C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315
+978 INFO: wrote C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\build\spec\portable\aha.spec
+984 INFO: Removing temporary files and cleaning cache in C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\profile-build-onefile\AppData\Local\pyinstaller
+3242 INFO: Module search paths (PYTHONPATH):
+['\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha',
+ '\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\src',
+ '\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha',
+ 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\runtime315-sqlite3534\\python315.zip',
+ 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\runtime315-sqlite3534\\DLLs',
+ 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\runtime315-sqlite3534\\Lib',
+ 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\runtime315-sqlite3534',
+ 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315',
+ 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages',
+ 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\win32',
+ 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\win32\\lib',
+ 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\pythonwin',
+ '\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\scripts',
+ '\\\\wsl.localhost\\Ubuntu-26.04\\home\\wangkai\\code\\aha\\src']
+5292 INFO: Appending 'datas' from .spec
+5319 INFO: checking Analysis
+5319 INFO: Building Analysis because Analysis-00.toc is non existent
+5320 INFO: Looking for Python shared library...
+5320 INFO: Using Python shared library: C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\runtime315-sqlite3534\python315.dll
+5321 INFO: Running Analysis Analysis-00.toc
+5321 INFO: Target bytecode optimization level: 0
+5322 INFO: Initializing module dependency graph...
+5323 INFO: Initializing module graph hook caches...
+5349 INFO: Analyzing modules for base_library.zip ...
+11460 INFO: Processing standard module hook 'hook-math.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+12314 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+18709 INFO: Processing standard module hook 'hook-difflib.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+18747 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+19363 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+21480 INFO: Caching module dependency graph...
+21572 INFO: Analyzing \\wsl.localhost\Ubuntu-26.04\home\wangkai\code\aha\scripts\launch.py
+21743 INFO: Processing standard module hook 'hook-webbrowser.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+21841 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+22046 INFO: Processing standard module hook 'hook-sysconfig.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+22093 INFO: Processing standard module hook 'hook-_ctypes.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+22974 INFO: Processing standard module hook 'hook-sqlite3.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+25176 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks'
+26387 INFO: Processing module hooks (post-graph stage)...
+26548 INFO: Performing binary vs. data reclassification (22 entries)
+26759 INFO: Looking for ctypes DLLs
+26817 INFO: Analyzing run-time hooks ...
+26820 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+26830 INFO: Creating base_library.zip...
+26873 INFO: Looking for dynamic libraries
+27992 INFO: Extra DLL search directories (AddDllDirectory): []
+27992 INFO: Extra DLL search directories (PATH): []
+29097 INFO: Warnings written to C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\build\pyinstaller\portable\aha\warn-aha.txt
+29122 INFO: Graph cross-reference written to C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\build\pyinstaller\portable\aha\xref-aha.html
+29154 INFO: checking PYZ
+29155 INFO: Building PYZ because PYZ-00.toc is non existent
+29156 INFO: Building PYZ (ZlibArchive) C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\build\pyinstaller\portable\aha\PYZ-00.pyz
+29358 INFO: Building PYZ (ZlibArchive) C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\build\pyinstaller\portable\aha\PYZ-00.pyz completed successfully.
+29377 INFO: checking PKG
+29378 INFO: Building PKG because PKG-00.toc is non existent
+29379 INFO: Building PKG (CArchive) aha.pkg
+31314 INFO: Building PKG (CArchive) aha.pkg completed successfully.
+31318 INFO: Bootloader C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\qa315\Lib\site-packages\PyInstaller\bootloader\Windows-64bit-intel\runw.exe
+31318 INFO: checking EXE
+31319 INFO: Building EXE because EXE-00.toc is non existent
+31320 INFO: Building EXE from EXE-00.toc
+31320 INFO: Copying bootloader EXE to C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\build\release\portable\aha.exe
+31386 INFO: Copying icon to EXE
+31507 INFO: Copying version information to EXE
+31574 INFO: Copying 0 resources to EXE
+31575 INFO: Embedding manifest in EXE
+31635 INFO: Appending PKG archive to EXE
+31771 INFO: Fixing EXE headers
+32077 INFO: Building EXE from EXE-00.toc completed successfully.
+32081 INFO: Build complete! The results are available in: C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\build\release\portable
+AHA_EXECUTABLE=C:\Users\djsyw\AppData\Local\Temp\aha-ccs26-20261113\build\release\portable\aha.exe
+AHA_SHA256=77894d2128ddcd44eb130065ac39154d58439bbd7f08896a0492f3771aaab83b
+AHA_VERSION=0.5.0

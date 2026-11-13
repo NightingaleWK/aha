@@ -1,0 +1,16 @@
+{
+  "verified": true,
+  "returncode": 0,
+  "command": [
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "-m",
+    "mypy",
+    "src/aha"
+  ],
+  "seconds": 4.895,
+  "synthetic_profile": true,
+  "log": "check-mypy.log"
+}

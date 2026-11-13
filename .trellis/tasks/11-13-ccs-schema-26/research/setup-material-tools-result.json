@@ -1,0 +1,21 @@
+{
+  "verified": true,
+  "returncode": 0,
+  "command": [
+    "C:\\Users\\djsyw\\AppData\\Local\\Temp\\aha-ccs26-20261113\\qa315\\Scripts\\python.exe",
+    "-X",
+    "utf8",
+    "-B",
+    "-m",
+    "pip",
+    "install",
+    "--disable-pip-version-check",
+    "playwright==1.65.1",
+    "pywin32==312",
+    "pypdf==7.0.1",
+    "PyMuPDF==1.26.7"
+  ],
+  "seconds": 30.739,
+  "synthetic_profile": true,
+  "log": "setup-material-tools.log"
+}

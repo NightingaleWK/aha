@@ -1,0 +1,14 @@
+{
+  "verified": true,
+  "observed_source_version": 26,
+  "result_source_version": 26,
+  "sync_outcome": "completed",
+  "genuine_ccs_read_only": true,
+  "isolated_disposable_aha": true,
+  "genuine_aha_accessed": false,
+  "usage_values_recorded": false,
+  "unconfirmed_source_switch_rejected": true,
+  "history_retained_after_failed_sync": true,
+  "executable_sha256": "77894d2128ddcd44eb130065ac39154d58439bbd7f08896a0492f3771aaab83b",
+  "shutdown_descriptor_cleaned": true
+}

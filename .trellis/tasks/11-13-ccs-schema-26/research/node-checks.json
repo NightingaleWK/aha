@@ -1,0 +1,7 @@
+{
+  "verified": true,
+  "platform": "WSL",
+  "syntax_checks": ["src/aha/web/app.js", "src/aha/web/form-controls.js", "src/aha/web/time-range-picker.js"],
+  "state_tests": {"command": "node --test tests/web_state.test.cjs", "tests": 53, "passed": 53, "failed": 0},
+  "source_modified_after_checks": false
+}

@@ -1,0 +1,10 @@
+{"file":".trellis/spec/backend/index.md","reason":"后端开发前检查及规范路由"}
+{"file":".trellis/spec/backend/ccs-source-compatibility.md","reason":"外部结构版本与内部投影、消费身份和材料作用域分离"}
+{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"只读来源、历史留存、核算及冻结材料不变量"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"只读事务、必要字段、失败清理及SQLite运行时门禁"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"针对兼容修复的源码及原生验收要求"}
+{"file":".trellis/spec/backend/delivery-and-cleanup.md","reason":"桌面单文件成品、最终源码一致及任务临时文件清理"}
+{"file":".trellis/spec/backend/release-contract.md","reason":"中文变化片段、单一版本及收尾发版评估"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"核对来源版本经Store、HTTP、材料的影响边界"}
+{"file":".trellis/spec/guides/code-reuse-thinking-guide.md","reason":"复用共同版本校验和现有回归夹具"}
+{"file":".trellis/tasks/11-13-ccs-schema-26/research/compatibility-findings.md","reason":"官方26固定迁移、允许表逐字比较、本机结构及准确改动所有者"}

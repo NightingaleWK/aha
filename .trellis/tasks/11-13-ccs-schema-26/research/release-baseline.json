@@ -1,0 +1,33 @@
+{
+  "observed_date": "2026-11-13",
+  "latest_public": {
+    "tag": "v0.5.0",
+    "published_at": "2026-11-12T08:51:47Z",
+    "source_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+    "url": "https://github.com/NightingaleWK/aha/releases/tag/v0.5.0",
+    "assets": [
+      {
+        "name": "aha-0.5.0-windows-x64.exe",
+        "size": 12833570,
+        "digest": "sha256:8991fa71cadd906678cb1b76d302921d1e874f022918f854a0540f2bb3d0e4d5"
+      },
+      {
+        "name": "build-info.json",
+        "size": 4179,
+        "digest": "sha256:a34df29fdd2796da70994fdc70514302bd874bbcc693be8a42fd9e936a8861d6"
+      },
+      {
+        "name": "SHA256SUMS.txt",
+        "size": 174,
+        "digest": "sha256:c6a7067d535dbab49ec03d5d49403f267c09053955cd83ec56acdf53fc08a84e"
+      }
+    ]
+  },
+  "remote_main_since_public": {
+    "commits": 4,
+    "production_files": [],
+    "new_release_fragments": [],
+    "observed_head": "4a8baf1a071b70c8990ac72c6f4a958a65f20a9f"
+  },
+  "recommendation": "尽快发布0.5.1；当前需要先完成提交、PR/CI及固定候选的云端构建门禁，未获得公开发布授权"
+}

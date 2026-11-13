@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "source_basis": "WORKTREE",
+  "base_source_sha": "4a8baf1a071b70c8990ac72c6f4a958a65f20a9f",
+  "completed_at": "2026-11-13T09:09:53.363617+08:00",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "fingerprints": {
+    "full": "55e634caa45d7cff1471ab7f8313350509a67719328ef405e2ed6ceed2ce8569",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "cfadd52c7c30f6315b42e8cd595bcaadbbdc3fb8fa0303c03088da203608544c",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "checks": [
+    "directory",
+    "onefile",
+    "browser",
+    "excel",
+    "print"
+  ],
+  "artifact_sha256": "77894d2128ddcd44eb130065ac39154d58439bbd7f08896a0492f3771aaab83b",
+  "evidence": [
+    {
+      "scope": "directory",
+      "file": "directory-verification.json",
+      "sha256": "384e6c484ea6790425df5dd00c42fc362c8df6486ec995543de47df987113adc",
+      "description": "本次原生成品实际验收；完整证据见任务研究记录。"
+    },
+    {
+      "scope": "onefile",
+      "file": "onefile-verification.json",
+      "sha256": "f45584b1eafb73d6507e6b93ac49e314d152d8b2c00d51dfde5e94062a60fd4c",
+      "description": "本次原生成品实际验收；完整证据见任务研究记录。"
+    },
+    {
+      "scope": "browser",
+      "file": "ui-desktop.json",
+      "sha256": "4b952b52d4547e67e6876882960663ee02d6791a21b8a198452d3af73b54a3ef",
+      "description": "本次原生成品实际验收；完整证据见任务研究记录。"
+    },
+    {
+      "scope": "excel",
+      "file": "office-onefile.json",
+      "sha256": "f605b35d1e82b42874c94e3dc92d38a67f94cf0532f51cb23ca6698e92b37bda",
+      "description": "本次原生成品实际验收；完整证据见任务研究记录。"
+    },
+    {
+      "scope": "print",
+      "file": "office-onefile.json",
+      "sha256": "f605b35d1e82b42874c94e3dc92d38a67f94cf0532f51cb23ca6698e92b37bda",
+      "description": "本次原生成品实际验收；完整证据见任务研究记录。"
+    }
+  ],
+  "tray_fingerprint_unchanged": true,
+  "new_physical_tray_check_claimed": false,
+  "product_source_unchanged_after_build": true
+}
