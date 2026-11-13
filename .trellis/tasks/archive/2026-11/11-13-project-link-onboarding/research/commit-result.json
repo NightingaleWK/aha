@@ -1,0 +1,14 @@
+{
+  "work_commit": "803bffc6cf6a21a5b4b6decc6038f76ef144d703",
+  "subject": "feat: 按目录整体关联项目记录",
+  "committed_source_matches_validated_artifact": true,
+  "source_fingerprints": {
+    "full": "fab3ef420959c5f9b443cf84b595a76e4aff674f5a6027d3cc15af69babd1287",
+    "tray": "f210f92d3cbac63eb1d122328c0b827541e7ec0a607e982c637eeb29c895d09a",
+    "materials": "f1624b52bd275d92090b3b5322d7dd6fe3164e27197e8a3f89f94752053de8a6",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "user_release_choice": "积累到下一版",
+  "pushed": false,
+  "published": false
+}

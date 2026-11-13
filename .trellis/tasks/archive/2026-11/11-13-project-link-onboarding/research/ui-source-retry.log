@@ -27,10 +27,9 @@ Traceback (most recent call last):
         f"{out_message}\nActual value: {actual}{error_message} {format_call_log(result.get('log'))}"
     )
 AssertionError: Locator expected to have text '已同步'
-Actual value: 待确认本机来源 
+Actual value: 待确认本机来源
 Call log:
   - Expect "to_have_text" with timeout 30000ms
   - waiting for locator("#source-mode")
     33 × locator resolved to <span class="tag" id="source-mode">待确认本机来源</span>
        - unexpected value "待确认本机来源"
-

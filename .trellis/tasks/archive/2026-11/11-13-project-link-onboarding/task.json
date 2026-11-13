@@ -3,7 +3,7 @@
   "name": "project-link-onboarding",
   "title": "简化项目目录绑定与历史记录关联",
   "description": "保存项目目录后提示归入已有记录，并让后续用量按目录持续自动关联，减少手动筛选和会话分配操作",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": "fullstack",
   "scope": "project-association",
   "package": null,
@@ -11,22 +11,22 @@
   "creator": "NightingaleWK",
   "assignee": "NightingaleWK",
   "createdAt": "2026-11-13",
-  "completedAt": null,
+  "completedAt": "2026-11-13",
   "branch": "codex/project-link-onboarding",
   "base_branch": "main",
   "worktree_path": null,
-  "commit": null,
+  "commit": "803bffc6cf6a21a5b4b6decc6038f76ef144d703",
   "pr_url": null,
   "subtasks": [],
   "children": [],
   "parent": null,
   "relatedFiles": [
-    ".trellis/tasks/11-13-project-link-onboarding/prd.md",
-    ".trellis/tasks/11-13-project-link-onboarding/design.md",
-    ".trellis/tasks/11-13-project-link-onboarding/implement.md",
-    ".trellis/tasks/11-13-project-link-onboarding/research/findings.md"
+    ".trellis/tasks/archive/2026-11/11-13-project-link-onboarding/prd.md",
+    ".trellis/tasks/archive/2026-11/11-13-project-link-onboarding/design.md",
+    ".trellis/tasks/archive/2026-11/11-13-project-link-onboarding/implement.md",
+    ".trellis/tasks/archive/2026-11/11-13-project-link-onboarding/research/findings.md"
   ],
-  "notes": "产品及本机交付、检查和清理完成；用户已批准按计划提交并积累到下一版，执行本地提交/归档/会话记录。",
+  "notes": "产品、验收、桌面单文件交付和临时清理完成；已按用户批准提交803bffc，选择积累到下一版。归档及会话记录收尾，未推送或公开发布。",
   "meta": {
     "planning": {
       "model": "directory_all_records",
@@ -39,7 +39,8 @@
       "local_version": "0.5.1",
       "official_publication": false,
       "verification": "verification.md",
-      "temporary_bytes_removed": 743234710
+      "temporary_bytes_removed": 743234710,
+      "source_commit": "803bffc6cf6a21a5b4b6decc6038f76ef144d703"
     },
     "commit_approval": {
       "status": "approved",

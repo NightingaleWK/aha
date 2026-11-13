@@ -1,12 +1,12 @@
 # 目录整体项目关联验收
 
-日期：2026-11-13。状态：产品实施、本机验收、桌面交付和临时物清理完成；用户已批准按计划提交、归档及记录会话，并选择积累到下一版。未推送、未公开发版。
+日期：2026-11-13。状态：产品实施、本机验收、桌面交付和临时物清理完成；功能已提交803bffc，按批准执行归档/会话记录，用户选择积累到下一版。未推送、未公开发版。
 
 ## 实际交付
 
 - 系统桌面接口确认位置：`C:\Users\djsyw\Desktop\aha.exe`，单文件EXE，双击使用；当前源码版本仍为0.5.1，本机改进构建不冒称新的正式公开版本。
 - SHA256：`f04c016789ee03c75d8e3b2d21722aefc616968826e7811bc11d2d80bd76fb3c`；桌面副本与验收OneFile逐字节一致。
-- 分支：`codex/project-link-onboarding`；基于`81b978d7851f964c10e71864933a6922eeb661c6`的最终工作树构建，源码依据见[指纹](research/source-fingerprints.json)。最终源码指纹复核未变。
+- 分支：`codex/project-link-onboarding`；功能提交`803bffc6cf6a21a5b4b6decc6038f76ef144d703`与构建时最终工作树指纹一致，源码依据见[指纹](research/source-fingerprints.json)。最终源码指纹复核未变。
 - 原生Windows x64 CPython3.15.2、SQLite3.53.4及固定构建依赖与当前公开成品运行时一致，runtime SHA为`2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642`。未修改基础解释器DLL。
 - Directory、OneFile和实际桌面副本分别原生启动，HTTP资源与最终源码逐字节比对，业务、材料、重开、完整备份独立还原、退出和描述符清理均实际执行。对应[目录版](research/directory-verification.json)、[单文件版](research/onefile-verification.json)、[桌面副本](research/desktop-verification.json)及[交付记录](research/desktop-delivery.json)。
 
