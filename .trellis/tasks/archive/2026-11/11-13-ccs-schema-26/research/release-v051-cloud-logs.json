@@ -1,0 +1,36 @@
+{
+  "workflow_run_id": 43348039818,
+  "logs_complete": true,
+  "text_newlines": "LF",
+  "trailing_whitespace_preserved_in_gzip": true,
+  "files": [
+    {
+      "job_id": 131632039776,
+      "file": "release-v051-cloud-quality.log.gz",
+      "raw_bytes": 111710,
+      "raw_sha256": "f2bac653568cee96eb37b407fec6d6dd5512e9c581309230d147ce50e5a9a551",
+      "gzip_sha256": "e981ad224f6ff6d9dd1e3db9ac547cc3ef83fdc2c1b52b21284a840ea9a3615e"
+    },
+    {
+      "job_id": 131634658508,
+      "file": "release-v051-cloud-inspect.log.gz",
+      "raw_bytes": 19930,
+      "raw_sha256": "c0334a732f1662b940e00df8bd0ed33aae86ae20961f2f4b1a154feccf18a230",
+      "gzip_sha256": "7096716d4cd6f814caf728f4af25d35f704721dda5a9c63f704caa2cafdbdbf3"
+    },
+    {
+      "job_id": 131634739156,
+      "file": "release-v051-cloud-build.log.gz",
+      "raw_bytes": 139896,
+      "raw_sha256": "ae7047b1174488ebb6487a80256964fecede5647ce5a9fdc0f5a9749d9726b3b",
+      "gzip_sha256": "3874dbd0a1e1f88d7242e4de4c1cadb3470322663fe6af7521239fd1253bf269"
+    },
+    {
+      "job_id": 131637308660,
+      "file": "release-v051-cloud-publication.log.gz",
+      "raw_bytes": 23319,
+      "raw_sha256": "83c41d81766a25479dc3f2b8af0cc4fcec02e9205b47e77b5d2cd94d363fd97f",
+      "gzip_sha256": "36b46a0bc15856e8ee62d07c1ef05a58811159c6595d43b10f5f3680a30ea9b2"
+    }
+  ]
+}

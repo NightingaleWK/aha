@@ -1,0 +1,22 @@
+[
+  {
+    "path": "desktop-verification",
+    "bytes": 875317
+  },
+  {
+    "path": "downloads",
+    "bytes": 12836928
+  },
+  {
+    "path": "official-verification",
+    "bytes": 875301
+  },
+  {
+    "path": "qa",
+    "bytes": 494249
+  },
+  {
+    "path": "task-ownership.json",
+    "bytes": 93
+  }
+]

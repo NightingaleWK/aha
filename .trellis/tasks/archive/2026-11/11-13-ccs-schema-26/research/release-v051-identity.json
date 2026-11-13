@@ -1,0 +1,16 @@
+{
+  "version": "0.5.1",
+  "source_sha": "f044119cb683ac7c118abf7b7abe00e3f0416452",
+  "fingerprints": {
+    "full": "55e634caa45d7cff1471ab7f8313350509a67719328ef405e2ed6ceed2ce8569",
+    "tray": "0422a08425df526bf10bff636f345a5b5ffb19683f11ca72a87486cd797ffbbd",
+    "materials": "cfadd52c7c30f6315b42e8cd595bcaadbbdc3fb8fa0303c03088da203608544c",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "expected_runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "user_authorization": "现在发布 v0.5.1，桌面 EXE 也更新为正式版。",
+  "task_creation": "用户明确选择沿用现有记录，不新建任务。",
+  "previous_desktop_sha256": "77894d2128ddcd44eb130065ac39154d58439bbd7f08896a0492f3771aaab83b",
+  "release_pr": 12,
+  "prior_ci_run": 43346707414
+}

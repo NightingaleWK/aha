@@ -1,0 +1,39 @@
+{
+  "verified": true,
+  "version": "0.5.1",
+  "source_sha": "f044119cb683ac7c118abf7b7abe00e3f0416452",
+  "release_url": "https://github.com/NightingaleWK/aha/releases/tag/v0.5.1",
+  "published_at": "2026-11-13T02:05:56Z",
+  "tag_commit": "f044119cb683ac7c118abf7b7abe00e3f0416452",
+  "workflow": {
+    "id": 43348039818,
+    "url": "https://github.com/NightingaleWK/aha/actions/runs/43348039818",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "release_pr": {
+    "number": 12,
+    "merged": true,
+    "labels": [
+      "autorelease: tagged"
+    ]
+  },
+  "assets": [
+    {
+      "name": "aha-0.5.1-windows-x64.exe",
+      "size": 12832517,
+      "digest": "sha256:af79950072a347461f686f2c986d1a36182ceccab178aa3d8d926f49ca6dd01f"
+    },
+    {
+      "name": "build-info.json",
+      "size": 4237,
+      "digest": "sha256:410503a0a0a5d3712a6064cd92c70c272fed651ce8649da141bb306a42e4249f"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 174,
+      "digest": "sha256:597f958ac9ca5ea7ff70ae518f2752331c6ab3ba95708afca85ec67a63cdd609"
+    }
+  ],
+  "authorized_by": "现在发布 v0.5.1，桌面 EXE 也更新为正式版。"
+}
