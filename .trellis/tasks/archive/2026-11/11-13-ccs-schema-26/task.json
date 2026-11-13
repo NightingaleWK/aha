@@ -16,11 +16,18 @@
   "base_branch": "main",
   "worktree_path": null,
   "commit": "48939350113fb9918413623e7b6b4e000b0d7644",
-  "pr_url": null,
+  "pr_url": "https://github.com/NightingaleWK/aha/pull/11",
   "subtasks": [],
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "用户已批准两组本地提交及归档；选择先补齐0.5.1发版条件，授权创建修复PR/CI及候选准备，未授权公开。",
-  "meta": {}
+  "notes": "CCS26适配与本机验收完成；功能PR #11及发布PR #12已合入main。用户随后明确授权正式发布v0.5.1并更新桌面；正式Release、正式桌面EXE及清理均已完成。",
+  "meta": {
+    "release_version": "0.5.1",
+    "release_pr_url": "https://github.com/NightingaleWK/aha/pull/12",
+    "release_url": "https://github.com/NightingaleWK/aha/releases/tag/v0.5.1",
+    "release_source_sha": "f044119cb683ac7c118abf7b7abe00e3f0416452",
+    "desktop_executable_sha256": "af79950072a347461f686f2c986d1a36182ceccab178aa3d8d926f49ca6dd01f",
+    "release_and_desktop_delivery_completed": true
+  }
 }
