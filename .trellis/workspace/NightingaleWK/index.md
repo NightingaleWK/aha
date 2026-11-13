@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 20
+- **Total Sessions**: 21
 - **Last Active**: 2026-11-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~628 | Active |
+| `journal-1.md` | ~651 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 21 | 2026-11-13 | v0.5.1正式发布与归档收尾 | `e26aee3`, `d7ade73fd78a739b120d6f241285a17b8c27124a` | `main` |
 | 20 | 2026-11-13 | CCS26兼容适配与桌面交付 | `4893935`, `30ca9fc` | `codex/ccs-schema-26` |
 | 19 | 2026-11-12 | 发布v0.5.0并完成项目归属闭环交付 | `da826a7`, `9dcf2e9`, `cae26d6` | `main` |
 | 18 | 2026-11-12 | 换机数据接续、完整备份与CCS25兼容交付 | `c7c6acc87531df6ebb8ed5bc346a624490e8ac0a` | `codex/device-data-continuity` |

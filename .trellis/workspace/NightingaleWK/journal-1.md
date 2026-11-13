@@ -626,3 +626,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 21: v0.5.1正式发布与归档收尾
+<!-- trellis-session: v=2 fp=805c9dbb9034ffce -->
+
+**Date**: 2026-11-13
+**Task**: v0.5.1正式发布与归档收尾
+**Branch**: `main`
+
+### Summary
+
+v0.5.1已正式公开，发布源码f044119；功能PR11与发布PR12均合入main，351项Python与53项JS及云端Directory/OneFile检查通过。桌面aha.exe为GitHub正式0.5.1，SHA af799500，正式下载及实际桌面副本分别原生验收通过；旧修复版保留回退，14.38MiB发布验证环境已清理。任务已归档并补齐最终发布状态，用户本轮明确要求提交和同步主分支。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e26aee3` | chore: 记录 v0.5.1 正式发布与桌面交付 |
+| `d7ade73fd78a739b120d6f241285a17b8c27124a` | chore(task): 完善 CCS26 发版归档记录 |
+
+### Status
+
+[OK] **Completed**
