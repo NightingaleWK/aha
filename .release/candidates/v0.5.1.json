@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "version": "0.5.1",
+  "base_sha": "12d213b5b3c3c505d24f73fc7888966f24435337",
+  "previous_tag": "v0.5.0",
+  "fragment_ids": [
+    "ccs26-compatibility"
+  ],
+  "notes_sha256": "f390b0a9aa18fd9de4f9df53a302f4f5752f4d818e6033b91dc127fdc9266c1c"
+}

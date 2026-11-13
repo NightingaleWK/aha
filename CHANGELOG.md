@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/NightingaleWK/aha/compare/v0.5.0...v0.5.1) (2026-11-13)
+
+
+### 问题修复
+
+* 支持 CC Switch 26 用量同步 ([63a79a3](https://github.com/NightingaleWK/aha/commit/63a79a39f2df4dd83b4547dd7168ba0149510569))
+* 支持 CC Switch 26 用量同步 ([4893935](https://github.com/NightingaleWK/aha/commit/48939350113fb9918413623e7b6b4e000b0d7644))
+
 ## [0.5.0](https://github.com/NightingaleWK/aha/compare/v0.4.1...v0.5.0) (2026-11-12)
 
 
