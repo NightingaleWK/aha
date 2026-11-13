@@ -603,3 +603,26 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 20: CCS26兼容适配与桌面交付
+<!-- trellis-session: v=2 fp=f5cec095d5efc486 -->
+
+**Date**: 2026-11-13
+**Task**: CCS26兼容适配与桌面交付
+**Branch**: `codex/ccs-schema-26`
+
+### Summary
+
+支持CC Switch结构26，351项Python和53项JS检查通过；Directory、OneFile及实际桌面单文件EXE完成原生/Edge/Excel/A4验收，真实CCS只读隔离同步成功；清理627MiB任务环境。用户批准提交归档并选择先补齐v0.5.1发版条件，后续创建修复PR/CI及候选准备，未授权公开。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4893935` | fix: 支持 CC Switch 26 用量同步 |
+| `30ca9fc` | chore: 记录 CCS 26 本机验收与交付 |
+
+### Status
+
+[OK] **Completed**
