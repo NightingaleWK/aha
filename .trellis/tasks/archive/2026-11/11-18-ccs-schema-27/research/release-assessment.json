@@ -1,0 +1,26 @@
+{
+  "latest_public_tag": "v0.5.1",
+  "latest_public_sha": "f044119cb683ac7c118abf7b7abe00e3f0416452",
+  "latest_public_url": "https://github.com/NightingaleWK/aha/releases/tag/v0.5.1",
+  "recommended_next_version": "0.6.0",
+  "recommendation": "先补齐发版条件",
+  "reason": "结构 27 中断旧版同步。累计待发新增目录整体关联功能，适用 minor 升号。",
+  "unreleased_main_changes": [
+    "选择目录即可整体关联项目记录"
+  ],
+  "current_task_changes": [
+    "支持 CC Switch 数据库结构 27"
+  ],
+  "remaining_before_publication": [
+    "本次功能 PR 的云端质量检查与合入",
+    "更新后的发布 PR 和同一候选的云端构建、验收及资产核对"
+  ],
+  "local_delivery_complete": true,
+  "user_choice": "先补齐发版条件",
+  "public_release_authorized": false,
+  "commit_approval": "提交并归档",
+  "actual_tray_check": "通过",
+  "release_pr": "https://github.com/NightingaleWK/aha/pull/13",
+  "observed_release_pr_head": "ab4e23c81ec2ed3e44d388904e4361514c22d09d",
+  "draft_feature_pr_and_ci_authorized": true
+}

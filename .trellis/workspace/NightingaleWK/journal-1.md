@@ -686,3 +686,34 @@ v0.5.1已正式公开，发布源码f044119；功能PR11与发布PR12均合入ma
 
 - 按用户选择积累到下一版，保留中文What’s New，候选v0.6.0由发布PR统一递增。
 - 正式发布前补齐物理托盘双击/菜单操作、功能/发布PR及云端候选门禁；当前未授权推送或公开。
+
+
+## Session 23: 适配 CC Switch 结构 27
+<!-- trellis-session: v=2 fp=0492d05f0286b1be -->
+
+**Date**: 2026-11-18
+**Task**: 适配 CC Switch 结构 27
+**Branch**: `codex/ccs-schema-27`
+
+### Summary
+
+支持 CCS 结构 23–27 的 SQLite 与 SQL 用量同步，桌面 OneFile 已交付。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ecbe1dd` | fix: 支持 CC Switch 27 用量同步 |
+| `334893e` | chore: 记录 CCS 27 成品验收 |
+
+### Testing
+
+- [OK] 原生 Windows 369 项 Python 测试、66 项 Node 测试、Directory/OneFile/桌面、CCS 27 真源、现有台账副本、实际托盘、Edge、Excel 和 A4 PDF 验收通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 用户确认先补齐 0.6.0 发版条件，已授权推送功能草稿 PR 并运行云端 CI。

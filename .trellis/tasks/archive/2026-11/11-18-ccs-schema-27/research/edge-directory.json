@@ -1,0 +1,15 @@
+{
+  "verified": true,
+  "browser": "native Edge headless",
+  "executable_sha256": "0c2f44ce7c3a6c570a299c98e7543ac6bc57809bc75105ad71b4c08c2bad62b8",
+  "ccs27_startup": true,
+  "unknown28_ui_failure_history_preserved": true,
+  "ccs27_manual_recovery": true,
+  "duplicate_usage": false,
+  "shutdown_descriptor_cleaned": true,
+  "real_profile_used": false,
+  "tray_enabled": true,
+  "physical_tray_input": false,
+  "label": "directory",
+  "completed_at": "2026-11-18T16:55:51.565966+08:00"
+}

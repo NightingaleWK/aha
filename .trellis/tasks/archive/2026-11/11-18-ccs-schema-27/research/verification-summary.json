@@ -1,0 +1,27 @@
+{
+  "verified_at": "2026-11-18T16:59:00+08:00",
+  "base_commit": "e1f03c7a42c21734f9da70f6c8119f43f6259cda",
+  "build_source": "byte-matched product files, build inputs and tests from the final worktree",
+  "fingerprints": {
+    "full": "9386659363b26cf2c6f18a3f8557986b59997d2d7c7aa056b241ff358c9ca3e4",
+    "tray": "f210f92d3cbac63eb1d122328c0b827541e7ec0a607e982c637eeb29c895d09a",
+    "materials": "d91a0f84995b03ee00469a267fedeb1caad0b066470b5ac7b243551a8d52609e",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "desktop_sha256": "f957393ad219527f4c2e28e9368f3cb40180fa1fe00f279cb58d76554419c2db",
+  "windows_python_tests_passed": 369,
+  "node_tests_passed": 66,
+  "checks_passed": [
+    "ruff",
+    "mypy-strict",
+    "compileall",
+    "node-syntax",
+    "release-validate",
+    "git-diff-check"
+  ],
+  "reproducible_verifier": "scripts/verify_windows_artifact.py --with-tray",
+  "native_shell_tray_started": true,
+  "tray_physical_checked": true,
+  "source_sha": "ecbe1dd1f9a0630c4d910ab5365dde404176dd7a",
+  "tray_physical_evidence": "tray.json"
+}
