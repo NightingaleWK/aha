@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/NightingaleWK/aha/compare/v0.5.1...v0.6.0) (2026-11-18)
+
+
+### 新增功能
+
+* 按目录整体关联项目记录 ([803bffc](https://github.com/NightingaleWK/aha/commit/803bffc6cf6a21a5b4b6decc6038f76ef144d703))
+
+
+### 问题修复
+
+* 支持 CC Switch 27 用量同步 ([111d075](https://github.com/NightingaleWK/aha/commit/111d075f942943fbe95ddca1493ea7a207576a97))
+* 支持 CC Switch 27 用量同步 ([ecbe1dd](https://github.com/NightingaleWK/aha/commit/ecbe1dd1f9a0630c4d910ab5365dde404176dd7a))
+
 ## [0.5.1](https://github.com/NightingaleWK/aha/compare/v0.5.0...v0.5.1) (2026-11-13)
 
 
