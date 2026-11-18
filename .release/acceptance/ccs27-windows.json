@@ -22,19 +22,19 @@
     {
       "scope": "directory",
       "file": "directory.json",
-      "sha256": "4f333062c27ade94548038a6a939b6dfc930a013b9fa22faac615273d5a7413a",
+      "sha256": "8ff7a17998a0ec1a875fb3fbe5de32dc55399efcf9fbcec3762f96c1ca6e591b",
       "description": "Windows Directory 的 HTTP、来源同步、材料和退出。"
     },
     {
       "scope": "onefile",
       "file": "onefile.json",
-      "sha256": "774dbf8329b91abaeb501d805a4e68c17d1460f984c3803191082e9bd2c80913",
+      "sha256": "fc803eb3790c0a7b63b82ae18e17b90aa9ed830b6205286c50dabdc97fe80641",
       "description": "Windows OneFile 的 HTTP、来源同步、材料和退出。"
     },
     {
       "scope": "browser",
       "file": "edge-desktop.json",
-      "sha256": "81180d1ed8864cd1d7afac613c1f8b24249f1737835285259497e71183fb61ef",
+      "sha256": "c5ef26e381a7b7e1f130a2487d5bf02ab93a830eae333b26f9d5566ea391ae70",
       "description": "从桌面成品在 Edge 验证启动同步、错误提示和恢复。"
     },
     {
@@ -46,13 +46,13 @@
     {
       "scope": "excel",
       "file": "office-onefile.json",
-      "sha256": "6c43c48d05a1edbbe33060d18387730fc72df36b5969322a45c81b37817de60d",
+      "sha256": "3743425bd35e4b5ed5c05f1876a479e6ee902c4ab0c2f9a25bce9d33f6e7443e",
       "description": "在原生 Excel 验证两个 CSV 的精确单元格和公式保护。"
     },
     {
       "scope": "print",
       "file": "office-onefile.json",
-      "sha256": "6c43c48d05a1edbbe33060d18387730fc72df36b5969322a45c81b37817de60d",
+      "sha256": "3743425bd35e4b5ed5c05f1876a479e6ee902c4ab0c2f9a25bce9d33f6e7443e",
       "description": "Edge 生成 A4 PDF，核对页面尺寸及精确成本。"
     }
   ]
