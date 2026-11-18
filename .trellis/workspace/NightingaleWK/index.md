@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 22
-- **Last Active**: 2026-11-13
+- **Total Sessions**: 23
+- **Last Active**: 2026-11-18
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~688 | Active |
+| `journal-1.md` | ~719 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 23 | 2026-11-18 | 适配 CC Switch 结构 27 | `ecbe1dd`, `334893e` | `codex/ccs-schema-27` |
 | 22 | 2026-11-13 | 项目按目录整体关联与桌面交付 | `803bffc6cf6a21a5b4b6decc6038f76ef144d703` | `codex/project-link-onboarding` |
 | 21 | 2026-11-13 | v0.5.1正式发布与归档收尾 | `e26aee3`, `d7ade73fd78a739b120d6f241285a17b8c27124a` | `main` |
 | 20 | 2026-11-13 | CCS26兼容适配与桌面交付 | `4893935`, `30ca9fc` | `codex/ccs-schema-26` |
