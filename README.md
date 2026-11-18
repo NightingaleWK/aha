@@ -10,7 +10,7 @@ aha 是 Windows 本机 Codex 用量台账与报销材料工具，用来记住每
 
 ## 使用
 
-1. 每次打开程序自动同步一次 `%USERPROFILE%\.cc-switch\cc-switch.db`；也可点“立即同步”、填写其他 SQLite 路径或导入 SQL 备份。SQLite与SQL用量备份支持CCS结构版本23、24、25、26，仅统计 `codex_session`。同步不要求抢在CCS前启动。旧台账换机或还原后会先提示确认本机来源，历史保持可查询。
+1. 每次打开程序自动同步一次 `%USERPROFILE%\.cc-switch\cc-switch.db`；也可点“立即同步”、填写其他 SQLite 路径或导入 SQL 备份。SQLite 数据库与包含用量的 SQL 备份支持 CCS 结构版本 23–27，仅统计 `codex_session`。同步不要求抢在CCS前启动。旧台账换机或还原后会先提示确认本机来源，历史保持可查询。
 2. 页面先显示已有本地资料。来源正忙、无法读取或同步失败时仍可查询旧资料，并显示上次成功时间；需要核对的来源变化单独提示。程序只在打开和手动操作时读取来源，没有周期采集、关闭后同步或开机自启。
 3. 在“项目管理”新建项目并选择一个或多个工作目录，点击“查看关联影响”，核对各目录记录数、参考费用和原项目→目标项目变化，再“确认保存并关联”。一次确认将这些目录内有明确依据的已有记录整体归入项目，旧人工分到其他项目的记录也统一迁入；以后新会话、旧会话新增及稍后才识别目录的用量随同步自动关联，无需逐条选择或勾选整个会话。已有项目点击“确认目录关联”采用同一流程，升级不会自动重算旧项目；同一目录转移时同时调整原项目的目录和费用。
 4. 在“用量与费用”搜索选择项目，打开时间面板，可选当天、近24小时、近7/14/30天、本月或全部，也可用日历和时间输入精确到分钟。确认后直接更新预览，取消保留原结果。全部按北京时间，手动结束时间包含该分钟；勾选跟随当前时刻后，每次更新预览才推进结束时刻。明细、历史日汇总、每日和模型使用游标翻页，查询不依赖原 CCS 文件仍存在。
@@ -140,4 +140,6 @@ $BuildPython = Join-Path $BuildRoot 'venv\Scripts\python.exe'
 
 ## 数据解释依据
 
-CCS 的 Token 语义、会话来源、历史日汇总和结构23→24→25→26兼容行为参考[farion1231/cc-switch固定提交d0da1349](https://github.com/farion1231/cc-switch/tree/d0da1349f9403da228dc12a8f0f812e14f624d10)，上游采用 [MIT License](https://github.com/farion1231/cc-switch/blob/d0da1349f9403da228dc12a8f0f812e14f624d10/LICENSE)。aha 为独立实现；没有复制上游配置、凭据或原始个人数据。金额沿用来源历史保存值，不按当前价格表重算。
+CCS 的 Token 语义、会话来源、历史日汇总和结构 23→24→25→26 兼容行为参考原固定提交。结构 26→27 迁移仅涉及技能相关表。上游采用 MIT License。 [原固定提交](https://github.com/farion1231/cc-switch/tree/d0da1349f9403da228dc12a8f0f812e14f624d10) · [结构 27 迁移](https://github.com/farion1231/cc-switch/blob/61c43c036ec7eb3a6950b292729d6a7094abe716/src-tauri/src/database/schema.rs#L731-L746) · [MIT License](https://github.com/farion1231/cc-switch/blob/d0da1349f9403da228dc12a8f0f812e14f624d10/LICENSE)
+
+aha 为独立实现；没有复制上游配置、凭据或原始个人数据。金额沿用来源历史保存值，不按当前价格表重算。

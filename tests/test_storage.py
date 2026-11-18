@@ -67,7 +67,7 @@ class LedgerStorageTests(unittest.TestCase):
             before = tuple(db.execute(
                 "SELECT record_key,content_hash,project_id,assignment_origin FROM usage_records"
             ).fetchone())
-        for version in (24, 25, 26):
+        for version in (24, 25, 26, 27):
             with self.subTest(version=version):
                 with closing(sqlite3.connect(path)) as connection:
                     connection.execute(f"PRAGMA user_version={version}")
@@ -89,18 +89,18 @@ class LedgerStorageTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(original.read_bytes()).hexdigest(), package_sha)
         self.store.close()
         self.store = Store(self.root)
-        self.assertEqual(self.store.sync_status(upgraded["id"])["source_schema_version"], 26)
+        self.assertEqual(self.store.sync_status(upgraded["id"])["source_schema_version"], 27)
         self.assertEqual(self.store.sync_status(first["id"])["source_schema_version"], 23)
 
-    def test_sql26_failure_and_unknown_sql_version_do_not_publish_staged_rows(self) -> None:
-        initial = self.store.sync_sql(dump([detail()], version=26), "usage.sql", [])
-        self.assertEqual(initial["source_schema_version"], 26)
+    def test_sql_failures_do_not_publish_staged_rows(self) -> None:
+        initial = self.store.sync_sql(dump([detail()], version=27), "usage.sql", [])
+        self.assertEqual(initial["source_schema_version"], 27)
         before = self.store.ledger_status()
         for raw, code in (
-            (dump([detail("new")], version=27), "unsupported_schema"),
-            (dump([detail("new"), detail("invalid", input_tokens=-1)], version=26),
+            (dump([detail("new")], version=28), "unsupported_schema"),
+            (dump([detail("new"), detail("invalid", input_tokens=-1)], version=27),
              "invalid_number"),
-            (dump([detail("new")], version=26) + b"\nPRAGMA user_version=25;",
+            (dump([detail("new")], version=27) + b"\nPRAGMA user_version=26;",
              "unsupported_schema"),
         ):
             with self.subTest(code=code), self.assertRaises(AppError) as error:

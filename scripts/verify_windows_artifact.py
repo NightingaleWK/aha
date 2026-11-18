@@ -383,11 +383,11 @@ def restored_executable(
         for _ in range(2):
             job = client.sync({})
             require(job["status"] == "completed"
-                    and job["result"]["source_schema_version"] == 26
+                    and job["result"]["source_schema_version"] == 27
                     and job["result"]["new_count"] == 0
                     and job["result"]["revised_count"] == 0
                     and job["result"]["unchanged_count"] == ROW_COUNT,
-                    "Restored CCS26 repeat sync duplicated or revised known usage.")
+                    "Restored CCS27 repeat sync duplicated or revised known usage.")
         require(ledger_basis(data_dir) == expected_basis,
                 "Restored source binding or repeat sync changed facts or existing claims.")
         raw = client.request("GET", f"/api/batches/{batch_id}/revisions/1/download")[2]
@@ -469,7 +469,7 @@ def verify(
                                model="合成模型", total_cost_usd="0.190000001",
                                created_at=event + n) for n in range(ROW_COUNT)]
     source = profile / ".cc-switch" / "cc-switch.db"
-    fixtures["database"](source, rows, version=23).close()
+    fixtures["database"](source, rows, version=27).close()
     data_dir = data_root / "store"
     descriptor = data_dir / "runtime.json"
     command = [str(executable), "--data-dir", str(data_dir), "--no-browser"]
@@ -498,9 +498,10 @@ def verify(
                 job = client.sync({"trigger": "startup"})
                 startup_job_id = job["id"]
                 require(job["status"] == "completed"
-                        and job["result"]["source_schema_version"] == 23,
-                        "Synthetic CCS23 startup sync failed.")
-                for schema_version in (24, 25, 26):
+                        and job["result"]["source_schema_version"] == 27
+                        and job["result"]["new_count"] == ROW_COUNT,
+                        "Synthetic CCS27 startup sync failed.")
+                for schema_version in (23, 24, 25, 26, 27):
                     with closing(sqlite3.connect(source)) as connection:
                         connection.execute(f"PRAGMA user_version={schema_version}")
                         connection.commit()
@@ -514,34 +515,35 @@ def verify(
                     ledger = client.json("GET", "/api/ledger")
                     require(ledger["last_sync"]["source_schema_version"] == schema_version,
                             "Ledger did not retain the observed CCS source version.")
-                raw_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=26)
-                job = client.sync({"name": "synthetic-26.sql",
+                raw_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=27)
+                job = client.sync({"name": "synthetic-27.sql",
                                    "content_base64": base64.b64encode(raw_sql).decode()}, sql=True)
                 require(job["status"] == "completed"
-                        and job["result"]["source_schema_version"] == 26
+                        and job["result"]["source_schema_version"] == 27
                         and job["result"]["new_count"] == 0
                         and job["result"]["revised_count"] == 0
                         and job["result"]["unchanged_count"] == ROW_COUNT,
-                        "Synthetic SQL26 import failed or duplicated existing usage.")
+                        "Synthetic SQL27 import failed or duplicated existing usage.")
                 for sql in (False, True):
                     before = client.json("GET", "/api/ledger")
                     with closing(sqlite3.connect(source)) as connection:
-                        connection.execute("PRAGMA user_version=27")
+                        connection.execute("PRAGMA user_version=28")
                         connection.commit()
-                    unknown_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=27)
-                    invalid = ({"name": "synthetic-27.sql",
+                    unknown_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=28)
+                    invalid = ({"name": "synthetic-28.sql",
                                 "content_base64": base64.b64encode(unknown_sql).decode()}
                                if sql else {})
                     failed = client.sync(invalid, sql=sql)
                     require(failed["status"] == "failed"
                             and failed.get("code") == "unsupported_schema"
-                            and "27" in failed.get("message", "")
-                            and "23、24、25、26" in failed.get("message", ""),
-                            "Unknown CCS27/SQL27 was not explicitly rejected.")
+                            and "结构版本 28 暂不支持" in failed.get("message", "")
+                            and "23、24、25、26、27" in failed.get("message", ""),
+                            "Unknown CCS28/SQL28 was not explicitly rejected.")
                     after = client.json("GET", "/api/ledger")
                     require(after["counts"] == before["counts"]
                             and after["last_successful_sync_at"]
-                            == before["last_successful_sync_at"],
+                            == before["last_successful_sync_at"]
+                            and after["last_sync"]["source_schema_version"] == 27,
                             "Unknown source changed historical totals or the last success time.")
                     retained = client.json("POST", "/api/analysis", {
                         "start_date": "2026-10-26", "end_date": "2026-10-26",
@@ -551,13 +553,15 @@ def verify(
                             and Decimal(retained["summary"]["total_cost_usd"]) == EXPECTED_COST,
                             "Known local history was not queryable after the unsupported source.")
                     with closing(sqlite3.connect(source)) as connection:
-                        connection.execute("PRAGMA user_version=26")
+                        connection.execute("PRAGMA user_version=27")
                         connection.commit()
                     recovered_sync = client.sync({})
                     require(recovered_sync["status"] == "completed"
-                            and recovered_sync["result"]["source_schema_version"] == 26
-                            and recovered_sync["result"]["new_count"] == 0,
-                            "CCS26 did not recover after the unknown source failure.")
+                            and recovered_sync["result"]["source_schema_version"] == 27
+                            and recovered_sync["result"]["new_count"] == 0
+                            and recovered_sync["result"]["revised_count"] == 0
+                            and recovered_sync["result"]["unchanged_count"] == ROW_COUNT,
+                            "CCS27 did not recover after the unknown source failure.")
                 analysis = client.json("POST", "/api/analysis", {
                     "start_date": "2026-10-26", "end_date": "2026-10-26",
                     "project_id": "all", "availability_mode": "available",
@@ -566,7 +570,7 @@ def verify(
                         "Version changes or SQL import duplicated synthetic usage.")
                 require(analysis["schema_version"] == 23
                         and analysis["usage_projection_schema_version"] == 23,
-                        "External CCS26 changed the internal usage projection version.")
+                        "External CCS27 changed the internal usage projection version.")
                 saved = client.json("POST", "/api/batches", {
                     "analysis_id": analysis["analysis_id"],
                     "claim": {"purpose": "合成成品验收", "amount": "", "currency": "CNY",
@@ -600,11 +604,11 @@ def verify(
             else:
                 job = client.sync({"trigger": "startup"})
                 require(job["status"] == "completed"
-                        and job["result"]["source_schema_version"] == 26
+                        and job["result"]["source_schema_version"] == 27
                         and job["result"]["new_count"] == 0
                         and job["result"]["revised_count"] == 0
                         and job["result"]["unchanged_count"] == ROW_COUNT,
-                        "CCS26 startup sync after restart changed known usage.")
+                        "CCS27 startup sync after restart changed known usage.")
                 raw = client.request("GET", f"/api/batches/{batch_id}/revisions/1/download")[2]
                 require(hashlib.sha256(raw).hexdigest() == material_sha,
                         "Frozen evidence changed after a complete restart.")
@@ -618,8 +622,8 @@ def verify(
         "complete_backup": full_backup,
         "verified_at": datetime.now(BEIJING).isoformat(timespec="seconds"),
         "scopes": ["native-exe", "pe-version", "http-authentication", "resource-bytes",
-                   "ccs-23-24-25-26", "ccs-26-startup", "sql-26",
-                   "unsupported-27-history-preserved",
+                   "ccs-23-24-25-26-27", "ccs-27-startup", "sql-27",
+                   "unsupported-28-history-preserved",
                    "usage-projection-23",
                    "full-backup-download", "chunked-backup-upload", "new-directory-restore",
                    "restored-source-rebinding", "restored-repeat-sync-idempotence",

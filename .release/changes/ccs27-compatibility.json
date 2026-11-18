@@ -1,0 +1,8 @@
+{
+  "id": "ccs27-compatibility",
+  "kind": "fix",
+  "title": "支持 CC Switch 数据库结构 27",
+  "description": "CC Switch 升级到数据库结构 27 后，aha 可继续同步 Codex 用量并导入包含用量的 SQL 备份。继续兼容结构 23 至 26，已有用量、项目归属、报销占用和历史材料可继续使用。",
+  "highlight": true,
+  "upgrade_notes": []
+}
