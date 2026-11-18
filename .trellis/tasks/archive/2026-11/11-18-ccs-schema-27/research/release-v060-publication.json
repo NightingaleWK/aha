@@ -1,0 +1,93 @@
+{
+  "verified": true,
+  "version": "0.6.0",
+  "source_sha": "f8646631b30857827a80778aa8a5e0a10871933f",
+  "release_id": 449793891,
+  "release_url": "https://github.com/NightingaleWK/aha/releases/tag/v0.6.0",
+  "published_at": "2026-11-18T10:00:25Z",
+  "assets": {
+    "aha-0.6.0-windows-x64.exe": {
+      "url": "https://github.com/NightingaleWK/aha/releases/download/v0.6.0/aha-0.6.0-windows-x64.exe",
+      "bytes": 12853578,
+      "sha256": "4a2d8fed5dfff0e6c02b8e7466a4f9fa7a32e62f851457675f01e12630362a3d"
+    },
+    "build-info.json": {
+      "url": "https://github.com/NightingaleWK/aha/releases/download/v0.6.0/build-info.json",
+      "bytes": 4243,
+      "sha256": "a1db89f86b6e1890f36e70d6155f4fb1f0e79f624ef0f258b2e842353a99dbf9"
+    },
+    "SHA256SUMS.txt": {
+      "url": "https://github.com/NightingaleWK/aha/releases/download/v0.6.0/SHA256SUMS.txt",
+      "bytes": 174,
+      "sha256": "21d4b1fa2709ca1fac7698acbe2920fbf5efdff9337867fb68e5e94fa6da57cb"
+    }
+  },
+  "build_info_runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "public_notes_sha256": "922ccbbd4388bfca665c95a66f977aa07af129488501031c9ca89f8ef509bf1e",
+  "release_pr": "https://github.com/NightingaleWK/aha/pull/13",
+  "feature_pr": "https://github.com/NightingaleWK/aha/pull/14",
+  "workflow_url": "https://github.com/NightingaleWK/aha/actions/runs/44278605871",
+  "verified_at": "2026-11-18T18:01:53+08:00",
+  "authorized_by": "发吧",
+  "workflow_conclusion": "success",
+  "release_pr_labels": [
+    "autorelease: tagged"
+  ],
+  "official_exe_windows_verification": {
+    "schema_version": 1,
+    "verified": true,
+    "version": "0.6.0",
+    "executable_sha256": "4a2d8fed5dfff0e6c02b8e7466a4f9fa7a32e62f851457675f01e12630362a3d",
+    "pe_version": {
+      "file_version_parts": [
+        0,
+        6,
+        0,
+        0
+      ],
+      "file_version": "0.6.0",
+      "product_version_parts": [
+        0,
+        6,
+        0,
+        0
+      ],
+      "product_version": "0.6.0"
+    },
+    "material_sha256": "669a21f3249744f63896f31938ae700d8d433ea01777e48a260b19f99035eac1",
+    "complete_backup": {
+      "sha256": "238b52f400de2d63737ac9d4dadc3a48ff18f1ecd1f52a61131126f7cebc66b8",
+      "size": 23978,
+      "restored_source_rebound": true,
+      "facts": 3,
+      "active_claims": 3,
+      "original_material_sha256": "669a21f3249744f63896f31938ae700d8d433ea01777e48a260b19f99035eac1"
+    },
+    "verified_at": "2026-11-18T18:02:09+08:00",
+    "scopes": [
+      "native-exe",
+      "pe-version",
+      "http-authentication",
+      "resource-bytes",
+      "ccs-23-24-25-26-27",
+      "ccs-27-startup",
+      "sql-27",
+      "unsupported-28-history-preserved",
+      "usage-projection-23",
+      "full-backup-download",
+      "chunked-backup-upload",
+      "new-directory-restore",
+      "restored-source-rebinding",
+      "restored-repeat-sync-idempotence",
+      "frozen-material",
+      "same-directory-reopen",
+      "persistent-restart",
+      "shutdown-cleanup"
+    ],
+    "tray_enabled": false,
+    "tray_physical_checked": false,
+    "browser_driven": false,
+    "office_checked": false,
+    "manual_checks": []
+  }
+}
