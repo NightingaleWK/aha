@@ -464,6 +464,33 @@ class Store:
 
         return list_reconciliations(self)
 
+    def reconciliation_summary(self) -> dict[str, int]:
+        from .reconciliation import reconciliation_summary
+
+        return reconciliation_summary(self)
+
+    def reconciliation_page(
+        self, filters: dict[str, Any], *, cursor: str | None = None, size: int = 50
+    ) -> dict[str, Any]:
+        from .reconciliation import reconciliation_page
+
+        return reconciliation_page(self, filters, cursor=cursor, size=size)
+
+    def reconciliation_detail(self, case_id: str) -> dict[str, Any]:
+        from .ledger import reconciliation_detail
+
+        return reconciliation_detail(self, case_id)
+
+    def preview_reconciliation_batch(self, request: dict[str, Any]) -> dict[str, Any]:
+        from .reconciliation import preview_reconciliation_batch
+
+        return preview_reconciliation_batch(self, request)
+
+    def apply_reconciliation_batch(self, request: dict[str, Any]) -> dict[str, Any]:
+        from .reconciliation import apply_reconciliation_batch
+
+        return apply_reconciliation_batch(self, request)
+
     def resolve_reconciliation(
         self,
         case_id: str,

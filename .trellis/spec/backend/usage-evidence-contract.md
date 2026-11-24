@@ -21,6 +21,11 @@ Store.analysis_details(analysis, *, cursor=None, size=50, kind="detail")
 Store.iter_analysis_rows(analysis, connection=None)
 Store.iter_analysis_daily(analysis, connection=None)
 Store.validate_analysis(analysis, connection=None, *, check_claims=True)
+Store.reconciliation_summary()
+Store.reconciliation_page(filters, *, cursor=None, size=50)
+Store.reconciliation_detail(case_id)
+Store.preview_reconciliation_batch(request)
+Store.apply_reconciliation_batch(request)
 Store.resolve_reconciliation(case_id, choice, reason, expected_generation=None,
                              idempotency_key=None)
 Store.create_batch(analysis, claim, idempotency_key, batch_id=None, **kwargs)
@@ -115,3 +120,54 @@ package_path, filename = store.download(batch_id, version)
 - keyset除tuple严格比较外，还须显式收紧event_time标量范围。执行计划和VM工作量应证明直接seek，不能仅凭SQL中存在游标断言深页恒定。
 - 源读取后再做本地 staging；本机写者等待与应用退出取消皆有界。详见 [原生提交合同](./database-guidelines.md#原生同步事务)。
 - 同源新key的旧语义成员缺席当前完整staging时才提示身份重建；本轮并存的同秒同Token不同key请求不能误合并。rollup代表量下降单独以已确认观察基线核对，不将降价误判为重建。
+
+
+## 分页核对与批量确认同一消费
+
+### 1. 范围
+
+修改待核对事项的筛选、证据投影、批量确认或派生统计时，核对 [核对模块](../../../src/aha/reconciliation.py) 和 [页面状态](../frontend/state-management.md#数据核对弹窗)。
+
+### 2. 入口
+
+读走 `reconciliation_summary`、`reconciliation_page`、`reconciliation_detail`；写走 `preview_reconciliation_batch` 和 `apply_reconciliation_batch`。来源修订和单笔选择继续使用 `resolve_reconciliation`。HTTP 字段见 [本机接口](../frontend/local-web-contract.md#2-http-入口)。
+
+### 3. 事实和事务
+
+- 批量资格使用当前 `codex_session` 历史明细、当前 `codex_native` 原生明细，以及原生当前版本的非待核实事件和参考价依据。核对关联须一对一，App、提供方、会话、模型、请求数和四类规范化 Token 均相同。历史时间可对应原生事件秒，也可对应当前原生响应已保存的唯一配对快照秒。按原生解析器规范化 UTC 和截取事件秒，并以北京时间识别历史日。历史候选及活跃原生事件在两种时间及快照身份上均须唯一。任一方已有别名、存在竞争事项、候选已占用或合并会改变项目归属时，交给单笔核对。
+- 十进制参考成本相同时沿用已入账历史。成本不同时，历史依据可用且新旧范围无占用、覆盖与来源冲突的事项在用户批量确认后采用实际原生事件时间和参考成本。预览展示采用候选的数量及这些事项的两个精确参考成本合计。
+- 全筛选以服务端同一选择范围展开，预览签名绑定采用政策、逐项采用决定、筛选、显式 ID、data/classification/claim revision、事项 generation、两边当前事实版本及采用的配对快照身份和时间。批准后的批量在单一写事务内重检签名、状态和资格。
+- 共享单笔的身份确认、历史占用保护和逐项审计。采用候选时通过已确认别名在历史逻辑身份上投影原生版本，保留旧事实及逐项原生采用决策。活跃项目归属随已核实的同一消费接续。批次汇集新旧受影响 scope，一次推进数据版本、刷新可用性和日月统计。操作签名及结果与事实一并持久化。来源、用量版本及历史报销原包作为证据保留。
+- 来源复读用原生事件身份续接已采用的版本，重读精确的历史前版只追加来源证据。历史导入重建记录标识时，保留的旧语义依然参加重复检测，身份未决的记录进入核对。
+- 资格与数量用集合查询和索引处理。页面最多返回 size 条简要记录。完整依据按事项读取，入口只请求待办总数。首页时间段内待核对用量数以分析结果为准。
+
+### 4. 校验与错误矩阵
+
+| 场景 | 结果 |
+| --- | --- |
+| 类型、状态、日期或分页无效 | 400，显示安全参数提示 |
+| 请求过期游标、预览的证据或资料发生变化 | 409，清理旧选择后重新查询和预览 |
+| 当前筛选没有符合批量规则的事项 | 409，展示当前筛选状态 |
+| 同幂等 key 再发同一请求 | 返回第一次提交结果 |
+| 同 key 对应不同说明或范围 | 409，已提交结果保持原值 |
+
+### 5. 场景
+
+精确且唯一的历史重复以批量「确认为同一消费」应用。未占用且只有参考成本不同的重复采用可核实的原生版本。已有占用且成本不同、用量或缓存存在差异、时间缺少可验证配对、或存在多个候选的事项在页面展开单独确认。已经占用的历史报销继续使用冻结金额和占用。
+
+### 6. 验证
+
+覆盖已入账历史与原生采集的真实候选、响应和快照跨秒、配对缺失或冲突、同秒不同原生事件、同旧记录多个候选、成本差异预览和采用、历史与原生复读、跨日统计、归属、范围跨过 1,000 条、单批一次重算、签名过期、幂等重放、已保存报销原 ZIP 和占用。用真实浏览器验证分页、全选、成本影响、说明、单笔和刷新失败。
+
+### 7. 提交示例
+
+逐次调用单笔入口会为相同 scope 多次重建派生统计。一批确认共享一个预览和提交，事务末尾统一刷新。
+
+```python
+page = store.reconciliation_page(filters)
+preview = store.preview_reconciliation_batch({"filters": filters, "version": page["version"]})
+store.apply_reconciliation_batch({
+    "filters": filters, "preview_hash": preview["preview_hash"],
+    "reason": reason, "idempotency_key": key,
+})
+```

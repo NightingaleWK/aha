@@ -394,6 +394,34 @@ def _record_observation(
     return version
 
 
+def _adopted_history_rebuild_keys(
+    connection: sqlite3.Connection, run_id: str, source_id: str
+) -> dict[str, str]:
+    # The adopted native projection has no legacy semantic key. Recover the
+    # original match only for the same identity and for the legacy rebuild path.
+    keys: dict[str, str] = {}
+    for row in connection.execute("""
+        SELECT old.payload_json,r.record_key
+        FROM reconciliation_cases c
+        JOIN usage_versions old ON old.id=json_extract(c.info_json,'$.current_version_id')
+        JOIN usage_records r ON r.record_key=old.record_key AND r.suppressed=0
+        JOIN usage_versions accepted ON accepted.id=r.version_id
+            AND accepted.record_key=c.record_key
+        WHERE c.type='identity' AND c.state='resolved'
+          AND json_extract(c.info_json,'$.resolved_choice')=?
+          AND json_extract(c.info_json,'$.other_record_key')=r.record_key
+          AND (old.source_id!=? OR NOT EXISTS(
+              SELECT 1 FROM sync_stage observed
+              WHERE observed.run_id=? AND observed.record_key=r.record_key
+          ))
+        ORDER BY r.record_key
+    """, (ledger.SAME_CANDIDATE, source_id, run_id)):
+        semantic = ledger.record_projection(json.loads(row["payload_json"]), "detail")
+        if semantic["semantic_key"] is not None:
+            keys.setdefault(semantic["semantic_key"], row["record_key"])
+    return keys
+
+
 def _publish(
     store: Store,
     run_id: str,
@@ -497,6 +525,10 @@ def _publish(
         has_aliases = (
             connection.execute("SELECT 1 FROM record_aliases LIMIT 1").fetchone() is not None
         )
+        adopted_history = (
+            _adopted_history_rebuild_keys(connection, run_id, source_id)
+            if native is None and has_aliases else {}
+        )
         while rows := cursor.fetchmany(512):
             stager.check()
             for row in rows:
@@ -507,10 +539,10 @@ def _publish(
                 )
                 current = connection.execute(
                     (
-                        "SELECT r.*,s.trust AS current_trust,v.source_id AS current_sourc"
-                        "e FROM usage_records r JOIN usage_versions v ON v.id=r.version_i"
-                        "d JOIN source_profiles s ON s.id=v.source_id WHERE r.record_key="
-                        "?"
+                        "SELECT r.*,s.trust AS current_trust,v.source_id AS current_source,"
+                        "v.record_key AS current_version_key FROM usage_records r "
+                        "JOIN usage_versions v ON v.id=r.version_id "
+                        "JOIN source_profiles s ON s.id=v.source_id WHERE r.record_key=?"
                     ),
                     (logical_key,),
                 ).fetchone()
@@ -544,6 +576,22 @@ def _publish(
                     counts["unchanged_count"] += 1
                     continue
                 version = _record_observation(store, run_id, source_id, row)
+                if (
+                    current and native is None and logical_key == row["record_key"]
+                    and current["current_version_key"] != logical_key
+                    and connection.execute("""
+                        SELECT 1 FROM reconciliation_cases
+                        WHERE record_key=? AND state='resolved' AND type='identity'
+                          AND json_extract(info_json,'$.resolved_choice')=?
+                          AND json_extract(info_json,'$.other_record_key')=?
+                          AND json_extract(info_json,'$.current_version_id')=? LIMIT 1
+                    """, (current["current_version_key"], ledger.SAME_CANDIDATE,
+                          logical_key, version)).fetchone()
+                ):
+                    # This exact historical observation was replaced by an explicitly
+                    # adopted native fact. Preserve its provenance without reopening it.
+                    counts["unchanged_count"] += 1
+                    continue
                 if current and logical_key != row["record_key"]:
                     candidate = json.loads(row["payload_json"])
                     accepted = json.loads(connection.execute(
@@ -552,7 +600,19 @@ def _publish(
                     ).fetchone()[0])
                     candidate.pop("request_id", None)
                     accepted.pop("request_id", None)
-                    if candidate == accepted:
+                    if candidate == accepted or (
+                        accepted.get("data_source") == "codex_native"
+                        and candidate.get("data_source") == "codex_session"
+                        and connection.execute("""
+                            SELECT 1 FROM usage_records r
+                            JOIN reconciliation_cases c ON c.record_key=r.record_key
+                            WHERE r.record_key=? AND r.version_id=? AND r.suppressed=1
+                              AND c.type='identity' AND c.state='resolved'
+                              AND json_extract(c.info_json,'$.resolved_choice')='same'
+                              AND json_extract(c.info_json,'$.adopted_history_replay')=1
+                            LIMIT 1
+                        """, (row["record_key"], version)).fetchone()
+                    ):
                         counts["unchanged_count"] += 1
                         continue
                 revision_case = connection.execute(
@@ -643,17 +703,24 @@ def _publish(
                         ),
                         (projection["semantic_key"], row["record_key"], source_id, run_id),
                     ).fetchone()
-                    if other:
+                    adopted_key = (
+                        None if other else adopted_history.get(projection["semantic_key"])
+                    )
+                    other_key = other["record_key"] if other else adopted_key
+                    if other_key:
                         before_cases = connection.total_changes
+                        info = {
+                            "date": projection["day"],
+                            "model": projection["model"],
+                            "other_record_key": other_key,
+                        }
+                        if adopted_key:
+                            info["adopted_history_replay"] = True
                         ledger.create_case(
                             connection,
                             "identity",
                             "不同来源标识的用量可能来自会话重建，请先核对。",
-                            {
-                                "date": projection["day"],
-                                "model": projection["model"],
-                                "other_record_key": other["record_key"],
-                            },
+                            info,
                             key=row["record_key"],
                             source_id=source_id,
                         )

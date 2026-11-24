@@ -803,6 +803,25 @@ class Application:
             return self._job(match[1])
         if path == "/api/reconciliations":
             return {"cases": self.store.list_reconciliations()}
+        if path == "/api/reconciliations/summary":
+            return self.store.reconciliation_summary()
+        if path == "/api/reconciliations/page":
+            from .reconciliation import FILTER_FIELDS
+
+            if any(len(values) != 1 for values in query.values()):
+                raise AppError("invalid_reconciliation_filter", "每项核对筛选请只选择一个值。")
+            if set(query) - FILTER_FIELDS - {"cursor", "size"}:
+                raise AppError("invalid_reconciliation_filter", "核对筛选格式不正确。")
+            try:
+                size = int(query.get("size", ["50"])[0])
+            except ValueError:
+                raise AppError("invalid_page", "分页参数不正确。") from None
+            return self.store.reconciliation_page(
+                {key: values[0] for key, values in query.items() if key in FILTER_FIELDS},
+                cursor=query.get("cursor", [None])[0], size=size,
+            )
+        if match := re.fullmatch(r"/api/reconciliations/" + SAFE_ID, path):
+            return {"case": self.store.reconciliation_detail(match[1])}
         if path == "/api/projects":
             return self.store.config()
         if path == "/api/project-associations":
@@ -919,6 +938,12 @@ class Application:
                 result = self.store.assign_sessions(
                     list(dict.fromkeys(sessions)), _project_id(body)
                 )
+            self.invalidate()
+            return result
+        if path == "/api/reconciliations/batch-preview":
+            return self.store.preview_reconciliation_batch(body)
+        if path == "/api/reconciliations/batch":
+            result = self.store.apply_reconciliation_batch(body)
             self.invalidate()
             return result
         if match := re.fullmatch(r"/api/reconciliations/" + SAFE_ID, path):

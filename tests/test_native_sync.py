@@ -214,10 +214,28 @@ class NativeSyncTests(unittest.TestCase):
         self.store.sync_data(source_data([historic]), metadata(), trust="live")
         receipt = usage("same-model-call", created_at=int(historic["created_at"]) + 1)
         receipt.evidence.update(
-            snapshot_id="same-model-call-paired", snapshot_timestamp="2026-10-25T17:00:00Z",
+            timestamp="2026-10-25T17:00:01Z", snapshot_id="same-model-call-paired",
+            snapshot_timestamp="2026-10-25T17:00:00Z",
         )
         self.sync([receipt])
         case = self.store.list_reconciliations()[0]
         self.assertEqual(case["type"], "identity")
         self.assertEqual(case["current_summary"]["created_at"], historic["created_at"])
+        self.assertTrue(self.store.reconciliation_page({})["cases"][0]["batch_eligible"])
         self.assertEqual(self.query("all")["summary"]["total_cost_usd"], "0.1234567")
+
+    def test_history_lookup_preserves_the_last_microsecond_of_a_paired_second(self) -> None:
+        history_second = 23_064_858_843  # 2700-11-24T09:14:03Z.
+        self.store.sync_data(source_data([detail(created_at=history_second)]), metadata())
+        receipt = usage("fractional-pair", created_at=history_second - 1)
+        receipt.evidence.update(
+            timestamp="2700-11-24T09:14:02.073Z", snapshot_id="future-fixture-pair",
+            snapshot_timestamp="2700-11-24T09:14:03.999999Z",
+        )
+        self.sync([receipt])
+
+        page = self.store.reconciliation_page({})
+        self.assertEqual((page["total"], page["eligible_count"]), (1, 1))
+        case = self.store.reconciliation_detail(page["cases"][0]["id"])
+        self.assertEqual(case["type"], "identity")
+        self.assertEqual(case["current_summary"]["created_at"], history_second)

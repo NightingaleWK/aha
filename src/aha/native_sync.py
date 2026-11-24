@@ -11,7 +11,7 @@ from time import monotonic, perf_counter
 from typing import TYPE_CHECKING, Any
 
 from . import ledger
-from .codex_sessions import CodexSource, NativeUsage, scan_source
+from .codex_sessions import CodexSource, NativeUsage, _timestamp, scan_source
 from .domain import (
     BEIJING,
     DETAIL_COST_FIELDS,
@@ -178,13 +178,11 @@ class NativeBatch:
         alternate = legacy
         if observed:
             evidence = self.store._decode(observed[1])
-            snapshot_time = evidence.get("snapshot_timestamp")
-            if evidence.get("kind") == "response" and isinstance(snapshot_time, str):
+            snapshot = _timestamp(evidence.get("snapshot_timestamp"))
+            if evidence.get("kind") == "response" and snapshot is not None:
                 # The paired token_count can straddle a second or local midnight.
-                # Its exact timestamp is a review signal for saved legacy rows.
-                paired_time = int(datetime.fromisoformat(snapshot_time).timestamp())
                 alternate = ledger.record_projection(
-                    {**payload, "data_source": "codex_session", "created_at": paired_time}, "detail"
+                    {**payload, "data_source": "codex_session", "created_at": snapshot[0]}, "detail"
                 )
         details = db.execute("""
             SELECT record_key FROM usage_records WHERE semantic_key IN (?,?) AND suppressed=0
@@ -234,22 +232,30 @@ class NativeBatch:
             AND json_extract(e.evidence_json,'$.pending_reason') IS NULL LIMIT 1
         """, (identity, identity, run_id)).fetchone():
             return False
-        matches = db.execute("""
-            SELECT DISTINCT r.record_key FROM codex_event_evidence e
+        versions = db.execute("""
+            SELECT DISTINCT v.record_key,v.id FROM codex_event_evidence e
             JOIN usage_versions v ON v.id=e.version_id
-            JOIN usage_records r ON r.record_key=v.record_key AND r.version_id=v.id
             WHERE json_extract(e.evidence_json,'$.snapshot_id')=? AND e.event_id!=?
-            AND json_extract(e.evidence_json,'$.kind')=? AND r.suppressed=0
-            AND json_extract(e.evidence_json,'$.pending_reason') IS NULL
-            AND NOT EXISTS(SELECT 1 FROM reconciliation_cases c WHERE c.record_key=r.record_key
-                AND c.state='open')
-            LIMIT 2
-        """, (snapshot, row["event_id"], counterpart)).fetchall()
+              AND json_extract(e.evidence_json,'$.kind')=?
+              AND json_extract(e.evidence_json,'$.pending_reason') IS NULL
+        """, (snapshot, row["event_id"], counterpart))
+        matches: list[str] = []
+        for raw_key, version in versions:
+            logical_key = ledger.canonical_record_key(db, raw_key)
+            if db.execute("""
+                SELECT 1 FROM usage_records r
+                WHERE r.record_key=? AND r.version_id=? AND r.session_id=? AND r.suppressed=0
+                  AND NOT EXISTS(SELECT 1 FROM reconciliation_cases c
+                      WHERE c.record_key=r.record_key AND c.state='open')
+            """, (logical_key, version, accepted["session_id"])).fetchone():
+                matches.append(logical_key)
+                if len(matches) == 2:
+                    break
         info = {"date": accepted["day"], "model": accepted["model"]}
         if len(matches) == 1:
             ledger.create_case(
                 db, "identity", "不同日志格式可能记录了同一次模型调用，请核对。",
-                {**info, "other_record_key": matches[0][0], "native_snapshot_pair": True},
+                {**info, "other_record_key": matches[0], "native_snapshot_pair": True},
                 key=identity, source_id=self.source_id,
             )
         elif matches:
@@ -265,6 +271,7 @@ class NativeBatch:
 
     def publish(self, stager: _Stager, scopes: set[str], counts: dict[str, int]) -> bool:
         db = self.store._db
+        has_aliases = db.execute("SELECT 1 FROM record_aliases LIMIT 1").fetchone() is not None
         changed_cases = False
         for row in self.spool.execute("""
             SELECT * FROM observed ORDER BY record_key,pending_reason IS NOT NULL,rowid
@@ -276,11 +283,15 @@ class NativeBatch:
                 (version, self.source_id, row["evidence_hash"], row["event_id"],
                  stager.run_id, row["pricing_basis"], row["evidence_json"]),
             )
-            key = row["record_key"]
+            raw_key = row["record_key"]
+            key = ledger.canonical_record_key(db, raw_key) if has_aliases else raw_key
+            # A suppressed alias participates in native revision checks only when
+            # its native event is the accepted fact at the logical history key.
             accepted = db.execute("""
                 SELECT r.*,v.payload_json FROM usage_records r
                 JOIN usage_versions v ON v.id=r.version_id WHERE r.record_key=? AND r.suppressed=0
-            """, (key,)).fetchone()
+                AND (r.record_key=? OR v.record_key=?)
+            """, (key, raw_key, raw_key)).fetchone()
             if accepted is None or row["pending_reason"] is not None:
                 continue
             uncertain = db.execute("""

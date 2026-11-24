@@ -2,8 +2,8 @@
 
 const $ = (id) => document.getElementById(id);
 const state = {
-  csrf: "", today: "", now: "", ledger: null, sync: null, syncBusy: false, syncGeneration: 0, syncPreviewPending: false, reconciliations: [],
-  ledgerRequest: 0, projectsRequest: 0, reconciliationsRequest: 0,
+  csrf: "", today: "", now: "", ledger: null, sync: null, syncBusy: false, syncGeneration: 0, syncPreviewPending: false,
+  ledgerRequest: 0, projectsRequest: 0, reconciliationsRequest: 0, reconciliationView: null,
   config: {revision: 0, projects: []}, analysis: null, tab: "daily", page: 1,
   rows: [], total: 0, cursor: null, nextCursor: null, cursors: [null], selected: new Map(), batches: [], batch: null,
   busy: false, pendingBatch: null, revision: null, lifecycle: null, noticeTimer: null, stopped: false,
@@ -37,6 +37,11 @@ function node(tag, className, text) {
   if (className) item.className = className;
   if (text !== undefined && text !== null) item.textContent = String(text);
   return item;
+}
+function initializeConfirmationReason(field) {
+  const reason = "已人工确认";
+  field.placeholder = reason;
+  field.value = reason;
 }
 function hasUsage(summary) {
   try { return BigInt(summary?.record_count ?? 0) > 0n; } catch { return false; }
@@ -161,6 +166,7 @@ function syncActions() {
   document.querySelectorAll("[data-usage-select]").forEach((control) => { control.disabled = state.busy || control.getAttribute("data-unselectable") === "true"; });
   syncAssociationActions();
   syncProjectActions();
+  syncReconciliationActions();
   timeRange.setDisabled(state.busy || !state.now);
   revisionTimeRange.setDisabled(state.busy || !state.now || !state.revision || $("revision-basis").value !== "current");
   AhaForms.sync();
@@ -394,16 +400,14 @@ function renderSource() {
   const reason = attempt?.result?.error_message || attempt?.message || unavailable?.message || "同步未完成，请稍后重试。";
   const saved = last || amount.detail_count > 0 || amount.rollup_count > 0;
   $("sync-error").textContent = failed ? `${reason} ${saved ? "当前显示已保存的本地数据。" : ""}${last ? "" : "尚未成功同步，当前统计不代表实际用量。"}` : "";
-  $("reconciliation-count").textContent = counts(amount.pending_count || state.reconciliations.length);
   renderSourceEndpoints();
   renderDirectories(); syncActions();
 }
 async function refreshReconciliations(isCurrent = () => true) {
   const active = refreshRequest("reconciliationsRequest", isCurrent);
-  const result = await currentResult("/api/reconciliations", active);
+  const result = await currentResult("/api/reconciliations/summary", active);
   if (!active()) return;
-  state.reconciliations = result.cases;
-  $("reconciliation-count").textContent = counts(state.reconciliations.length);
+  $("reconciliation-count").textContent = counts(result.total);
 }
 function handleSyncError(error) {
   const message = error.message || "同步未完成，原本地数据仍可查询。";
@@ -1005,7 +1009,7 @@ async function previewAssociations(action) {
   $("association-dialog-title").textContent = {assign: "预览项目分配", recover: "恢复历史项目关联", reclassify: "重新归属历史消费"}[action];
   $("association-preview-caption").textContent = "正在核对所选记录、项目和费用影响…";
   $("association-preview-summary").replaceChildren(); $("association-preview-projects").replaceChildren(); $("association-preview-warnings").replaceChildren();
-  $("association-reason").value = action === "recover" ? "根据 aha 已保存的唯一有效历史目录，恢复消费与项目关联。" : "";
+  initializeConfirmationReason($("association-reason"));
   if (!$("association-dialog").open) $("association-dialog").showModal();
   syncAssociationActions();
   let result;
@@ -1579,8 +1583,7 @@ function openLifecycle(action, batch, revision = null) {
   $("lifecycle-reason-label").textContent = settings.reason;
   $("lifecycle-submit").textContent = settings.confirm;
   $("lifecycle-submit").classList.toggle("danger", action === "void");
-  $("lifecycle-reason").value = "";
-  $("lifecycle-reason").placeholder = `请填写${settings.reason}`;
+  initializeConfirmationReason($("lifecycle-reason"));
   $("lifecycle-summary").replaceChildren(node("strong", "", batch.number), node("span", "", `${batch.project_name} · ${labels[batchStatus(batch)] || "待核对"}`));
   $("lifecycle-dialog").showModal();
 }
@@ -1932,84 +1935,426 @@ async function initialize() {
   await Promise.all([refreshProjects(isCurrent), refreshReconciliations(isCurrent), refreshBatches()]);
   if (isCurrent()) await analyze();
 }
-async function openReconciliations() {
-  await refreshReconciliations(); renderReconciliations(); $("reconciliation-dialog").showModal();
+const reconciliationFilters = {
+  type: "reconciliation-type", source_id: "reconciliation-source", start_date: "reconciliation-start",
+  end_date: "reconciliation-end", eligibility: "reconciliation-eligibility",
+};
+const reconciliationStale = new Set(["invalid_cursor", "stale_reconciliation_batch", "empty_reconciliation_batch", "stale_case", "case_not_found"]);
+function currentReconciliation(view) {
+  return view && state.reconciliationView === view && $("reconciliation-dialog").open && !state.stopped;
 }
-async function resolveReconciliation(entry, choice, reason) {
-  invalidate("正在保存核对依据，完成后重新预览");
-  const generation = state.filterGeneration;
-  const isCurrent = () => generation === state.filterGeneration && !state.stopped;
-  let previewStarted = false;
-  try {
-    await api(`/api/reconciliations/${encodeURIComponent(entry.id)}`, {choice, reason,
-      expected_generation: entry.generation, idempotency_key: crypto.randomUUID()}, isCurrent);
-    if (isCurrent()) invalidateAssociations("核对结果已保存，请重新检查记录归属。");
-    await Promise.all([refreshLedger(isCurrent), refreshProjects(isCurrent), refreshReconciliations(isCurrent)]);
-    if (!isCurrent()) return;
-    renderReconciliations();
-    previewStarted = true;
-    await analyze();
-    const focus = $("reconciliation-list").querySelector?.('[role="combobox"]:not([disabled]),select:not([hidden]):not([disabled]),button:not([disabled])')
-      || $("reconciliation-dialog").querySelector?.("[data-close]");
-    if ($("reconciliation-dialog").open && !state.stopped) focus?.focus?.();
-  } catch (error) { if (previewStarted || isCurrent() || error.invalidated) throw error; }
+function reconciliationFeedback(kind, message = "") {
+  const target = $(`reconciliation-${kind}`);
+  target.textContent = message;
+  target.hidden = !message;
 }
-function renderReconciliations() {
-  const target = $("reconciliation-list"); AhaForms.destroy(target); target.replaceChildren();
-  if (!state.reconciliations.length) { empty(target, "暂无待核对用量", "已保存来源的核对结果可继续用于本地查询。"); return; }
-  const choiceLabels = {detail: "采用已存明细", rollup: "采用完整日汇总", current: "保留当前值", candidate: "采用候选修订", same: "确认为同一消费", independent: "确认为独立消费"};
-  for (const entry of state.reconciliations) {
-    const card = node("article", "reconciliation-card");
-    card.append(node("h3", "", entry.message || entry.title || "来源用量需要核对"));
-    const facts = node("div", "reconciliation-facts");
-    if (entry.date || entry.model) facts.append(node("p", "", [entry.date, entry.model].filter(Boolean).join(" · ")));
-    if (entry.source_name) facts.append(node("p", "", `来源：${entry.source_name}`));
-    if (entry.type === "directory") {
-      facts.append(node("p", "", `已保存目录：${entry.current_cwd || "未提供"}`),
-        node("p", "", `本次目录：${entry.candidate_cwd || (entry.candidate_status === "conflict" ? "存在多个不同目录，尚无法确定" : "当前电脑未找到唯一目录")}`));
+function readReconciliationFilters() {
+  return Object.fromEntries(Object.entries(reconciliationFilters).map(([field, id]) => [field, $(id).value]).filter(([, value]) => value));
+}
+function clearReconciliationPreview(view) {
+  view.previewRequest += 1;
+  view.previewing = false;
+  view.preview = null;
+  $("reconciliation-batch-reason").value = "";
+  $("reconciliation-batch-form").hidden = true;
+}
+function clearReconciliationSelection(view) {
+  view.selected.clear();
+  view.allFiltered = false;
+  clearReconciliationPreview(view);
+}
+function syncReconciliationActions() {
+  const view = state.reconciliationView;
+  if (!currentReconciliation(view)) return;
+  const saving = state.busy || view.saving;
+  const locked = saving || view.loading || !view.page;
+  const eligible = view.page?.eligible_count || 0;
+  const selected = view.allFiltered ? eligible : view.selected.size;
+  const pageChecks = view.controls.filter(({check}) => check);
+  const pageSelected = pageChecks.filter(({row}) => view.allFiltered || view.selected.has(row.id)).length;
+  $("reconciliation-close").disabled = saving;
+  Object.values(reconciliationFilters).forEach((id) => { $(id).disabled = saving; });
+  $("reconciliation-search").disabled = saving;
+  $("reconciliation-toolbar").hidden = !eligible;
+  const selectPage = $("reconciliation-select-page");
+  selectPage.checked = !!pageChecks.length && pageSelected === pageChecks.length;
+  selectPage.indeterminate = pageSelected > 0 && pageSelected < pageChecks.length;
+  selectPage.disabled = locked || view.allFiltered || !pageChecks.length;
+  $("reconciliation-select-all").disabled = locked || view.allFiltered || !eligible;
+  $("reconciliation-select-all").textContent = `全选符合条件的 ${counts(eligible)} 项`;
+  $("reconciliation-clear-selection").disabled = locked || !selected;
+  $("reconciliation-selection").textContent = view.allFiltered ? `已选 ${counts(selected)} 项（含其他页）` : `已选 ${counts(selected)} 项`;
+  $("reconciliation-preview").disabled = locked || !selected || view.previewing || !!view.preview;
+  $("reconciliation-preview").textContent = view.previewing ? "正在预览…" : "预览批量确认";
+  $("reconciliation-batch-reason").disabled = locked;
+  $("reconciliation-batch-cancel").disabled = locked;
+  $("reconciliation-batch-submit").disabled = locked || !view.preview;
+  $("reconciliation-pagination").hidden = !view.page || (view.pageIndex === 0 && !view.page.next_cursor);
+  $("reconciliation-prev").disabled = locked || view.pageIndex === 0;
+  $("reconciliation-next").disabled = locked || !view.page?.next_cursor;
+  for (const {row, check, detail, form} of view.controls) {
+    if (check) {
+      check.checked = view.allFiltered || view.selected.has(row.id);
+      check.disabled = locked || view.allFiltered;
     }
-    if (entry.current_cost_usd !== undefined) facts.append(node("p", "", `当前参考成本：${money(entry.current_cost_usd)} USD`));
-    if (entry.candidate_cost_usd !== undefined) facts.append(node("p", "", `候选参考成本：${money(entry.candidate_cost_usd)} USD`));
-    if (entry.detail_count !== undefined) facts.append(node("p", "", `已存明细 ${counts(entry.detail_count)} 条；来源日汇总 ${counts(entry.rollup_count)} 条，代表 ${counts(entry.rollup_record_count)} 条记录。`));
-    if (entry.type === "native_uncertain" && entry.pending_reason) {
-      facts.append(node("p", "", sourceIssueLabels[entry.pending_reason] || "该条用量的依据还无法核实。"));
+    detail.disabled = locked;
+    if (form) {
+      form.select.disabled = locked;
+      form.reason.disabled = locked;
+      form.submit.disabled = locked || !form.select.options.length;
     }
-    for (const [key, label] of [["previous", "此前来源"], ["observed", "本次来源"]]) {
-      if (entry[key]) facts.append(node("p", "", `${label}：${counts(entry[key].detail ?? entry[key].detail_count)} 条明细，${counts(entry[key].rollup ?? entry[key].rollup_count)} 条汇总。`));
-    }
-    for (const [key, label] of [["current", "当前依据"], ["candidate", "候选依据"]]) {
-      const value = entry[key] || entry[`${key}_summary`];
-      if (value && typeof value === "object") {
-        const summary = value.summary || value;
-        const parts = [value.source_name || value.source?.name];
-        if (summary.total_cost_usd !== undefined) parts.push(`参考成本 ${money(summary.total_cost_usd)} USD`);
-        if (summary.request_count !== undefined || summary.record_count !== undefined) parts.push(`${counts(summary.request_count ?? summary.record_count)} 条记录`);
-        if (summary.created_at !== undefined) parts.push(dateTime(Number(summary.created_at) * 1000, true));
-        if (summary.session_id) parts.push(`会话 ${summary.session_id}`);
-        if (summary.input_tokens !== undefined) parts.push(`输入 ${counts(summary.input_tokens)} · 输出 ${counts(summary.output_tokens)}`);
-        facts.append(node("p", "", `${label}：${parts.filter(Boolean).join(" · ") || "保留原始来源依据"}`));
-      }
-    }
-    card.append(facts);
-    const form = node("form"); const selectLabel = node("label", "field", "采用依据"); const select = node("select");
-    for (const choice of entry.choices || []) {
-      const value = typeof choice === "string" ? choice : choice.value;
-      const label = entry.type === "source" && value === "current" ? "确认此来源，保留本地历史"
-        : entry.type === "rollup_origin" && value === "current" ? "确认重叠，保留历史汇总"
-        : entry.type === "directory" ? (value === "candidate" ? "采用当前电脑目录" : "保留已保存目录")
-        : entry.type === "native_overlap" ? (value === "independent" ? "确认为新用量" : "沿用已入账历史")
-        : entry.type === "native_uncertain" ? "确认排除候选"
-        : choiceLabels[value] || choice.label || "确认来源关系";
-      const option = node("option", "", label); option.value = value; select.append(option);
-    }
-    selectLabel.append(select);
-    const reasonLabel = node("label", "field", "核对说明"); const reason = node("textarea"); reason.rows = 2; reason.maxLength = 4000; reason.required = true; reasonLabel.append(reason);
-    const submit = node("button", "button primary", "确认依据"); submit.type = "submit"; submit.disabled = !select.options.length;
-    form.append(selectLabel, reasonLabel, submit);
-    form.addEventListener("submit", (event) => { event.preventDefault(); void run("正在保存核对结果…", () => resolveReconciliation(entry, select.value, reason.value)); });
-    card.append(form); target.append(card);
-    AhaForms.mount(card);
   }
+  AhaForms.sync($("reconciliation-dialog"));
+}
+function reconciliationPageStatus(view) {
+  const page = view.page;
+  const status = $("reconciliation-page-status");
+  if (view.loading) status.textContent = "正在读取核对事项…";
+  else if (page) status.textContent = `筛选结果 ${counts(page.total)} 项 · ${counts(page.eligible_count)} 项可批量确认${page.total ? ` · 第 ${counts(view.pageIndex + 1)} 页` : ""}`;
+  else status.textContent = view.dirty ? "筛选条件已修改，请点击筛选。" : "";
+}
+function resetReconciliationPage(view) {
+  clearReconciliationSelection(view);
+  view.pageRequest += 1;
+  view.loading = false;
+  view.page = null;
+  view.pageIndex = 0;
+  view.cursors = [null];
+  renderReconciliationPage(view);
+  reconciliationPageStatus(view);
+  syncReconciliationActions();
+}
+function renderReconciliationSources(sources, selected) {
+  const select = $("reconciliation-source");
+  const available = [{id: "", name: "全部来源"}, ...sources];
+  if (selected && !available.some((source) => source.id === selected)) {
+    const previous = [...select.options].find((option) => option.value === selected);
+    available.push({id: selected, name: previous?.textContent || "所选来源"});
+  }
+  select.replaceChildren(...available.map((source) => {
+    const option = node("option", "", source.name);
+    option.value = source.id;
+    return option;
+  }));
+  select.value = selected;
+}
+async function loadReconciliationPage(view, pageIndex = 0) {
+  if (!currentReconciliation(view)) return false;
+  const request = ++view.pageRequest;
+  const active = () => currentReconciliation(view) && view.pageRequest === request;
+  const query = new URLSearchParams({...view.filters, size: "50"});
+  const cursor = view.cursors[pageIndex];
+  if (cursor) query.set("cursor", cursor);
+  view.loading = true;
+  reconciliationFeedback("error");
+  reconciliationPageStatus(view);
+  syncReconciliationActions();
+  try {
+    const page = await api(`/api/reconciliations/page?${query}`, undefined, active);
+    if (!active()) return false;
+    if (view.page && view.page.version !== page.version) {
+      clearReconciliationSelection(view);
+      view.cursors = [null];
+      reconciliationFeedback("error", "待核对事项已更新，请重新选择。");
+    }
+    view.page = page;
+    view.pageIndex = pageIndex;
+    view.cursors[pageIndex + 1] = page.next_cursor;
+    renderReconciliationSources(page.sources, view.filters.source_id || "");
+    renderReconciliationPage(view);
+    return true;
+  } catch (error) {
+    if (!active()) return false;
+    if (cursor && error.code === "invalid_cursor") return reloadReconciliations(view, "待核对事项已更新，请重新选择。");
+    reconciliationFeedback("error", error.message);
+    return false;
+  } finally {
+    if (active()) {
+      view.loading = false;
+      reconciliationPageStatus(view);
+      syncReconciliationActions();
+    }
+  }
+}
+async function reloadReconciliations(view, message) {
+  resetReconciliationPage(view);
+  const request = view.pageRequest + 1;
+  const loaded = await loadReconciliationPage(view);
+  if (loaded && currentReconciliation(view) && request === view.pageRequest) reconciliationFeedback("error", message);
+  return loaded;
+}
+async function openReconciliations() {
+  const dialog = $("reconciliation-dialog");
+  if (dialog.open || state.stopped) return;
+  Object.entries(reconciliationFilters).forEach(([field, id]) => { $(id).value = field === "eligibility" ? "all" : ""; });
+  const view = {
+    filters: readReconciliationFilters(), page: null, pageIndex: 0, cursors: [null], controls: [], pageRequest: 0,
+    loading: false, dirty: false, selected: new Set(), allFiltered: false, preview: null, previewRequest: 0, previewing: false, saving: false,
+  };
+  state.reconciliationView = view;
+  reconciliationFeedback("saved");
+  dialog.showModal();
+  return loadReconciliationPage(view);
+}
+function renderReconciliationPage(view) {
+  const target = $("reconciliation-list");
+  AhaForms.destroy(target);
+  target.replaceChildren();
+  view.controls = [];
+  const page = view.page;
+  if (!page) return;
+  if (!page.cases.length) {
+    target.append(node("p", "field-help", "当前筛选范围内没有待核对事项。"));
+    return;
+  }
+  for (const row of page.cases) {
+    const card = node("article", "reconciliation-card");
+    const line = node("div", "reconciliation-row");
+    const facts = node("div");
+    const context = [row.date, row.model, row.source_name].filter(Boolean).join(" · ");
+    facts.append(node("h3", "", row.message || "来源用量需要核对"),
+      node("p", row.batch_eligible ? "reconciliation-meta reconciliation-eligible" : "reconciliation-meta",
+        [context, row.batch_eligible ? "可批量确认" : "需单独核对"].filter(Boolean).join(" · ")));
+    const detail = node("button", "button", "查看依据");
+    detail.type = "button";
+    detail.setAttribute("data-reconciliation-detail", row.id);
+    detail.setAttribute("aria-expanded", "false");
+    detail.setAttribute("aria-controls", `reconciliation-detail-${row.id}`);
+    const details = node("div", "reconciliation-details");
+    details.id = `reconciliation-detail-${row.id}`;
+    details.hidden = true;
+    const controls = {row, detail, check: null, form: null};
+    if (row.batch_eligible) {
+      const check = node("input");
+      check.type = "checkbox";
+      check.setAttribute("data-reconciliation-select", row.id);
+      check.setAttribute("aria-label", context ? `选择 ${context} 的核对事项` : "选择核对事项");
+      check.addEventListener("change", () => {
+        if (check.disabled || !currentReconciliation(view) || view.page !== page) return;
+        setReconciliationSelection(view, [row.id], check.checked);
+      });
+      controls.check = check;
+    }
+    let detailRequest = 0;
+    detail.addEventListener("click", async () => {
+      if (detail.disabled || !currentReconciliation(view) || view.page !== page) return;
+      const show = details.hidden;
+      details.hidden = !show;
+      detail.textContent = show ? "收起依据" : "查看依据";
+      detail.setAttribute("aria-expanded", String(show));
+      const request = ++detailRequest;
+      if (!show || controls.form) return;
+      const active = () => currentReconciliation(view) && view.page === page && detailRequest === request;
+      details.replaceChildren(node("p", "field-help", "正在读取核对依据…"));
+      try {
+        const {case: entry} = await api(`/api/reconciliations/${encodeURIComponent(row.id)}`, undefined, active);
+        if (!active()) return;
+        if (entry.generation !== row.generation) {
+          await reloadReconciliations(view, "核对依据已更新，请重新查看。");
+          return;
+        }
+        controls.form = renderReconciliationDetail(view, details, entry);
+        syncReconciliationActions();
+      } catch (error) {
+        if (!active()) return;
+        if (reconciliationStale.has(error.code)) {
+          await reloadReconciliations(view, error.message);
+          return;
+        }
+        const message = node("p", "field-help", error.message);
+        message.setAttribute("role", "alert");
+        details.replaceChildren(message);
+      }
+    });
+    view.controls.push(controls);
+    line.append(controls.check || node("span"), facts, detail);
+    card.append(line, details);
+    target.append(card);
+  }
+}
+function renderReconciliationDetail(view, target, entry) {
+  target.replaceChildren();
+  const choiceLabels = {detail: "采用已存明细", rollup: "采用完整日汇总", current: "保留当前值", candidate: "采用候选修订", same: "确认为同一消费", independent: "确认为独立消费"};
+  const facts = node("div", "reconciliation-facts");
+  if (entry.type === "directory") {
+    facts.append(node("p", "", `已保存目录：${entry.current_cwd || "未提供"}`),
+      node("p", "", `本次目录：${entry.candidate_cwd || (entry.candidate_status === "conflict" ? "存在多个不同目录，尚无法确定" : "当前电脑未找到唯一目录")}`));
+  }
+  if (entry.current_cost_usd != null) facts.append(node("p", "", `当前参考成本：${money(entry.current_cost_usd)} USD`));
+  if (entry.candidate_cost_usd != null) facts.append(node("p", "", `候选参考成本：${money(entry.candidate_cost_usd)} USD`));
+  if (entry.detail_count !== undefined) facts.append(node("p", "", `已存明细 ${counts(entry.detail_count)} 条；来源日汇总 ${counts(entry.rollup_count)} 条，代表 ${counts(entry.rollup_record_count)} 条记录。`));
+  if (entry.type === "native_uncertain" && entry.pending_reason) {
+    facts.append(node("p", "", sourceIssueLabels[entry.pending_reason] || "该条用量的依据还无法核实。"));
+  }
+  for (const [key, label] of [["previous", "此前来源"], ["observed", "本次来源"]]) {
+    if (entry[key]) facts.append(node("p", "", `${label}：${counts(entry[key].detail ?? entry[key].detail_count)} 条明细，${counts(entry[key].rollup ?? entry[key].rollup_count)} 条汇总。`));
+  }
+  for (const [key, label] of [["current", "当前依据"], ["candidate", "候选依据"]]) {
+    const value = entry[key] || entry[`${key}_summary`];
+    if (value && typeof value === "object") {
+      const summary = value.summary || value;
+      const parts = [value.source_name || value.source?.name];
+      if (summary.total_cost_usd != null) parts.push(`参考成本 ${money(summary.total_cost_usd)} USD`);
+      if (summary.request_count != null || summary.record_count != null) parts.push(`${counts(summary.request_count ?? summary.record_count)} 条记录`);
+      if (summary.created_at != null) parts.push(dateTime(Number(summary.created_at) * 1000, true));
+      if (summary.session_id) parts.push(`会话 ${summary.session_id}`);
+      for (const [field, title] of [["input_tokens", "输入"], ["output_tokens", "输出"], ["cache_read_tokens", "缓存读取"], ["cache_creation_tokens", "缓存写入"]]) {
+        if (summary[field] != null) parts.push(`${title} ${counts(summary[field])}`);
+      }
+      facts.append(node("p", "", `${label}：${parts.filter(Boolean).join(" · ") || "保留原始来源依据"}`));
+    }
+  }
+  const form = node("form"); const selectLabel = node("label", "field", "采用依据"); const select = node("select");
+  for (const choice of entry.choices || []) {
+    const value = typeof choice === "string" ? choice : choice.value;
+    const label = entry.type === "source" && value === "current" ? "确认此来源，保留本地历史"
+      : entry.type === "rollup_origin" && value === "current" ? "确认重叠，保留历史汇总"
+      : entry.type === "directory" ? (value === "candidate" ? "采用当前电脑目录" : "保留已保存目录")
+      : entry.type === "native_overlap" ? (value === "independent" ? "确认为新用量" : "沿用已入账历史")
+      : entry.type === "native_uncertain" ? "确认排除候选"
+      : choiceLabels[value] || choice.label || "确认来源关系";
+    const option = node("option", "", label); option.value = value; select.append(option);
+  }
+  selectLabel.append(select);
+  const reasonLabel = node("label", "field", "核对说明"); const reason = node("textarea"); reason.rows = 2; reason.maxLength = 4000; reason.required = true; reasonLabel.append(reason);
+  initializeConfirmationReason(reason);
+  const submit = node("button", "button primary", "确认依据"); submit.type = "submit"; submit.disabled = !select.options.length;
+  submit.setAttribute("data-reconciliation-submit", entry.id);
+  form.append(selectLabel, reasonLabel, submit);
+  const attempt = {};
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!submit.disabled) void commitReconciliation(view, `/api/reconciliations/${encodeURIComponent(entry.id)}`,
+      {choice: select.value, reason: reason.value.trim(), expected_generation: entry.generation}, attempt);
+  });
+  target.append(facts, form);
+  AhaForms.mount(form);
+  return {select, reason, submit};
+}
+function setReconciliationSelection(view, ids, checked) {
+  for (const id of ids) {
+    if (checked) view.selected.add(id);
+    else view.selected.delete(id);
+  }
+  clearReconciliationPreview(view);
+  reconciliationFeedback("error");
+  syncReconciliationActions();
+}
+function reconciliationBatchSummary(preview) {
+  const {count, candidate_count: candidateCount, current_cost_usd: currentCost, candidate_cost_usd: candidateCost} = preview;
+  if (!Number.isInteger(candidateCount) || candidateCount < 0 || candidateCount > count
+      || (candidateCount > 0 && [currentCost, candidateCost].some((value) => typeof value !== "string" || !value.trim()))) {
+    throw new Error("无法显示本批核对的参考成本影响，请重新预览。");
+  }
+  const total = `将确认 ${counts(count)} 项`;
+  if (!candidateCount) return `${total}，均沿用已入账的历史用量和参考成本。`;
+  const effect = `${counts(candidateCount)} 项采用 Codex 原生候选的发生时间、用量和参考成本，参考成本合计由 ${money(currentCost)} USD 调整为 ${money(candidateCost)} USD。`;
+  const historicalCount = count - candidateCount;
+  const retained = historicalCount ? `${counts(historicalCount)} 项沿用已入账的历史用量和参考成本。` : "";
+  return `${total}。${effect}${retained}`;
+}
+async function previewReconciliationBatch(view) {
+  if (!currentReconciliation(view) || view.loading || state.busy || view.previewing || view.preview || !view.page) return;
+  const selected = view.allFiltered ? view.page.eligible_count : view.selected.size;
+  if (!selected) return;
+  const selection = {filters: view.filters};
+  if (!view.allFiltered) selection.ids = [...view.selected].sort();
+  const page = view.page;
+  const request = ++view.previewRequest;
+  const active = () => currentReconciliation(view) && view.previewRequest === request;
+  view.previewing = true;
+  reconciliationFeedback("error");
+  syncReconciliationActions();
+  try {
+    const preview = await api("/api/reconciliations/batch-preview", {...selection, version: page.version}, active);
+    if (!active()) return;
+    if (preview.count !== selected) {
+      await reloadReconciliations(view, "可批量确认的事项已更新，请重新选择。");
+      return;
+    }
+    $("reconciliation-batch-summary").textContent = reconciliationBatchSummary(preview);
+    view.preview = {selection, hash: preview.preview_hash, attempt: {}};
+    initializeConfirmationReason($("reconciliation-batch-reason"));
+    $("reconciliation-batch-form").hidden = false;
+    if (page === view.page && [document.body, $("reconciliation-preview")].includes(document.activeElement)) {
+      $("reconciliation-batch-reason").focus();
+    }
+  } catch (error) {
+    if (!active()) return;
+    if (reconciliationStale.has(error.code)) await reloadReconciliations(view, error.message);
+    else reconciliationFeedback("error", error.message);
+  } finally {
+    if (active()) {
+      view.previewing = false;
+      syncReconciliationActions();
+    }
+  }
+}
+async function refreshReconciledUsage(generation, refreshProjectConfig) {
+  const active = () => generation === state.filterGeneration && !state.stopped;
+  try {
+    await Promise.all([refreshLedger(active), refreshProjectConfig ? refreshProjects(active) : null]);
+    if (!active() || !state.ledger) return;
+    const preview = analyze();
+    generation = state.filterGeneration;
+    await preview;
+  } catch (error) {
+    if (active()) $("filter-status").textContent = `核对结果已保存。请点击“更新预览”重试。${error.message}`;
+  }
+}
+async function commitReconciliation(view, path, payload, attempt) {
+  if (!currentReconciliation(view) || state.busy || view.loading || view.saving || !view.page) return;
+  if (!payload.reason) {
+    reconciliationFeedback("error", "请填写核对说明。");
+    return;
+  }
+  const signature = JSON.stringify(payload);
+  if (attempt.signature !== signature) {
+    attempt.signature = signature;
+    attempt.key = crypto.randomUUID();
+  }
+  const active = () => currentReconciliation(view) && view.saving;
+  const summaryRequest = state.reconciliationsRequest;
+  const batch = path === "/api/reconciliations/batch";
+  let result, failure, analysisGeneration;
+  view.saving = true;
+  reconciliationFeedback("error");
+  reconciliationFeedback("saved");
+  await run("正在保存核对结果…", async () => {
+    invalidate("正在保存核对依据，完成后重新预览");
+    analysisGeneration = state.filterGeneration;
+    try {
+      result = await api(path, {...payload, idempotency_key: attempt.key}, active);
+    } catch (error) { failure = error; }
+    if (result && active()) {
+      invalidateAssociations("核对结果已保存，请重新检查记录归属。");
+      if (analysisGeneration === state.filterGeneration) state.syncPreviewPending = false;
+    }
+  });
+  view.saving = false;
+  if (!currentReconciliation(view)) return;
+  syncReconciliationActions();
+  if (failure) {
+    if (reconciliationStale.has(failure.code)) await reloadReconciliations(view, failure.message);
+    else reconciliationFeedback("error", failure.code ? failure.message : `${failure.message} 可用相同说明重试。`);
+    return;
+  }
+  if (!result) return;
+  reconciliationFeedback("saved", batch ? `已批量确认 ${counts(result.resolved_count)} 项。` : "核对结果已保存。");
+  if (result.open_count != null && summaryRequest === state.reconciliationsRequest) {
+    $("reconciliation-count").textContent = counts(result.open_count);
+  }
+  const request = state.reconciliationsRequest + 1;
+  void refreshReconciliations().catch(() => {
+    if (!state.stopped && request === state.reconciliationsRequest) $("reconciliation-count").textContent = "—";
+  });
+  if (analysisGeneration === state.filterGeneration) {
+    $("filter-status").textContent = "核对结果已保存，正在更新预览…";
+    void refreshReconciledUsage(analysisGeneration, result.classification_revision !== state.config.revision);
+  }
+  resetReconciliationPage(view);
+  if (document.activeElement === document.body) $("reconciliation-search").focus({preventScroll: true});
+  await loadReconciliationPage(view);
 }
 document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => {
   page(button.dataset.page);
@@ -2052,7 +2397,106 @@ $("wsl-distribution").addEventListener("change", () => {
 $("view-all-history").addEventListener("click", () => run("正在查询全部历史…", viewAllHistory));
 $("load-default").addEventListener("click", () => { void loadSource(); });
 $("cancel-sync").addEventListener("click", () => { void cancelSync(); });
-$("review-data").addEventListener("click", () => run("正在加载核对依据…", openReconciliations));
+$("review-data").addEventListener("click", () => { void openReconciliations(); });
+$("reconciliation-dialog").addEventListener("cancel", (event) => {
+  const view = state.reconciliationView;
+  if (!currentReconciliation(view)) return;
+  if (view.saving) event.preventDefault();
+  else if (view.preview) {
+    event.preventDefault();
+    clearReconciliationPreview(view);
+    syncReconciliationActions();
+    $("reconciliation-preview").focus({preventScroll: true});
+  }
+});
+$("reconciliation-dialog").addEventListener("close", () => {
+  if ($("reconciliation-dialog").open) return;
+  state.reconciliationView = null;
+  const list = $("reconciliation-list");
+  AhaForms.destroy(list);
+  list.replaceChildren();
+  $("reconciliation-batch-form").hidden = true;
+  $("reconciliation-batch-reason").value = "";
+  if (!state.stopped && !$("review-data").disabled) $("review-data").focus({preventScroll: true});
+});
+for (const id of Object.values(reconciliationFilters)) {
+  $(id).addEventListener("change", () => {
+    const view = state.reconciliationView;
+    if (!currentReconciliation(view) || view.saving) return;
+    view.dirty = true;
+    reconciliationFeedback("error");
+    resetReconciliationPage(view);
+  });
+}
+$("reconciliation-filter-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const view = state.reconciliationView;
+  if (!currentReconciliation(view) || view.saving || state.busy) return;
+  const filters = readReconciliationFilters();
+  if (filters.start_date && filters.end_date && filters.start_date > filters.end_date) {
+    reconciliationFeedback("error", "结束日期应在起始日期当天或之后。");
+    $("reconciliation-end").focus();
+    return;
+  }
+  view.filters = filters;
+  view.dirty = false;
+  resetReconciliationPage(view);
+  void loadReconciliationPage(view);
+});
+for (const [id, other, offset] of [["reconciliation-prev", "reconciliation-next", -1], ["reconciliation-next", "reconciliation-prev", 1]]) {
+  const control = $(id);
+  control.addEventListener("click", async () => {
+    const view = state.reconciliationView;
+    if (!currentReconciliation(view) || control.disabled) return;
+    const restore = document.activeElement === control;
+    const request = view.pageRequest + 1;
+    await loadReconciliationPage(view, view.pageIndex + offset);
+    if (restore && currentReconciliation(view) && request === view.pageRequest && document.activeElement === document.body) {
+      const fallback = $(other).disabled ? $("reconciliation-search") : $(other);
+      (control.disabled ? fallback : control).focus({preventScroll: true});
+    }
+  });
+}
+$("reconciliation-select-page").addEventListener("change", () => {
+  const view = state.reconciliationView;
+  const control = $("reconciliation-select-page");
+  if (currentReconciliation(view) && !control.disabled) {
+    setReconciliationSelection(view, view.controls.filter(({check}) => check).map(({row}) => row.id), control.checked);
+  }
+});
+$("reconciliation-select-all").addEventListener("click", () => {
+  const view = state.reconciliationView;
+  if (!currentReconciliation(view) || $("reconciliation-select-all").disabled) return;
+  clearReconciliationSelection(view);
+  view.allFiltered = true;
+  reconciliationFeedback("error");
+  syncReconciliationActions();
+  $("reconciliation-preview").focus({preventScroll: true});
+});
+$("reconciliation-clear-selection").addEventListener("click", () => {
+  const view = state.reconciliationView;
+  if (!currentReconciliation(view) || $("reconciliation-clear-selection").disabled) return;
+  clearReconciliationSelection(view);
+  reconciliationFeedback("error");
+  syncReconciliationActions();
+  $("reconciliation-select-all").focus({preventScroll: true});
+});
+$("reconciliation-preview").addEventListener("click", () => { void previewReconciliationBatch(state.reconciliationView); });
+$("reconciliation-batch-cancel").addEventListener("click", () => {
+  const view = state.reconciliationView;
+  if (!currentReconciliation(view) || view.saving) return;
+  clearReconciliationPreview(view);
+  reconciliationFeedback("error");
+  syncReconciliationActions();
+  $("reconciliation-preview").focus({preventScroll: true});
+});
+$("reconciliation-batch-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const view = state.reconciliationView;
+  const preview = view?.preview;
+  if (preview) void commitReconciliation(view, "/api/reconciliations/batch",
+    {...preview.selection, preview_hash: preview.hash, reason: $("reconciliation-batch-reason").value.trim()}, preview.attempt);
+});
 for (const id of ["analyze", "refresh-availability"]) $(id).addEventListener("click", () => run("正在更新预览…", analyze));
 $("new-project").addEventListener("click", () => openProject());
 $("project-form").addEventListener("submit", (event) => { event.preventDefault(); if (!$("project-editor").hidden) void run("正在检查目录关联影响…", saveProject); });

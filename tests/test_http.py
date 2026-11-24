@@ -23,7 +23,9 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPCookieProcessor, build_opener
 
 from native_usage_fixtures import write_rollout
+from test_reconciliation_batch import legacy_native_row
 from test_sources import detail, price, rollup
+from test_storage_helpers import source_data
 
 from aha import __version__
 from aha.domain import AppError, build_source_data
@@ -215,6 +217,48 @@ class HTTPTests(unittest.TestCase):
     @staticmethod
     def claim(purpose: str = "项目开发") -> dict[str, Any]:
         return {"purpose": purpose, "amount": "", "currency": "CNY", "amount_note": ""}
+
+    def test_reconciliation_endpoints_filter_and_apply_a_fixed_cross_page_selection(self) -> None:
+        self.server.app.store.sync_data(source_data([
+            legacy_native_row(i, total_cost_usd="0.95") for i in range(3)
+        ]))
+        write_rollout(self.source_root, 3)
+        self.configure_windows()
+        self.wait_sync(self.json("POST", "/api/sync", {}))
+
+        root = "/api/reconciliations"
+        self.assertEqual(self.json("GET", root + "/summary"), {"total": 3})
+        query = root + "/page?size=1&eligibility=batch&source_id="
+        empty_page = self.json("GET", query + "missing")
+        self.assertEqual((empty_page["total"], empty_page["cases"]), (0, []))
+        page = self.json("GET", root + "/page?size=1&eligibility=batch")
+        self.assertEqual((len(page["cases"]), page["eligible_count"]), (1, 3))
+        following = self.json("GET", root + "/page?size=1&eligibility=batch&cursor="
+                              + page["next_cursor"])
+        first = page["cases"][0]["id"]
+        second = following["cases"][0]["id"]
+        evidence = self.json("GET", root + f"/{first}")
+        self.assertEqual(evidence["case"]["choices"], ["same", "independent"])
+        self.assertIn("candidate_summary", evidence["case"])
+
+        selection = {"filters": {"eligibility": "batch"}, "ids": [first, second]}
+        preview = self.json(
+            "POST", root + "/batch-preview", {**selection, "version": page["version"]},
+        )
+        self.assertEqual(preview["count"], 2)
+        self.assertEqual(preview["candidate_count"], 2)
+        self.assertEqual(preview["current_cost_usd"], "1.9")
+        self.assertEqual(preview["candidate_cost_usd"], "0.000261")
+        request = {**selection, "preview_hash": preview["preview_hash"], "reason": "核对原生用量",
+                   "idempotency_key": "fixture-http-reconciliation"}
+        result = self.json("POST", root + "/batch", request)
+        self.assertEqual((result["resolved_count"], result["open_count"]), (2, 1))
+        self.assertEqual(self.json("POST", root + "/batch", request), result)
+        self.assertEqual(self.json("GET", root + "/summary"), {"total": 1})
+        status, _, body = self.request("GET", root + f"/{first}")
+        self.assertEqual((status, json.loads(body)["code"]), (409, "stale_case"))
+        status, _, body = self.request("GET", root + "/page?size=1&size=2")
+        self.assertEqual((status, json.loads(body)["code"]), (400, "invalid_reconciliation_filter"))
 
     def save(self, analysis: dict[str, Any], key: str = "http-create-key-0001") -> dict[str, Any]:
         return self.json(

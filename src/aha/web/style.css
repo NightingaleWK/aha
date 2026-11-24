@@ -421,7 +421,7 @@ td .subline { display: block; font-size: var(--text-meta); color: var(--muted); 
 .status.available { background: #e6f4eb; color: #256541; }
 
 .notice.success { position: fixed; right: 24px; bottom: 24px; max-width: min(480px, calc(100vw - 32px)); z-index: 90; margin: 0; box-shadow: 0 8px 32px #16344720; }
-.dialog-message { background: #fff2f2; color: #982f3a; border: 1px solid #e8c0c5; border-radius: 7px; padding: 12px 14px; margin-bottom: 18px; font-size: var(--text-body); }
+.dialog-message, .reconciliation-error { background: #fff2f2; color: #982f3a; border: 1px solid #e8c0c5; border-radius: 7px; padding: 12px 14px; margin-bottom: 18px; font-size: var(--text-body); }
 @media (max-width: 600px) { .notice.success { right: 16px; bottom: 16px; } }
 
 .revision-filters { border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin: 0 0 18px; background: #f8fafc; }
@@ -431,13 +431,42 @@ td .subline { display: block; font-size: var(--text-meta); color: var(--muted); 
 @media (max-width: 600px) { #usage-preview { scroll-margin-top: 80px; } }
 
 .sync-error { color: var(--red); margin-top: 8px; font-size: var(--text-label); }
-.reconciliation-list { display: grid; gap: 18px; }
-.reconciliation-card { border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
-.reconciliation-card h3 { margin-top: 0; }
-.reconciliation-card .field { margin-top: 12px; }
-.reconciliation-facts { margin: 10px 0; display: grid; gap: 6px; font-size: var(--text-table); }
+.reconciliation-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 14px; margin-bottom: 18px; }
+.dialog .reconciliation-filters .field { margin-bottom: 0; }
+.reconciliation-filters .button { min-height: 46px; }
+.reconciliation-toolbar, .reconciliation-navigation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.reconciliation-toolbar { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #f5faf8; }
+.reconciliation-toolbar [role=status] { color: var(--teal-dark); font-size: var(--text-label); font-weight: 600; }
+.reconciliation-navigation { justify-content: space-between; margin: 14px 0 10px; color: var(--muted); font-size: var(--text-label); }
+.reconciliation-pagination { display: flex; gap: 8px; }
+.reconciliation-saved, .reconciliation-batch { padding: 14px; background: var(--teal-bg); border: 1px solid #cee1d9; border-radius: 8px; }
+.reconciliation-saved { margin-bottom: 14px; color: var(--teal-dark); }
+.reconciliation-batch { margin-top: 14px; }
+.reconciliation-batch h3 { margin-top: 0; }
+.reconciliation-batch .field { margin: 12px 0 0; }
+#reconciliation-batch-summary { overflow-wrap: anywhere; }
+.reconciliation-list { display: grid; gap: 9px; }
+.reconciliation-card { border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; overflow-wrap: anywhere; }
+.reconciliation-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px 12px; align-items: center; }
+.reconciliation-row h3 { margin: 0; }
+.reconciliation-meta { color: var(--muted); font-size: var(--text-meta); }
+.reconciliation-eligible { color: var(--teal-dark); }
+.reconciliation-details { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.reconciliation-facts { display: grid; gap: 6px; font-size: var(--text-table); }
+.reconciliation-details form { margin-top: 14px; }
+.reconciliation-details .field { margin-bottom: 12px; }
 #reconciliation-note { margin-bottom: 18px; }
 .source-actions #reconciliation-count { font-variant-numeric: tabular-nums; }
+@media (max-width: 620px) {
+  .reconciliation-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 450px) {
+  .reconciliation-filters label:nth-child(3), .reconciliation-filters .button { grid-column: 1 / -1; }
+  .reconciliation-row .button { grid-column: 2; justify-self: start; }
+}
+@media (max-width: 400px) {
+  .reconciliation-filters { grid-template-columns: minmax(0, 1fr); }
+}
 .status.pending { color: var(--amber); background: #fff4dc; }
 
 /* Shared controls retain native select values and the surrounding field labels. */

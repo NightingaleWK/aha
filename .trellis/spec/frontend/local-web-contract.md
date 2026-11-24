@@ -25,7 +25,12 @@
 | `POST /api/assignments` | `project_id` 加 keys 或 session_ids；rollup 按整条记录处理 |
 | `GET /api/project-associations`、`/records` | 项目费用/待归属分组及修订绑定的keyset记录清单 |
 | `POST /api/project-associations/preview`、`/apply` | 全筛选/逐条/整会话的归属影响预览与原子幂等应用；协议见[项目归属合同](../backend/project-association-contract.md) |
-| `GET /api/reconciliations` | `{cases}`，来源重建、版本或覆盖的待核对事项 |
+| `GET /api/reconciliations/summary` | `{total}`，台账中待处理的核对事项数 |
+| `GET /api/reconciliations/page` | `type/source_id/start_date/end_date/eligibility/cursor/size`，返回 `{cases,total,eligible_count,next_cursor,version,sources}` |
+| `GET /api/reconciliations/{id}` | `{case}`，按需查看完整新旧证据、选择和 generation |
+| `POST /api/reconciliations/batch-preview` | `{filters,ids?,version}`，返回 `{count,candidate_count,current_cost_usd,candidate_cost_usd,preview_hash}`，省略 ids 表示跨页全选筛选范围内的可批量项，两个精确金额字符串仅汇总采用候选的事项 |
+| `POST /api/reconciliations/batch` | `{filters,ids?,preview_hash,reason,idempotency_key}`，返回 `{resolved_count,open_count,...revisions}` |
+| `GET /api/reconciliations` | 兼容入口，返回 `{cases}` |
 | `POST /api/reconciliations/{id}` | `choice/reason/expected_generation/idempotency_key`，按实际候选确认 |
 | `POST /api/analysis` | project、time_range意图或旧起止日期（二者互斥）、`availability_mode=available|all`；只查本地库 |
 | `GET /api/analysis/{id}/details` | `kind=detail|rollup|daily|models`、cursor、size1–200 |
@@ -38,6 +43,8 @@
 | `POST /api/batches/{id}/withdraw`、`/void` | reason、expected_generation、idempotency_key |
 | `GET /api/batches/{id}/revisions/{n}/download` | 流式返回指定版本原 ZIP |
 | `POST /api/shutdown` | 本机认证后接受退出请求；页面显示正在退出，不将 HTTP 成功等同全部资源已释放 |
+
+待核对分页的 `eligibility` 为 `all/batch/manual`。开始和结束日期均按北京时间日历日包含，默认每页 50 项，size 允许 1–200。游标和预览绑定当前资料版本。后端权威资格和事务见 [批量核对合同](../backend/usage-evidence-contract.md#分页核对与批量确认同一消费)。
 
 请求字段的精确允许值由服务端边界与领域函数验证。页面不再发送 capture_id、旧分页 page 或旧版本消解请求。
 
@@ -66,6 +73,7 @@
 - 仅有效草稿可改。已提交可带原因撤回且保留占用；已报销纠错通过作废再新建。作废释放占用且为终态；旧版本与作废版本仍可下载原包。
 - 用途/金额说明各最多4000字符；金额可空或零，填写须依据，币种 CNY/USD。参考 USD 成本与申请金额分开。新建成功清用途、金额和说明。
 - 核对必须展示实际候选和所需原因，不自动把较晚导入的备份当最新事实，不补造差额明细。
+- 单笔、批量核对、项目归属及撤回／作废的说明只在新确认表单打开时预填「已人工确认」，清空后以同一文字作为占位提示。当前值可编辑，显式确认提交实际文字。同一操作的失败和重试保留草稿。
 - 用户/来源文字通过 textContent/DOM 插入，不拼接 innerHTML。
 
 ## 5. 可读性与产品表达

@@ -276,7 +276,8 @@ test("late refresh success or failure from an older job cannot affect a retry", 
     const app = page();
     app.evaluate(`state.ledger = {counts: {detail_count: 2}, coverage: {},
       last_successful_sync_at: "2026-10-02T02:47:00Z"};
-      state.analysis = {analysis_id: "current"}; $("notice").hidden = true;`);
+      state.analysis = {analysis_id: "current"}; $("notice").hidden = true;
+      $("reconciliation-count").textContent = "4";`);
     const old = app.evaluate("loadSource()");
     app.reply(true, {id: "old", status: "failed", message: "旧来源失败。"});
     await new Promise((resolve) => setImmediate(resolve));
@@ -285,13 +286,13 @@ test("late refresh success or failure from an older job cannot affect a retry", 
     if (staleFails) app.reply(false, {code: "data_changed", message: "过时刷新失败。"});
     else app.reply(true, {counts: {detail_count: 999}, coverage: {}});
     app.reply(true, {projects: [{id: "old"}]});
-    app.reply(true, {cases: [{id: "old"}]});
+    app.reply(true, {total: 99});
     await old;
     assert.equal(app.evaluate('$("source-mode").textContent'), "同步中");
     assert.equal(app.evaluate('$("load-default").disabled'), true);
     assert.equal(app.evaluate("state.ledger.counts.detail_count"), 2);
     assert.equal(app.evaluate("state.config.projects.length"), 0);
-    assert.equal(app.evaluate("state.reconciliations.length"), 0);
+    assert.equal(app.evaluate('$("reconciliation-count").textContent'), "4");
     assert.equal(app.evaluate("state.analysis.analysis_id"), "current");
     assert.equal(app.evaluate('$("notice").hidden'), true);
 
@@ -455,18 +456,18 @@ test("late initialization refreshes cannot replace newer sync results or report 
     app.replyTo("/api/ledger", true, {counts: {}, coverage: {},
       last_successful_sync_at: "2026-10-02T02:47:00Z"});
     app.replyLatest("/api/projects", true, {revision: 8, projects: []});
-    app.replyLatest("/api/reconciliations", true, {cases: [{id: "latest"}]});
+    app.replyLatest("/api/reconciliations/summary", true, {total: 24});
     await new Promise((resolve) => setImmediate(resolve));
     if (staleFails) {
       app.replyTo("/api/projects", false, {code: "data_changed", message: "旧项目请求失败。"});
-      app.replyTo("/api/reconciliations", false, {code: "data_changed", message: "旧核对请求失败。"});
+      app.replyTo("/api/reconciliations/summary", false, {code: "data_changed", message: "旧核对请求失败。"});
     } else {
       app.replyTo("/api/projects", true, {revision: 2, projects: []});
-      app.replyTo("/api/reconciliations", true, {cases: []});
+      app.replyTo("/api/reconciliations/summary", true, {total: 3});
     }
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(app.evaluate("state.config.revision"), 8);
-    assert.equal(app.evaluate("state.reconciliations[0]?.id"), "latest");
+    assert.equal(app.evaluate('$("reconciliation-count").textContent'), "24");
     assert.equal(app.evaluate("state.analysis?.analysis_id"), "fresh");
     assert.equal(app.evaluate('$("source-mode").textContent'), "需要核对");
     assert.equal(app.evaluate('$("notice").className'), "notice info");
@@ -757,19 +758,48 @@ test("one committed source expires old saving even while the second source is ru
   assert.match(app.evaluate('$("notice").children[0].textContent'), /完成的来源已入账/);
 });
 
+function reconciliationPage(cases = [], extra = {}) {
+  return {
+    cases, total: cases.length, eligible_count: cases.filter((item) => item.batch_eligible).length,
+    next_cursor: null, version: "version-1", sources: [{id: "windows", name: "Windows"}], ...extra,
+  };
+}
+function reconciliationPreview(count, previewHash, extra = {}) {
+  return {count, preview_hash: previewHash, candidate_count: 0, current_cost_usd: "0", candidate_cost_usd: "0", ...extra};
+}
+function replyReconciliationPage(app, result) {
+  app.replyTo(app.pendingUrls().find((url) => url.startsWith("/api/reconciliations/page?")), true, result);
+}
+async function openReconciliationPage(app, result = reconciliationPage([{id: "case-1", generation: 2}])) {
+  const opened = app.evaluate("openReconciliations()");
+  replyReconciliationPage(app, result);
+  await opened;
+}
+function commitSingleReconciliation(app) {
+  return app.evaluate(`commitReconciliation(state.reconciliationView, "/api/reconciliations/case-1",
+    {choice: "current", reason: "已核对", expected_generation: 2}, {})`);
+}
+function assertConfirmationReasonDefault(app, field) {
+  assert.equal(app.evaluate(`${field}.value`), "已人工确认");
+  assert.equal(app.evaluate(`${field}.placeholder`), "已人工确认");
+}
+
 test("reconciliation immediately expires saving and automatically previews the same filters", async () => {
   const app = page();
+  await openReconciliationPage(app);
   app.evaluate(`$("project-select").value = "original-project";
     timeRange.setIntent({kind: "preset", preset: "last_7d", follow_now: true});
     state.pendingBatch = {signature: "old"};
     refreshLedger = async () => {}; refreshProjects = async () => {};
-    refreshReconciliations = async () => {}; renderReconciliations = () => {};
+    refreshReconciliations = async () => {};
     analyze = async () => { state.repreview = {project: $("project-select").value, intent: timeRange.getIntent()}; };`);
-  const operation = app.evaluate('resolveReconciliation({id: "case-1", generation: 2}, "current", "已核对")');
+  const operation = commitSingleReconciliation(app);
   assert.equal(app.evaluate("state.analysis"), null);
   assert.equal(app.evaluate("state.pendingBatch"), null);
   assert.equal(app.evaluate('$("create-batch").disabled'), true);
   app.reply(true, {state: "resolved"});
+  await new Promise((resolve) => setImmediate(resolve));
+  replyReconciliationPage(app, reconciliationPage());
   await operation;
   assert.equal(app.evaluate("state.repreview.project"), "original-project");
   assert.equal(app.evaluate("state.repreview.intent.preset"), "last_7d");
@@ -777,33 +807,200 @@ test("reconciliation immediately expires saving and automatically previews the s
 
 test("a reconciliation refresh failure leaves the old save identity expired", async () => {
   const app = page();
+  await openReconciliationPage(app);
   app.evaluate(`state.pendingBatch = {signature: "old"};
     refreshProjects = async () => {}; refreshReconciliations = async () => {};`);
-  const operation = app.evaluate('resolveReconciliation({id: "case-1", generation: 2}, "current", "已核对")');
+  const operation = commitSingleReconciliation(app);
   app.reply(true, {state: "resolved"});
   await new Promise((resolve) => setImmediate(resolve));
   app.disconnectTo("/api/ledger");
-  await assert.rejects(operation, /连接中断/);
+  app.disconnectTo(app.pendingUrls().find((url) => url.startsWith("/api/reconciliations/page?")));
+  await operation;
   assert.equal(app.evaluate("state.analysis"), null);
   assert.equal(app.evaluate("state.pendingBatch"), null);
   assert.equal(app.evaluate('$("create-batch").disabled'), true);
+  assert.equal(app.evaluate('$("reconciliation-saved").textContent'), "核对结果已保存。");
+  assert.match(app.evaluate('$("reconciliation-error").textContent'), /连接中断/);
+  assert.match(app.evaluate('$("filter-status").textContent'), /核对结果已保存/);
 });
 
 test("late reconciliation refreshes cannot overwrite a newer filter preview", async () => {
   for (const fail of [false, true]) {
     const app = page();
+    await openReconciliationPage(app);
     app.evaluate(`refreshProjects = async () => {}; refreshReconciliations = async () => {};
       analyze = async () => { throw new Error("stale reconciliation must not requery"); };`);
-    const operation = app.evaluate('resolveReconciliation({id: "case-1", generation: 2}, "current", "已核对")');
+    const operation = commitSingleReconciliation(app);
     app.reply(true, {state: "resolved"});
     await new Promise((resolve) => setImmediate(resolve));
     app.evaluate('state.filterGeneration += 1; state.analysis = {analysis_id: "newer"}; state.ledger = {newer: true};');
     if (fail) app.disconnectTo("/api/ledger");
     else app.replyTo("/api/ledger", true, {older: true});
+    replyReconciliationPage(app, reconciliationPage());
     await operation;
     assert.equal(app.evaluate("state.analysis.analysis_id"), "newer");
     assert.equal(app.evaluate("state.ledger.newer"), true);
   }
+});
+
+test("reconciliation loads evidence on demand and explicit selections survive pagination", async () => {
+  const app = page();
+  const a = {id: "a", generation: 1, batch_eligible: true};
+  const b = {id: "b", generation: 1, batch_eligible: false, type: "native_uncertain"};
+  const c = {id: "c", generation: 2, batch_eligible: true};
+  await openReconciliationPage(app, reconciliationPage([a, b], {total: 1401, eligible_count: 1300, next_cursor: "next"}));
+  assert.deepEqual(app.pendingUrls(), []);
+  assert.equal(app.evaluate("state.reconciliationView.controls.filter(({check}) => check).length"), 1);
+  app.evaluate('state.reconciliationView.controls[1].detail.emit("click")');
+  assert.deepEqual(app.pendingUrls(), ["/api/reconciliations/b"]);
+  app.reply(true, {case: {...b, choices: ["current"], candidate_summary: {cache_read_tokens: 12}}});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate('state.reconciliationView.controls[1].form.submit.getAttribute("data-reconciliation-submit")'), "b");
+  assertConfirmationReasonDefault(app, "state.reconciliationView.controls[1].form.reason");
+  assert.equal(app.evaluate("state.reconciliationView.controls[1].form.reason.required"), true);
+  app.evaluate('$("reconciliation-select-page").checked = true; $("reconciliation-select-page").emit("change");');
+  app.evaluate('$("reconciliation-next").emit("click");');
+  assert.match(app.pendingUrls()[0], /cursor=next/);
+  replyReconciliationPage(app, reconciliationPage([c], {total: 1401, eligible_count: 1300}));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate('state.reconciliationView.selected.has("a")'), true);
+  app.evaluate('state.reconciliationView.controls[0].check.checked = true; state.reconciliationView.controls[0].check.emit("change")');
+  const preview = app.evaluate("previewReconciliationBatch(state.reconciliationView)");
+  assert.deepEqual(JSON.parse(app.pendingRequests()[0].options.body), {
+    filters: {eligibility: "all"}, ids: ["a", "c"], version: "version-1",
+  });
+  app.reply(true, reconciliationPreview(2, "explicit-preview"));
+  await preview;
+  assert.match(app.evaluate('$("reconciliation-batch-summary").textContent'), /确认 2 项/);
+  assertConfirmationReasonDefault(app, '$("reconciliation-batch-reason")');
+  app.evaluate('$("reconciliation-batch-reason").value = "旧批次草稿"; $("reconciliation-batch-cancel").emit("click")');
+  const repreview = app.evaluate("previewReconciliationBatch(state.reconciliationView)");
+  app.reply(true, reconciliationPreview(2, "current-preview"));
+  await repreview;
+  assertConfirmationReasonDefault(app, '$("reconciliation-batch-reason")');
+});
+
+test("reconciliation preview reports candidate adoption and exact cost effects for each selection mix", async () => {
+  const app = page();
+  const cases = ["a", "b", "c"].map((id) => ({id, generation: 1, batch_eligible: true}));
+  await openReconciliationPage(app, reconciliationPage(cases));
+  app.evaluate('$("reconciliation-select-all").emit("click")');
+  const selections = [
+    [{}, "将确认 3 项，均沿用已入账的历史用量和参考成本。"],
+    [{
+      candidate_count: 2,
+      current_cost_usd: "9007199254740993.000000000000000017",
+      candidate_cost_usd: "9007199254740993.000000000000000019",
+    }, "将确认 3 项。2 项采用 Codex 原生候选的发生时间、用量和参考成本，参考成本合计由 9007199254740993.000000000000000017 USD 调整为 9007199254740993.000000000000000019 USD。1 项沿用已入账的历史用量和参考成本。"],
+    [{
+      candidate_count: 3, current_cost_usd: "12.500", candidate_cost_usd: "0",
+    }, "将确认 3 项。3 项采用 Codex 原生候选的发生时间、用量和参考成本，参考成本合计由 12.5 USD 调整为 0 USD。"],
+  ];
+  for (const [extra, summary] of selections) {
+    const operation = app.evaluate("previewReconciliationBatch(state.reconciliationView)");
+    app.reply(true, reconciliationPreview(3, "preview-impact", extra));
+    await operation;
+    assert.equal(app.evaluate('$("reconciliation-batch-summary").textContent'), summary);
+    assert.equal(app.evaluate('$("reconciliation-batch-submit").disabled'), false);
+    app.evaluate('$("reconciliation-batch-cancel").emit("click")');
+  }
+  const unreadable = app.evaluate("previewReconciliationBatch(state.reconciliationView)");
+  app.reply(true, reconciliationPreview(3, "preview-unreadable", {candidate_count: 1, candidate_cost_usd: null}));
+  await unreadable;
+  assert.equal(app.evaluate('$("reconciliation-batch-form").hidden'), true);
+  assert.equal(app.evaluate('$("reconciliation-batch-submit").disabled'), true);
+  assert.match(app.evaluate('$("reconciliation-error").textContent'), /重新预览/);
+});
+
+test("filtered all selects across pages and retries an uncertain batch with the same idempotency key", async () => {
+  const app = page();
+  const eligible = {id: "a", generation: 1, batch_eligible: true};
+  await openReconciliationPage(app, reconciliationPage([eligible]));
+  app.evaluate(`$("reconciliation-type").value = "identity"; $("reconciliation-type").emit("change");
+    $("reconciliation-source").value = "windows"; $("reconciliation-source").emit("change");
+    $("reconciliation-start").value = "2026-10-14"; $("reconciliation-start").emit("change");
+    $("reconciliation-eligibility").value = "batch"; $("reconciliation-eligibility").emit("change");
+    $("reconciliation-filter-form").emit("submit");`);
+  replyReconciliationPage(app, reconciliationPage([eligible], {total: 5261, eligible_count: 5261, next_cursor: "next"}));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate('$("reconciliation-source").value'), "windows");
+  app.evaluate('$("reconciliation-select-all").emit("click")');
+  assert.match(app.evaluate('$("reconciliation-selection").textContent'), /5,261.*含其他页/);
+  const preview = app.evaluate("previewReconciliationBatch(state.reconciliationView)");
+  const filters = {type: "identity", source_id: "windows", start_date: "2026-10-14", eligibility: "batch"};
+  assert.deepEqual(JSON.parse(app.pendingRequests()[0].options.body), {filters, version: "version-1"});
+  app.reply(true, reconciliationPreview(5261, "filtered-preview"));
+  await preview;
+  app.evaluate('$("reconciliation-batch-reason").value = ""; $("reconciliation-batch-form").emit("submit")');
+  assert.deepEqual(app.pendingUrls(), []);
+  assert.match(app.evaluate('$("reconciliation-error").textContent'), /请填写核对说明/);
+  assert.equal(app.evaluate('$("reconciliation-batch-reason").placeholder'), "已人工确认");
+  app.evaluate('$("reconciliation-batch-reason").value = "证据匹配"; $("reconciliation-batch-form").emit("submit")');
+  const first = JSON.parse(app.pendingRequests()[0].options.body);
+  assert.deepEqual(first.filters, filters);
+  assert.equal(first.ids, undefined);
+  assert.equal(first.preview_hash, "filtered-preview");
+  assert.equal(first.reason, "证据匹配");
+  assert.equal(app.evaluate("state.analysis"), null);
+  app.disconnectTo("/api/reconciliations/batch");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate('$("reconciliation-batch-form").hidden'), false);
+  assert.equal(app.evaluate('$("reconciliation-batch-reason").value'), "证据匹配");
+  assert.match(app.evaluate('$("reconciliation-error").textContent'), /相同说明重试/);
+  app.evaluate('$("reconciliation-batch-form").emit("submit")');
+  assert.deepEqual(JSON.parse(app.pendingRequests()[0].options.body), first);
+  app.replyTo("/api/reconciliations/batch", true, {resolved_count: 5261, open_count: 825, classification_revision: 0});
+  await new Promise((resolve) => setImmediate(resolve));
+  replyReconciliationPage(app, reconciliationPage([], {version: "version-2"}));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate('$("reconciliation-count").textContent'), "825");
+  app.replyTo("/api/reconciliations/summary", true, {total: 820});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate('$("reconciliation-count").textContent'), "820");
+  assert.match(app.evaluate('$("reconciliation-saved").textContent'), /已批量确认 5,261 项/);
+  assert.equal(app.evaluate('$("reconciliation-batch-form").hidden'), true);
+  assert.equal(app.evaluate('$("reconciliation-search").disabled'), false);
+  assert.deepEqual(app.pendingUrls(), ["/api/ledger"]);
+});
+
+test("obsolete reconciliation page and preview responses cannot affect new filters or invalidate a newer preview", async () => {
+  for (const lateError of [false, true]) {
+    const app = page();
+    const eligible = {id: "a", generation: 1, batch_eligible: true};
+    const old = app.evaluate("openReconciliations()");
+    const obsoletePath = app.pendingUrls()[0];
+    app.evaluate('$("reconciliation-type").value = "identity"; $("reconciliation-type").emit("change"); $("reconciliation-filter-form").emit("submit")');
+    const latestPath = app.pendingUrls()[1];
+    app.replyTo(latestPath, true, reconciliationPage([eligible], {version: "fresh"}));
+    app.replyTo(obsoletePath, !lateError, lateError ? {code: "data_changed", message: "过时页面"} : reconciliationPage());
+    await old;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(app.evaluate("state.reconciliationView.page.version"), "fresh");
+    app.evaluate('$("reconciliation-select-all").emit("click")');
+    const preview = app.evaluate("previewReconciliationBatch(state.reconciliationView)");
+    app.evaluate('$("reconciliation-eligibility").value = "manual"; $("reconciliation-eligibility").emit("change")');
+    app.replyTo("/api/reconciliations/batch-preview", !lateError,
+      lateError ? {code: "data_changed", message: "过时预览"} : reconciliationPreview(1, "obsolete"));
+    await preview;
+    assert.equal(app.evaluate('$("reconciliation-batch-form").hidden'), true);
+    assert.equal(app.evaluate('$("reconciliation-error").hidden'), true);
+    assert.equal(app.evaluate("state.analysis.analysis_id"), "old");
+  }
+});
+
+test("stale reconciliation cursor reloads the filter without carrying the previous selection", async () => {
+  const app = page();
+  const eligible = {id: "a", generation: 1, batch_eligible: true};
+  await openReconciliationPage(app, reconciliationPage([eligible], {total: 63, eligible_count: 63, next_cursor: "next"}));
+  app.evaluate('$("reconciliation-select-all").emit("click"); $("reconciliation-next").emit("click");');
+  app.reply(false, {code: "invalid_cursor", message: "资料已更新"});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.pendingUrls()[0].includes("cursor"), false);
+  replyReconciliationPage(app, reconciliationPage([eligible], {version: "version-2"}));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate("state.reconciliationView.allFiltered"), false);
+  assert.equal(app.evaluate('$("reconciliation-preview").disabled'), true);
+  assert.match(app.evaluate('$("reconciliation-error").textContent'), /重新选择/);
 });
 
 test("full backup completion retains the current query and exposes a streamed download", async () => {
@@ -856,13 +1053,17 @@ test("restore uploads binary chunks and ignores late chunk success after cancell
 
 test("directory and historical reconciliation display their real choices and native evidence", () => {
   const app = page();
-  app.evaluate(`state.reconciliations = [
+  app.evaluate(`for (const entry of [
     {id: "directory", type: "directory", current_cwd: "C:/old-project", candidate_cwd: "D:/new-project", choices: ["current", "candidate"]},
     {id: "rollup", type: "rollup_origin", choices: ["current"]},
     {id: "native-overlap", type: "native_overlap", choices: ["current", "independent"]},
     {id: "native-uncertain", type: "native_uncertain", pending_reason: "cumulative_baseline_unconfirmed",
-      candidate_summary: {input_tokens: 3, output_tokens: 2}, choices: ["current"]}
-  ]; renderReconciliations();`);
+      candidate_summary: {input_tokens: 3, output_tokens: 2, cache_read_tokens: 5, cache_creation_tokens: 0}, choices: ["current"]}
+  ]) {
+    const detail = node("div");
+    renderReconciliationDetail(null, detail, entry);
+    $("reconciliation-list").append(detail);
+  }`);
   const text = app.evaluate(`JSON.stringify((function collect(element) {
     return [element.textContent || "", ...element.children.flatMap(collect)];
   })($("reconciliation-list")))`);
@@ -875,6 +1076,7 @@ test("directory and historical reconciliation display their real choices and nat
   assert.match(text, /确认为新用量/);
   assert.match(text, /累计用量的起点待确认/);
   assert.match(text, /输入 3 · 输出 2/);
+  assert.match(text, /缓存读取 5 · 缓存写入 0/);
   assert.match(text, /确认排除候选/);
 });
 
@@ -1151,6 +1353,20 @@ test("association explicit selection retains records from earlier pages", () => 
   assert.throws(() => app.evaluate('associationPreviewRequest("reclassify")'), /请勾选记录/);
 });
 
+test("each project association preview prefills a fresh explanation and preserves an edited draft", async () => {
+  const app = page();
+  app.evaluate('state.associationAllFiltered = true; $("association-target-project").value = "project-1";');
+  for (const action of ["assign", "reclassify", "recover"]) {
+    const preview = app.evaluate(`previewAssociations(${JSON.stringify(action)})`);
+    assertConfirmationReasonDefault(app, '$("association-reason")');
+    app.evaluate('$("association-reason").value = "当前归属依据"');
+    app.replyTo("/api/project-associations/preview", true, {preview_id: action, summary: {}});
+    await preview;
+    assert.equal(app.evaluate('$("association-reason").value'), "当前归属依据");
+    app.evaluate('$("association-dialog").close()');
+  }
+});
+
 test("closing or replacing an association preview rejects stale success, 409 and disconnect", async () => {
   for (const outcome of ["success", "expired", "disconnect"]) {
     const app = page();
@@ -1252,10 +1468,38 @@ test("a saved association with a refresh failure retries only the refresh", asyn
   assert.equal(app.evaluate("state.analysis"), null);
   assert.equal(app.evaluate('$("apply-associations").textContent'), "刷新已保存结果");
   assert.equal(app.evaluate('$("association-reason").readOnly'), true);
+  assert.equal(app.evaluate('$("association-reason").value'), "核实项目归属");
   app.evaluate("refreshAssociationOverview = async () => {};");
   await app.evaluate("applyAssociations()");
   assert.equal(app.pendingUrls().includes("/api/project-associations/apply"), false);
   assert.equal(app.evaluate("state.associationPreview"), null);
+});
+
+test("withdraw and void require an editable explanation and retry the same submitted draft", async () => {
+  const app = page();
+  app.evaluate(`const batch = {id: "batch-1", generation: 3, number: "001", project_name: "甲"};
+    refreshBatches = async () => {}; analyze = async () => {}; openLifecycle("withdraw", batch);`);
+  assertConfirmationReasonDefault(app, '$("lifecycle-reason")');
+  app.evaluate('$("lifecycle-reason").value = ""');
+  await assert.rejects(app.evaluate("saveLifecycle()"), /请填写操作原因/);
+  assert.deepEqual(app.pendingUrls(), []);
+  app.evaluate('$("lifecycle-reason").value = "撤回更正时间"');
+  const pending = app.evaluate("saveLifecycle()");
+  const original = JSON.parse(app.pendingRequests()[0].options.body);
+  assert.equal(original.reason, "撤回更正时间");
+  app.disconnectTo("/api/batches/batch-1/withdraw");
+  await assert.rejects(pending, /连接中断/);
+  assert.equal(app.evaluate('$("lifecycle-reason").value'), "撤回更正时间");
+  const retry = app.evaluate("saveLifecycle()");
+  assert.deepEqual(JSON.parse(app.pendingRequests()[0].options.body), original);
+  app.replyTo("/api/batches/batch-1/withdraw", true, {});
+  await retry;
+  app.evaluate('openLifecycle("void", batch)');
+  assertConfirmationReasonDefault(app, '$("lifecycle-reason")');
+  const submitted = app.evaluate("saveLifecycle()");
+  assert.equal(JSON.parse(app.pendingRequests()[0].options.body).reason, "已人工确认");
+  app.replyTo("/api/batches/batch-1/void", true, {});
+  await submitted;
 });
 
 test("an expired association preview cannot be resubmitted without a new preview", async () => {
