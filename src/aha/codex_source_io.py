@@ -8,6 +8,7 @@ import queue
 import shutil
 import stat
 import subprocess
+import sys
 import threading
 from collections import Counter
 from collections.abc import Callable, Iterator
@@ -166,6 +167,8 @@ def _rollout_directory(path: Path) -> bool:
 
 
 def _open_posix(root: Path, parts: tuple[str, ...]) -> int:
+    if sys.platform == "win32":
+        raise OSError("POSIX rollout opening is unavailable on Windows")
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     directory = os.open(root, flags)
     try:
