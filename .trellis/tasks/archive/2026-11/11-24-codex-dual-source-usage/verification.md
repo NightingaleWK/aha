@@ -28,4 +28,16 @@ Directory、OneFile 和系统桌面 `aha.exe` 分别以隔离资料实际启动�
 - 新增 Windows 与 WSL 的独立采集、范围选择和跨端去重。[新增功能片段](../../../../../.release/changes/codex-dual-source-usage.json)
 - 退出 CCS 活库读取与 SQL 导入。正式旧台账及 schema 3/4 完整备份继续可用。[升级提醒片段](../../../../../.release/changes/retire-ccs-readers.json)
 
-维护者于 2026-11-24 选择**先补齐发版条件**，并确认按工作提交方案提交归档、推送功能分支及创建草稿 PR 跑 CI。候选建议版本为 v0.7.0。待完成正式构建配方核验、功能分支最终提交的 CI、托盘物理点击及适用回执。[本地 What’s New 预览](research/whats-new-preview.md)
+维护者于 2026-11-24 选择**先补齐发版条件**，并确认提交归档、推送功能分支及创建草稿 PR 跑 CI。候选建议版本为 v0.7.0。[本地 What’s New 预览](research/whats-new-preview.md) · [功能 PR #15](https://github.com/NightingaleWK/aha/pull/15)
+
+## 发布前复验
+
+- Windows x64 Python 3.15.2、SQLite 3.53.4 与固定构建依赖组成的本机运行时摘要与公开 v0.6.0 一致。SQLite 与 Zstandard 原生模块从已校验的公开产物取得，分别核验归属、模块字节和两种新包内的文件哈希。
+- 首轮 CI 的 372 项 Python 测试和 Ruff 通过，Windows mypy 对 POSIX 常量报错。`aa1576e` 以 `sys.platform` 限定分支，保留既有只读标志。Windows 和 Linux 平台的严格 mypy、本机 Windows 的 23 项来源相关测试及 WSL 文件读取边界检查通过。[首轮 CI](https://github.com/NightingaleWK/aha/actions/runs/45335690745) · [最新 PR 检查](https://github.com/NightingaleWK/aha/pull/15/checks)
+- 修正后的 Directory 和 OneFile 分别通过实际程序、Windows Chrome 双来源同步、Excel 和 A4 PDF。并发验收期间有一轮 OneFile 的 WSL 发现未返回，在其余本机检查结束后用同一 EXE 和全新资料目录复跑通过。
+- 维护者实际双击托盘、从右键菜单打开 aha，再使用菜单退出。验证进程以 0 退出、运行描述文件移除且端口关闭。此回执绑定实际点击测试的 `1c86767`，其托盘与构建配方指纹和最终源码一致。[托盘执行证据](research/windows-release-tray.json) · [托盘回执](../../../../../.release/acceptance/codex-dual-source-windows-tray.json)
+- 已从最终单文件版更新系统桌面 `aha.exe`，以桌面副本验收业务和退出，哈希 `2f8a5652a81466be981f05e23df238b194a4901df24ea8b0814c495a04fd5be8`。回退副本 `aha-v0.6.0-rollback.exe` 校验通过。此开发成品的版本字段仍为 `0.6.0`。[复验事实和成品](research/windows-release-preflight.json) · [发布验收回执](../../../../../.release/acceptance/codex-dual-source-windows.json)
+
+发布脚本已识别当前运行时下的全部六项本机回执。正式发布使用发布 PR 统一升号和合并后 GitHub 构建，检查云端产物及其运行时摘要。
+
+结束复验后确认任务临时目录内无占用进程，清理隔离 Python、构建目录、缓存、合成资料及验收所用浏览器目录，共 497.2 MiB。随后再次核对桌面成品及回退副本的 SHA256。

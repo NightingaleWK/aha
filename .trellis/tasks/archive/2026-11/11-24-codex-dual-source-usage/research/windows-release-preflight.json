@@ -1,0 +1,367 @@
+{
+  "schema_version": 1,
+  "source_sha": "aa1576eb67d251fa57a371d74636cbcf68d006a1",
+  "completed_at": "2026-11-24T14:00:41+08:00",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "fingerprints": {
+    "full": "2bafc7b99180474cf814b3d7b3f5c337f5895947ed0213fe9493663a0bef3774",
+    "tray": "544be406b5e37bb4998bc6b60f2c7d3e4ac305f73d856b0766df2cd65b2a2ff2",
+    "materials": "61aa65246e16d23f56dc62d96cd72c6ca29720763fffd7e5db50c2f7c1108209",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "windows_version": "10.0.26300",
+  "build_runtime": {
+    "windows": true,
+    "isolated": true,
+    "bits": 64,
+    "python": [
+      3,
+      15,
+      2
+    ],
+    "machine": "AMD64",
+    "sqlite": [
+      3,
+      53,
+      4
+    ],
+    "sqlite_version": "3.53.4",
+    "packages": {
+      "aha-usage": "0.6.0",
+      "altgraph": "0.17.5",
+      "ast-serialize": "0.13.1",
+      "librt": "0.17.0",
+      "mypy": "2.4.0",
+      "mypy-extensions": "1.2.0",
+      "packaging": "26.3",
+      "pathspec": "1.1.1",
+      "pefile": "2024.8.26",
+      "pip": "26.2.2",
+      "pyinstaller": "6.22.3",
+      "pyinstaller-hooks-contrib": "2026.9",
+      "pypdf": "6.1.1",
+      "pywin32-ctypes": "0.2.3",
+      "ruff": "0.17.3",
+      "setuptools": "84.2.1",
+      "typing-extensions": "4.16.0",
+      "websocket-client": "1.9.0",
+      "wheel": "0.48.0",
+      "zstandard": "0.25.0"
+    }
+  },
+  "dependency_provenance": {
+    "previous_public_version": "v0.6.0",
+    "public_executable_sha256": "4a2d8fed5dfff0e6c02b8e7466a4f9fa7a32e62f851457675f01e12630362a3d",
+    "public_build_info_sha256": "a1db89f86b6e1890f36e70d6155f4fb1f0e79f624ef0f258b2e842353a99dbf9",
+    "public_runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+    "sqlite_members_sha256": {
+      "_sqlite3.pyd": "851e8bfa65328162ddad2dff9f7c213f8eceb2d90baf179aa472704ec3ca6295",
+      "sqlite3.dll": "73530e8f4555605d716352ee98fe0ce205a09e5eec57e7e6360d4c915efcacd8"
+    },
+    "zstandard_distribution_record_entries_verified": 12,
+    "zstandard_backend_sha256": "fa17dd6102399344d9ec39366193f1ee7253c0c5807bfdc3ba4cb69585035ad5",
+    "method": "native base runtime copy and byte-verified distribution from public asset"
+  },
+  "frozen_dependencies": {
+    "checked_hashes": {
+      "_sqlite3.pyd": "851e8bfa65328162ddad2dff9f7c213f8eceb2d90baf179aa472704ec3ca6295",
+      "sqlite3.dll": "73530e8f4555605d716352ee98fe0ce205a09e5eec57e7e6360d4c915efcacd8",
+      "zstandard/backend_c.cp315-win_amd64.pyd": "fa17dd6102399344d9ec39366193f1ee7253c0c5807bfdc3ba4cb69585035ad5"
+    },
+    "directory_matches": true,
+    "onefile_matches": true
+  },
+  "checks": {
+    "directory": {
+      "schema_version": 1,
+      "verified": true,
+      "version": "0.6.0",
+      "executable_sha256": "80385d69b847ea461f4e00cc40d263a68a5e0e8f03386e3b95eb1c4846f9b753",
+      "pe_version": {
+        "file_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "file_version": "0.6.0",
+        "product_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "product_version": "0.6.0"
+      },
+      "material_sha256": "fbaa0fa7ac71f37dd02de0cbb42ab3781a55a54eb07d4919fba8d767129046fb",
+      "complete_backup": {
+        "sha256": "c882c3e83f697b20fab4d7dc416d2df520f5da02d6d003889fbb38052b932523",
+        "size": 27045,
+        "restored_source_rebound": true,
+        "facts": 3,
+        "active_claims": 3,
+        "original_material_sha256": "fbaa0fa7ac71f37dd02de0cbb42ab3781a55a54eb07d4919fba8d767129046fb"
+      },
+      "verified_at": "2026-11-24T13:57:58+08:00",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "codex-windows-incremental",
+        "codex-archive-idempotence",
+        "unavailable-source-history-preserved",
+        "legacy-endpoints-retired",
+        "codex-configured-startup",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ],
+      "tray_enabled": true,
+      "tray_physical_checked": false,
+      "browser_driven": false,
+      "office_checked": false,
+      "manual_checks": []
+    },
+    "onefile": {
+      "schema_version": 1,
+      "verified": true,
+      "version": "0.6.0",
+      "executable_sha256": "2f8a5652a81466be981f05e23df238b194a4901df24ea8b0814c495a04fd5be8",
+      "pe_version": {
+        "file_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "file_version": "0.6.0",
+        "product_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "product_version": "0.6.0"
+      },
+      "material_sha256": "c1dca02320676d4671d70af463f25e4063f8e16552f3c275257e250d6f503e75",
+      "complete_backup": {
+        "sha256": "f7dafa526ed365466cc68214826167091d40051bd2920202bbf658580308279a",
+        "size": 27032,
+        "restored_source_rebound": true,
+        "facts": 3,
+        "active_claims": 3,
+        "original_material_sha256": "c1dca02320676d4671d70af463f25e4063f8e16552f3c275257e250d6f503e75"
+      },
+      "verified_at": "2026-11-24T13:58:43+08:00",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "codex-windows-incremental",
+        "codex-archive-idempotence",
+        "unavailable-source-history-preserved",
+        "legacy-endpoints-retired",
+        "codex-configured-startup",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ],
+      "tray_enabled": true,
+      "tray_physical_checked": false,
+      "browser_driven": false,
+      "office_checked": false,
+      "manual_checks": []
+    },
+    "browser": {
+      "directory": {
+        "stage": "directory",
+        "executable_sha256": "80385d69b847ea461f4e00cc40d263a68a5e0e8f03386e3b95eb1c4846f9b753",
+        "browser": "Chrome/158.0.8127.88",
+        "windows_records": 1,
+        "wsl_records": 2,
+        "ledger_rows_after_resync": 3,
+        "both_sources_configured_in_ui": true,
+        "independent_status_cards": true,
+        "bootstrap_query_removed": true,
+        "javascript_exceptions": 0,
+        "clean_shutdown": true,
+        "verified_at": "2026-11-24T13:58:30+08:00"
+      },
+      "onefile": {
+        "stage": "onefile",
+        "executable_sha256": "2f8a5652a81466be981f05e23df238b194a4901df24ea8b0814c495a04fd5be8",
+        "browser": "Chrome/158.0.8127.88",
+        "windows_records": 1,
+        "wsl_records": 2,
+        "ledger_rows_after_resync": 3,
+        "both_sources_configured_in_ui": true,
+        "independent_status_cards": true,
+        "bootstrap_query_removed": true,
+        "javascript_exceptions": 0,
+        "clean_shutdown": true,
+        "verified_at": "2026-11-24T14:00:41+08:00"
+      }
+    },
+    "excel": {
+      "schema_version": 1,
+      "isolated_excel_process": true,
+      "builds": [
+        {
+          "daily": {
+            "total_cost_usd": "0.0003915",
+            "total_tokens": 90,
+            "read_only": true,
+            "header_columns": 17,
+            "data_rows": 1
+          },
+          "details": {
+            "total_cost_usd": "0.0003915",
+            "total_tokens": 90,
+            "read_only": true,
+            "header_columns": 23,
+            "data_rows": 3
+          },
+          "stage": "directory",
+          "material_sha256": "fbaa0fa7ac71f37dd02de0cbb42ab3781a55a54eb07d4919fba8d767129046fb"
+        },
+        {
+          "daily": {
+            "total_cost_usd": "0.0003915",
+            "total_tokens": 90,
+            "read_only": true,
+            "header_columns": 17,
+            "data_rows": 1
+          },
+          "details": {
+            "total_cost_usd": "0.0003915",
+            "total_tokens": 90,
+            "read_only": true,
+            "header_columns": 23,
+            "data_rows": 3
+          },
+          "stage": "onefile",
+          "material_sha256": "c1dca02320676d4671d70af463f25e4063f8e16552f3c275257e250d6f503e75"
+        }
+      ],
+      "excel_version": "16.0",
+      "verified_at": "2026-11-24T13:59:32+08:00"
+    },
+    "print": {
+      "schema_version": 1,
+      "renderer": "native Windows Chrome",
+      "builds": [
+        {
+          "stage": "directory",
+          "html_sha256": "2f414220e87fcb86e08623c9f0e9c5a4eebc5dcd8efb3bfbe78aeb45e5c8b8d5",
+          "pdf_sha256": "5d49279dcd39158224862652741f86a1d8e593144a6c57a590d251dd04fd7e2c",
+          "page_count": 1,
+          "page_size_points": [
+            [
+              594.96,
+              841.92
+            ]
+          ],
+          "printed_precise_total": "0.0003915",
+          "printed_chinese_text": true,
+          "material_sha256": "fbaa0fa7ac71f37dd02de0cbb42ab3781a55a54eb07d4919fba8d767129046fb"
+        },
+        {
+          "stage": "onefile",
+          "html_sha256": "a995c7edcc88e7d32add00923807c9027d3f50a014184e280f42085240f651aa",
+          "pdf_sha256": "e29b74f823c1a6d3040f341e16a75c81ad812dba1661428a8c8ecc08bb66d82b",
+          "page_count": 1,
+          "page_size_points": [
+            [
+              594.96,
+              841.92
+            ]
+          ],
+          "printed_precise_total": "0.0003915",
+          "printed_chinese_text": true,
+          "material_sha256": "c1dca02320676d4671d70af463f25e4063f8e16552f3c275257e250d6f503e75"
+        }
+      ],
+      "verified_at": "2026-11-24T13:59:30+08:00"
+    }
+  },
+  "desktop_delivery": {
+    "desktop_name": "aha.exe",
+    "executable_sha256": "2f8a5652a81466be981f05e23df238b194a4901df24ea8b0814c495a04fd5be8",
+    "rollback_sha256": "4a2d8fed5dfff0e6c02b8e7466a4f9fa7a32e62f851457675f01e12630362a3d",
+    "updated_default_executable": true,
+    "verification": {
+      "schema_version": 1,
+      "verified": true,
+      "version": "0.6.0",
+      "executable_sha256": "2f8a5652a81466be981f05e23df238b194a4901df24ea8b0814c495a04fd5be8",
+      "pe_version": {
+        "file_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "file_version": "0.6.0",
+        "product_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "product_version": "0.6.0"
+      },
+      "material_sha256": "9d1c081a77ba0e32ae4819c5e9bc93880e7d0eb438ab0f4327e07350fd21313a",
+      "complete_backup": {
+        "sha256": "abb3e724b4dc8a6f6f6886f2f4fc73c93f7ee9fb5fa461ee25dd64f532667657",
+        "size": 27022,
+        "restored_source_rebound": true,
+        "facts": 3,
+        "active_claims": 3,
+        "original_material_sha256": "9d1c081a77ba0e32ae4819c5e9bc93880e7d0eb438ab0f4327e07350fd21313a"
+      },
+      "verified_at": "2026-11-24T13:59:42+08:00",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "codex-windows-incremental",
+        "codex-archive-idempotence",
+        "unavailable-source-history-preserved",
+        "legacy-endpoints-retired",
+        "codex-configured-startup",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ],
+      "tray_enabled": true,
+      "tray_physical_checked": false,
+      "browser_driven": false,
+      "office_checked": false,
+      "manual_checks": []
+    }
+  }
+}

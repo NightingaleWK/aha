@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source_sha": "1c867679a78736004cea43265a00f0af57f990bd",
+  "completed_at": "2026-11-24T13:49:17+08:00",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "fingerprints": {
+    "full": "a8e49bfc4042ee9e47c6c6087fd975fec9f58ebe14df1e4d6351c35770da13ee",
+    "tray": "544be406b5e37bb4998bc6b60f2c7d3e4ac305f73d856b0766df2cd65b2a2ff2",
+    "materials": "67084f176864abe81132e349f081d080b2d12ebe88f1fabb81d4d631c535b776",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "checks": [
+    "tray"
+  ],
+  "evidence": [
+    {
+      "scope": "tray",
+      "sha256": "bf637d9d91511d9129ceccf25dd37fb958e504d5e000fa7cd61f5c3896a396fa",
+      "description": "维护者实际双击及右键打开页面，再使用右键菜单退出。进程以 0 退出，运行描述文件移除，端口关闭。"
+    }
+  ]
+}
