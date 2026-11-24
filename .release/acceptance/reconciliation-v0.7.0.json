@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "source_sha": "6ee52e92b98f889346d4a6454072fb248293c656",
+  "completed_at": "2026-11-24T17:39:38+08:00",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "fingerprints": {
+    "full": "74eb09171fdc654da9dc8ddcec7c1bba959ab6891c5de00623164440b32d3798",
+    "tray": "e0d96e4d09d9de7393c3c2ef411517102fc9dd90db106ce3af9cfeac3d312107",
+    "materials": "5d7a00f2d8370a591774c8e51c5b085c0472831a38a607a614c238e3963dd961",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "checks": [
+    "directory",
+    "onefile",
+    "browser",
+    "excel",
+    "print"
+  ],
+  "evidence": [
+    {
+      "scope": "directory",
+      "sha256": "ed301e13325bddd7fc538d2e0fb99566f0e70df9d76fe6e531ee35178086ff04",
+      "description": "最终源码原生目录版验证通过，覆盖资源、同步、占用、备份还原、原包和退出。"
+    },
+    {
+      "scope": "onefile",
+      "sha256": "71690a11243cd1107a8023d06949f7c205789f9417475b028f5daf0fb7945ab8",
+      "description": "最终源码原生 Windows 单文件验证通过，覆盖同步、冻结原包、复开及退出。"
+    },
+    {
+      "scope": "browser",
+      "sha256": "1aaf4d2791fa5eab0c1b566cb052d75e6f7462a0f6958d5ccfd451f51e2099be",
+      "description": "Windows Chrome 打开单文件的本机认证页面及核对弹窗，Escape 关闭并恢复焦点。该源码此前已验证整批交互。"
+    },
+    {
+      "scope": "excel",
+      "sha256": "9b3cb6d868e0e72dc78256d79c1366d2c59500c758971dd4fa12321c4dee492e",
+      "description": "Excel 16.0 实际打开两种成品生成的 CSV，每行金额、Token 和记录数合计与合成材料清单一致。"
+    },
+    {
+      "scope": "print",
+      "sha256": "1aaf4d2791fa5eab0c1b566cb052d75e6f7462a0f6958d5ccfd451f51e2099be",
+      "description": "Windows Chrome 对两种成品的费用说明分别实际生成 A4 PDF，核对页面尺寸及精确参考成本。"
+    }
+  ]
+}

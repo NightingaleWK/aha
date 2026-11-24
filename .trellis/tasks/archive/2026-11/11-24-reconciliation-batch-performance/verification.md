@@ -63,3 +63,9 @@ Linux 全量运行 396 项，2 项平台专用跳过，Windows 原生相关 83 �
 最终 47 个产品文件与原生构建快照逐项一致。桌面 `aha.exe` SHA256 为 `56403f1884b31ed47c428198a4b80a417e2c7f2e3e28c746bdf4beaf2cdd90e4`，与验收的 OneFile 一致。Windows 和 WSL 两处约 1.54 GiB 的任务专用合成资料、环境和中间产物已清理，复核桌面成品和回退副本哈希通过。[本机回执](research/native-candidate-windows.json)
 
 当前公开版为 v0.6.0。维护者同意继续准备，将双端原生同步迁移和批量核对积累到 v0.7.0，沿用现有草稿 PR #15。正式发布以版本 PR 审阅、候选构建及适用验收为准。[累计 What’s New 预览](research/whats-new-v0.7.0-preview.md)
+
+## v0.7.0 专项复验
+
+从功能提交 `6ee52e9` 原生重建并验证 Directory 和 OneFile。构建运行时摘要与公开版 v0.6.0 相同。Windows Chrome 复验本机认证、核对弹窗及键盘焦点。Excel 16.0 实际打开两种成品的 CSV，行数、Token 和参考成本与导出清单一致。两份费用说明均由 Chrome 打印成 A4 PDF 并保留精确参考成本。
+
+发布门禁识别到目录版、单文件、浏览器、Excel 和打印回执。本机还缺托盘实点确认。隔离托盘测试已验证启动并在等待时段结束后自动退出。正式 v0.7.0 云端候选由通过审阅的版本 PR 触发。[专项记录](research/release-preparation-v0.7.0.json) · [发布回执](../../../../../.release/acceptance/reconciliation-v0.7.0.json)
