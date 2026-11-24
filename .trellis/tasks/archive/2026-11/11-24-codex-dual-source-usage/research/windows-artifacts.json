@@ -1,0 +1,343 @@
+{
+  "source": {
+    "base_commit": "dc41d0d68b93f118839f82f8a02c1da6d339dc8d",
+    "branch": "codex/codex-dual-source-usage",
+    "build_input_sha256": "36d527c836c023ea63c7c158cb01eeb7e62014eba56fab6154e27a8d8488c400",
+    "artifact_version": "0.6.0",
+    "matching_work_commit": "1c867679a78736004cea43265a00f0af57f990bd"
+  },
+  "runtime": {
+    "windows": true,
+    "bits": 64,
+    "isolated": true,
+    "python": [
+      3,
+      12
+    ],
+    "machine": "AMD64",
+    "sqlite": [
+      3,
+      53,
+      1
+    ],
+    "sqlite_version": "3.53.1",
+    "application_version": "0.6.0",
+    "python_patch_version": "3.12.16",
+    "pyinstaller": "6.22.3",
+    "zstandard": "0.25.0"
+  },
+  "artifacts": {
+    "directory": {
+      "schema_version": 1,
+      "verified": true,
+      "version": "0.6.0",
+      "executable_sha256": "7a354cdc0b352e7f269a4c4de6ba0cfc9a04ab9f0c2545ca75894c0af072d446",
+      "pe_version": {
+        "file_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "file_version": "0.6.0",
+        "product_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "product_version": "0.6.0"
+      },
+      "material_sha256": "b9049a092e19661939c6c878c7be215e0ab9f67669b1a1c163ae44d1000c50b4",
+      "complete_backup": {
+        "sha256": "43450b045a7c2fd70f1391542493dd261df85fafe94aaee921d6aa57dc7dc2cd",
+        "size": 26739,
+        "restored_source_rebound": true,
+        "facts": 3,
+        "active_claims": 3,
+        "original_material_sha256": "b9049a092e19661939c6c878c7be215e0ab9f67669b1a1c163ae44d1000c50b4"
+      },
+      "verified_at": "2026-11-24T12:01:16+08:00",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "codex-windows-incremental",
+        "codex-archive-idempotence",
+        "unavailable-source-history-preserved",
+        "legacy-endpoints-retired",
+        "codex-configured-startup",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ],
+      "tray_enabled": true,
+      "tray_physical_checked": false,
+      "browser_driven": false,
+      "office_checked": false,
+      "manual_checks": []
+    },
+    "onefile": {
+      "schema_version": 1,
+      "verified": true,
+      "version": "0.6.0",
+      "executable_sha256": "204df17fcf74a0517c3301730390e7a1bf606854e3cc295f9cba7b0c0a0f8ac5",
+      "pe_version": {
+        "file_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "file_version": "0.6.0",
+        "product_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "product_version": "0.6.0"
+      },
+      "material_sha256": "385f7154e4c5b58c0b7670b1c0ae17dcc0fd0e7f4d20c3623856ea5217d6fe4e",
+      "complete_backup": {
+        "sha256": "b7ac307b11bb0f3c51a49d2c2a5b4d8a4af94586395ff5dfb6c252eea5874d21",
+        "size": 26782,
+        "restored_source_rebound": true,
+        "facts": 3,
+        "active_claims": 3,
+        "original_material_sha256": "385f7154e4c5b58c0b7670b1c0ae17dcc0fd0e7f4d20c3623856ea5217d6fe4e"
+      },
+      "verified_at": "2026-11-24T12:03:02+08:00",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "codex-windows-incremental",
+        "codex-archive-idempotence",
+        "unavailable-source-history-preserved",
+        "legacy-endpoints-retired",
+        "codex-configured-startup",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ],
+      "tray_enabled": true,
+      "tray_physical_checked": false,
+      "browser_driven": false,
+      "office_checked": false,
+      "manual_checks": []
+    },
+    "desktop": {
+      "schema_version": 1,
+      "verified": true,
+      "version": "0.6.0",
+      "executable_sha256": "204df17fcf74a0517c3301730390e7a1bf606854e3cc295f9cba7b0c0a0f8ac5",
+      "pe_version": {
+        "file_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "file_version": "0.6.0",
+        "product_version_parts": [
+          0,
+          6,
+          0,
+          0
+        ],
+        "product_version": "0.6.0"
+      },
+      "material_sha256": "799fb87963ba3b5afc31d40da8158007641512c01d33b123124b488edefec6fb",
+      "complete_backup": {
+        "sha256": "d557c0924fa8d95c277e13480a3a92e69bd4dc8e4d8cfdf1d1312f1378779a06",
+        "size": 26737,
+        "restored_source_rebound": true,
+        "facts": 3,
+        "active_claims": 3,
+        "original_material_sha256": "799fb87963ba3b5afc31d40da8158007641512c01d33b123124b488edefec6fb"
+      },
+      "verified_at": "2026-11-24T12:06:30+08:00",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "codex-windows-incremental",
+        "codex-archive-idempotence",
+        "unavailable-source-history-preserved",
+        "legacy-endpoints-retired",
+        "codex-configured-startup",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ],
+      "tray_enabled": true,
+      "tray_physical_checked": false,
+      "browser_driven": false,
+      "office_checked": false,
+      "manual_checks": []
+    }
+  },
+  "desktop_filename": "aha.exe",
+  "desktop_rollback_filename": "aha-v0.6.0-rollback.exe",
+  "desktop_rollback_sha256": "4a2d8fed5dfff0e6c02b8e7466a4f9fa7a32e62f851457675f01e12630362a3d",
+  "browsers": {
+    "directory": {
+      "browser": "158.0.8127.88",
+      "configured_windows": true,
+      "configured_wsl": true,
+      "cross_source_dedup": true,
+      "history_rows": 7,
+      "keyboard_and_focus": true,
+      "layout_widths": [
+        1440,
+        1366,
+        1280,
+        430,
+        375
+      ],
+      "pricing_basis_visible": true,
+      "program": "windows_executable",
+      "refresh_no_repeat": true,
+      "shutdown": true,
+      "wsl_failure_and_recovery": true
+    },
+    "desktop": {
+      "browser": "158.0.8127.88",
+      "configured_windows": true,
+      "configured_wsl": true,
+      "cross_source_dedup": true,
+      "history_rows": 7,
+      "keyboard_and_focus": true,
+      "layout_widths": [
+        1440,
+        1366,
+        1280,
+        430,
+        375
+      ],
+      "pricing_basis_visible": true,
+      "program": "windows_executable",
+      "refresh_no_repeat": true,
+      "shutdown": true,
+      "wsl_failure_and_recovery": true
+    }
+  },
+  "office": {
+    "directory": {
+      "excel": {
+        "read_only": true,
+        "version": "16.0",
+        "sheets": [
+          {
+            "exact_totals": true,
+            "name": "使用明细.csv",
+            "headers": 23,
+            "data_rows": 3
+          },
+          {
+            "exact_totals": true,
+            "name": "每日汇总.csv",
+            "headers": 17,
+            "data_rows": 1
+          }
+        ]
+      },
+      "print": {
+        "chrome": "158.0.8127.88",
+        "a4_page_sizes_pt": [
+          [
+            594.95996,
+            841.91998
+          ]
+        ],
+        "pdf_bytes": 119389
+      }
+    },
+    "onefile": {
+      "excel": {
+        "read_only": true,
+        "version": "16.0",
+        "sheets": [
+          {
+            "exact_totals": true,
+            "name": "使用明细.csv",
+            "headers": 23,
+            "data_rows": 3
+          },
+          {
+            "exact_totals": true,
+            "name": "每日汇总.csv",
+            "headers": 17,
+            "data_rows": 1
+          }
+        ]
+      },
+      "print": {
+        "chrome": "158.0.8127.88",
+        "a4_page_sizes_pt": [
+          [
+            594.95996,
+            841.91998
+          ]
+        ],
+        "pdf_bytes": 119388
+      }
+    }
+  },
+  "real_source_smoke": {
+    "read_actual_windows_and_wsl_into_isolated_ledger": true,
+    "both_sources_have_usage": true,
+    "repeat_new_counts": {
+      "windows": 0,
+      "wsl": 0
+    },
+    "final_source_status": {
+      "windows": {
+        "status": "partial",
+        "issues": {
+          "invalid_cumulative_usage": 1,
+          "line_limit": 1
+        }
+      },
+      "wsl": {
+        "status": "no_change",
+        "issues": {}
+      }
+    },
+    "run_count": 3,
+    "shutdown": true
+  },
+  "legacy_readonly_snapshot": {
+    "source_schema": 4,
+    "restored_schema": 5,
+    "equal_fact_cost_project_claim_and_revision_projections": true,
+    "unchanged_original_packages": 0,
+    "input_archive_unchanged": true,
+    "source_writes": false
+  }
+}
