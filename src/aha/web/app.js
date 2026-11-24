@@ -8,7 +8,7 @@ const state = {
   rows: [], total: 0, cursor: null, nextCursor: null, cursors: [null], selected: new Map(), batches: [], batch: null,
   busy: false, pendingBatch: null, revision: null, lifecycle: null, noticeTimer: null, stopped: false,
   filterGeneration: 0, analysisRequest: 0,
-  sourceBinding: null, bindingSelection: null, bindingRequest: 0, dataDirectory: "",
+  sources: [], sourceSettings: null, sourceSave: null, syncCancelling: false, dataDirectory: "",
   backupBusy: false, backupGeneration: 0, backupJob: null, backupUpload: null, backupController: null,
   pendingBackupUploads: [],
   backupLimits: {archive_bytes: 4 * 1024 ** 3, chunk_bytes: 4 * 1024 ** 2},
@@ -41,13 +41,13 @@ function node(tag, className, text) {
 function hasUsage(summary) {
   try { return BigInt(summary?.record_count ?? 0) > 0n; } catch { return false; }
 }
-function dateTime(value) {
+function dateTime(value, showSeconds = false) {
   if (!value) return "时间未提供";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit",
+    hour: "2-digit", minute: "2-digit", ...(showSeconds ? {second: "2-digit"} : {}),
   }).format(date);
 }
 function clearFeedback() {
@@ -136,20 +136,22 @@ function syncActions() {
     AhaForms.sync(); timeRange.setDisabled(true); revisionTimeRange.setDisabled(true);
     return;
   }
-  document.querySelectorAll("[data-sync-control]").forEach((control) => { control.disabled = state.syncBusy; });
+  $("load-default").disabled = !state.ledger || state.syncBusy || Boolean(state.sourceSave);
+  const cancellable = state.syncBusy && state.sync?.status === "running" && Boolean(state.sync.id);
+  $("cancel-sync").hidden = !cancellable;
+  $("cancel-sync").disabled = !cancellable || state.syncCancelling;
+  $("cancel-sync").textContent = state.syncCancelling ? "正在取消…" : "取消同步";
+  syncSourceSettings();
   $("analyze").disabled = state.busy || !state.ledger;
   $("view-details").disabled = state.busy || !state.analysis;
   $("create-batch").disabled = state.busy || !state.analysis || state.analysis.availability_mode !== "available" || Boolean(state.analysis.target_batch_id) || !hasUsage(state.analysis.summary);
   $("refresh-availability").disabled = state.busy || !state.ledger;
   $("save-revision").disabled = state.busy || !state.revision || ($("revision-basis").value === "current" && (!state.revision.analysis || !hasUsage(state.revision.analysis.summary)));
-  $("refresh-metadata").disabled = state.busy || !state.ledger;
-  $("scan-metadata").disabled = state.busy || !state.ledger;
   $("assign").disabled = state.busy || state.selected.size === 0;
   $("prev-page").disabled = state.busy || state.page <= 1;
   $("next-page").disabled = state.busy || !state.nextCursor;
   $("revision-analyze").disabled = state.busy || !state.revision || !state.ledger;
   $("view-all-history").disabled = state.busy || !state.ledger?.coverage?.start_date;
-  $("bind-default-source").disabled = state.busy || state.syncBusy;
   $("create-full-backup").disabled = state.busy || state.backupBusy;
   $("restore-backup").disabled = state.busy || state.backupBusy;
   $("restore-file").disabled = state.busy || state.backupBusy;
@@ -263,31 +265,137 @@ function syncStatus(attempt) {
   const result = attempt?.result?.status || attempt?.result?.state;
   return status === "completed" && result === "needs_review" ? result : status || result;
 }
+const sourceNames = {windows: "Windows", wsl: "WSL"};
+const sourceStates = {
+  unconfigured: "待确认", ready: "已确认", queued: "等待同步", running: "同步中", completed: "已同步",
+  no_change: "无新增", partial: "部分覆盖", unavailable: "暂不可用", cancelled: "已取消", failed: "失败",
+};
+const sourceIssueLabels = {
+  directory_unavailable: "目录不可读",
+  file_unavailable: "日志不可读",
+  file_changed_or_unavailable: "日志正在变化或不可读",
+  incomplete_tail: "日志末尾尚未写完",
+  scan_limit: "达到本次读取上限",
+  inventory_limit: "达到文件列举上限",
+  line_limit: "单条日志过长",
+  invalid_archive: "归档无法解压",
+  archive_expansion_limit: "达到归档读取上限",
+  archive_input_limit: "达到归档读取上限",
+  archive_event_limit: "达到归档读取上限",
+  invalid_line: "日志格式无法识别",
+  invalid_header: "缺少有效会话信息",
+  metadata_header_missing: "缺少有效会话信息",
+  thread_identity_conflict: "会话身份存在冲突",
+  invalid_response_usage: "用量记录无法核实",
+  invalid_cumulative_usage: "累计用量无法核实",
+  cumulative_baseline_unconfirmed: "累计用量的起点待确认",
+  snapshot_receipt_mismatch: "用量快照与请求记录不符",
+  invalid_usage_time: "发生时间无法核实",
+};
+function sourceIssueSummary(issues) {
+  const groups = new Map();
+  for (const [key, count] of Object.entries(issues || {})) {
+    if (!Number.isSafeInteger(count) || count <= 0) continue;
+    const label = sourceIssueLabels[key] || "其他读取限制";
+    groups.set(label, (groups.get(label) || 0) + count);
+  }
+  return [...groups].map(([label, count]) => `${label} ${counts(count)} 处`).join(" · ");
+}
+function syncMatchesSources(job) {
+  if (!Array.isArray(job?.sources)) return Boolean(job);
+  const configured = state.sources.filter((source) => source.configured);
+  const attempted = job.sources.filter((source) => source.configured);
+  return configured.length === attempted.length && configured.every((source) =>
+    attempted.some((candidate) => candidate.kind === source.kind && candidate.root === source.root
+      && (candidate.distribution ?? null) === (source.distribution ?? null)
+      && (candidate.since ?? null) === (source.since ?? null)));
+}
+function updateSources(sources) {
+  if (!Array.isArray(sources)) return;
+  state.sources = Object.keys(sourceNames).map((kind) => sources.find((source) => source.kind === kind)
+    || state.sources.find((source) => source.kind === kind)).filter(Boolean);
+  if (state.sync && !syncMatchesSources(state.sync)) {
+    state.sync = null;
+    state.syncBusy = false;
+    state.syncCancelling = false;
+    state.syncGeneration += 1;
+  }
+}
+function renderSourceEndpoints() {
+  const target = $("source-endpoints");
+  target.hidden = !state.sources.length;
+  target.replaceChildren(...state.sources.map((source) => {
+    const name = [sourceNames[source.kind], source.distribution].filter(Boolean).join(" · ");
+    const starting = state.syncBusy && !state.sync?.id && source.configured;
+    const status = (starting || state.syncBusy && source.status === "ready") ? "queued" : source.status;
+    const card = node("article", "source-endpoint");
+    const heading = node("div", "source-title");
+    heading.append(node("strong", "", name), node("span", "tag", sourceStates[status] || "状态未知"));
+    card.append(heading);
+    if (!source.configured) {
+      card.append(node("p", "", "在“数据来源”中选择 Codex 数据目录。"));
+      return card;
+    }
+    const last = source.last_success_at;
+    card.append(node("p", "", last ? `上次成功 ${dateTime(last, true)}` : "尚无成功同步"));
+    if (source.since) card.append(node("p", "", `读取范围自 ${source.since} 起（北京时间）`));
+    const result = source.result;
+    const hasCurrentRange = result?.coverage_from && result?.coverage_through;
+    const range = hasCurrentRange ? result : source.last_success_range;
+    if (range?.coverage_from && range?.coverage_through) {
+      const from = dateTime(range.coverage_from, true);
+      const through = dateTime(range.coverage_through, true);
+      const label = hasCurrentRange ? "已核实记录时间" : "上次成功覆盖";
+      card.append(node("p", "", `${label}（北京时间）${from} 至 ${through}`));
+    }
+    if (!starting && ["completed", "no_change", "partial"].includes(status) && result) {
+      const parts = [];
+      if (result.new_count != null) parts.push(`新增 ${counts(result.new_count)} 条`);
+      if (result.revised_count) parts.push(`更新 ${counts(result.revised_count)} 条`);
+      if (result.unchanged_count != null) parts.push(`重复 ${counts(result.unchanged_count)} 条`);
+      if (result.pending_count) parts.push(`待核对 ${counts(result.pending_count)} 条`);
+      if (result.files != null) parts.push(`检查 ${counts(result.files)} 个文件`);
+      if (parts.length) card.append(node("p", "", parts.join(" · ")));
+      const issues = sourceIssueSummary(result.issues);
+      if (issues) card.append(node("p", "", issues));
+    }
+    if (!starting && source.message) {
+      const error = ["failed", "unavailable"].includes(status);
+      card.append(node("p", error ? "source-endpoint-error" : "", source.message));
+    }
+    return card;
+  }));
+}
 function renderSource() {
   const ledger = state.ledger;
   const amount = ledger?.counts || {};
   const coverage = ledger?.coverage || {};
-  const attempt = state.sync || ledger?.last_attempt;
+  const attempt = state.sync;
   const status = syncStatus(attempt);
   const running = state.syncBusy || status === "running";
-  const failed = !running && ["failed", "cancelled"].includes(status);
+  const configured = state.sources.filter((source) => source.configured);
+  const succeeded = configured.filter((source) => ["completed", "no_change"].includes(source.status));
+  const unavailable = state.sources.find((source) => ["failed", "unavailable"].includes(source.status));
+  const partial = state.sources.some((source) => source.status === "partial") || (succeeded.length && unavailable);
+  const failed = !running && (status === "failed" || !status && unavailable && !partial);
   const needsReview = !running && !failed && status === "needs_review";
-  const last = ledger?.last_successful_sync_at ||
-    (["completed", "succeeded", "success"].includes(syncStatus(ledger?.last_sync)) ? ledger.last_sync.finished_at || ledger.last_sync.completed_at : null);
-  $("source-name").textContent = "本地用量台账";
-  const bindingRequired = state.sourceBinding?.required;
-  $("source-mode").textContent = running ? "同步中" : bindingRequired ? "待确认本机来源" : failed ? "同步失败" : needsReview ? "需要核对" : last ? "已同步" : "本地资料";
+  const last = ledger?.last_successful_sync_at;
+  const bindingRequired = !configured.length;
+  const mode = running ? "同步中" : status === "cancelled" ? "已取消" : failed ? "同步失败"
+    : partial ? "部分完成" : needsReview ? "需要核对" : bindingRequired ? "待确认本机来源"
+    : status === "completed" || succeeded.length === configured.length ? "已同步" : "本地资料";
+  if ($("source-mode").textContent !== mode) $("source-mode").textContent = mode;
   const period = coverage.start_date ? ` · ${coverage.start_date} 至 ${coverage.end_date}` : "";
   $("source-description").textContent = ledger
-    ? `${counts(amount.detail_count)} 条明细 · ${counts(amount.rollup_count)} 条来源日汇总${period} · ${last ? `上次成功 ${dateTime(last)}` : "尚无成功同步"}${needsReview ? " · 本次来源需要核对" : ""}`
+    ? `${counts(amount.detail_count)} 条明细 · ${counts(amount.rollup_count)} 条来源日汇总${period} · ${last ? `台账上次成功同步 ${dateTime(last)}` : "尚无成功同步"}`
     : "正在读取本地资料。";
-  $("load-default").textContent = state.syncBusy ? "正在同步…" : bindingRequired ? "接续本机来源" : "立即同步";
-  $("source-binding-note").hidden = !bindingRequired;
+  $("load-default").textContent = state.syncBusy ? "正在同步…" : bindingRequired ? "确认数据来源" : "立即同步";
   $("sync-error").hidden = !failed;
-  const reason = attempt?.result?.error_message || attempt?.message || attempt?.error_message || "同步未完成，请稍后重试。";
+  const reason = attempt?.result?.error_message || attempt?.message || unavailable?.message || "同步未完成，请稍后重试。";
   const saved = last || amount.detail_count > 0 || amount.rollup_count > 0;
   $("sync-error").textContent = failed ? `${reason} ${saved ? "当前显示已保存的本地数据。" : ""}${last ? "" : "尚未成功同步，当前统计不代表实际用量。"}` : "";
   $("reconciliation-count").textContent = counts(amount.pending_count || state.reconciliations.length);
+  renderSourceEndpoints();
   renderDirectories(); syncActions();
 }
 async function refreshReconciliations(isCurrent = () => true) {
@@ -301,7 +409,7 @@ function handleSyncError(error) {
   const message = error.message || "同步未完成，原本地数据仍可查询。";
   const status = syncStatus(state.sync);
   if (["completed", "needs_review"].includes(status)) state.syncPreviewPending = false;
-  if (!["completed", "failed", "needs_review"].includes(status)) {
+  if (!["completed", "failed", "needs_review", "cancelled"].includes(status)) {
     state.sync = {status: "failed", message};
   }
   notify(message, "error");
@@ -309,70 +417,109 @@ function handleSyncError(error) {
 async function watchSync(job, generation = state.syncGeneration) {
   const isCurrent = () => generation === state.syncGeneration && !state.stopped;
   if (!isCurrent()) return;
-  state.sync = job; state.syncBusy = job.status === "running";
-  renderSource();
-  while (isCurrent() && state.sync.status === "running") {
+  const published = new Set();
+  const accept = (latest) => {
+    state.sync = latest;
+    state.syncBusy = latest.status === "running";
+    if (!state.syncBusy) state.syncCancelling = false;
+    updateSources(latest.sources);
+    const before = published.size;
+    for (const source of latest.sources || []) {
+      if (["completed", "no_change", "partial"].includes(source.status)) published.add(source.kind);
+    }
+    if (!published.size && ["completed", "needs_review"].includes(syncStatus(latest))) published.add("job");
+    if (published.size > before) {
+      invalidate("本地用量已更新，请更新预览");
+      invalidateAssociations("用量已更新，请刷新项目费用与归属记录。");
+      state.syncPreviewPending = true;
+    }
+    renderSource();
+  };
+  accept(job);
+  while (isCurrent() && state.sync?.status === "running") {
     await new Promise((resolve) => setTimeout(resolve, 450));
     if (!isCurrent()) return;
     const latest = await api(`/api/sync/${encodeURIComponent(job.id)}`, undefined, isCurrent);
     if (!isCurrent()) return;
-    state.sync = latest;
-    renderSource();
+    accept(latest);
   }
   if (!isCurrent()) return;
-  state.syncBusy = false;
-  renderSource();
-  const failed = ["failed", "cancelled"].includes(syncStatus(state.sync));
-  if (!failed) {
-    invalidate("同步已完成，请更新预览");
-    invalidateAssociations("用量已更新，请刷新项目费用与归属记录。");
-    state.syncPreviewPending = true;
-  }
+  const finished = state.sync;
   await Promise.all([refreshLedger(isCurrent), refreshProjects(isCurrent), refreshReconciliations(isCurrent)]);
-  if (!isCurrent()) return;
-  if (failed) { renderSource(); refreshPendingSyncPreview(); return; }
-  if (!state.busy) await run("正在更新本地预览…", analyze);
-  if (!isCurrent()) return;
+  if (!isCurrent() || state.sync !== finished) return;
+  if (published.size && state.syncPreviewPending && !state.busy) {
+    await run("正在更新本地预览…", analyze);
+  }
+  if (!isCurrent() || state.sync !== finished) return;
   renderSource();
-  const needsReview = syncStatus(state.sync) === "needs_review";
-  notify(needsReview
-    ? "本次来源需要核对，已保留本地用量。请查看“数据核对”。"
-    : "同步已完成。后续查询使用本地台账。", needsReview ? "info" : "success");
+  const status = syncStatus(state.sync);
+  if (status === "cancelled") {
+    notify(published.size ? "已取消同步，完成的来源已入账。" : "已取消同步，已有台账仍可查询。", "info");
+    return;
+  }
+  if (status === "failed") return;
+  const sources = state.sync.sources || [];
+  const partial = sources.some((source) => ["partial", "unavailable", "failed"].includes(source.status));
+  if (partial) notify("本次同步仅完成部分读取。请查看各来源的结果。", "info");
+  else if (status === "needs_review") notify("本次来源需要核对，已保留本地用量。请查看“数据核对”。", "info");
+  else notify("同步已完成。后续查询使用本地台账。");
 }
-async function loadSource(path = "/api/sync", body = {}) {
-  if (state.syncBusy || state.stopped) return;
-  if (path !== "/api/source/sql" && (body.path || state.sourceBinding?.required)) {
-    try {
-      if (await openSourceBinding(body.path || "", {path, body})) return;
-    } catch (error) { notify(error.message, "error"); return; }
+async function loadSource() {
+  if (state.syncBusy || state.sourceSave || state.stopped) return;
+  if (!state.sources.some((source) => source.configured)) {
+    await openSourceSettings($("load-default"));
+    return;
   }
   const generation = ++state.syncGeneration;
   const isCurrent = () => generation === state.syncGeneration && !state.stopped;
+  const sourcesAtRequest = state.sources;
+  state.syncCancelling = false;
   state.syncBusy = true; state.sync = {status: "running"}; renderSource();
   try {
-    const job = await api(path, {...body, idempotency_key: crypto.randomUUID()}, isCurrent);
-    if (!isCurrent()) return;
-    $("source-dialog").close();
-    await watchSync(job, generation);
-    if (isCurrent() && state.sync?.code === "source_binding_required") {
-      await openSourceBinding(body.path || "", {path, body});
+    let job;
+    try { job = await api("/api/sync", {trigger: "manual"}, isCurrent); }
+    catch (error) {
+      if (!isCurrent()) return;
+      if (error.code === "source_binding_required") {
+        state.sync = null;
+        state.syncBusy = false;
+        await openSourceSettings($("load-default"));
+        return;
+      }
+      if (error.code !== "sync_in_progress") throw error;
+      const status = await api("/api/status", undefined, isCurrent);
+      if (!isCurrent()) return;
+      if (state.sources === sourcesAtRequest) updateSources(status.sources);
+      job = status.sync;
+      if (!job) throw error;
     }
+    if (!isCurrent()) return;
+    if (state.sources !== sourcesAtRequest && !syncMatchesSources(job)) {
+      state.sync = null;
+      return;
+    }
+    await watchSync(job, generation);
   } catch (error) {
     if (isCurrent()) handleSyncError(error);
   } finally {
     if (isCurrent()) { state.syncBusy = false; renderSource(); refreshPendingSyncPreview(); }
   }
 }
-async function importSQL(file) {
-  if (!file) return;
-  if (file.size > 128 * 1024 * 1024) throw new Error("SQL 文件不能超过 128 MiB。");
-  const encoded = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(",", 2)[1]);
-    reader.onerror = () => reject(new Error("无法读取此文件，请重新选择。"));
-    reader.readAsDataURL(file);
-  });
-  await loadSource("/api/source/sql", {name: file.name, content_base64: encoded});
+async function cancelSync() {
+  const id = state.sync?.id;
+  const generation = state.syncGeneration;
+  const isCurrent = () => id && generation === state.syncGeneration && !state.stopped
+    && state.syncBusy && state.sync?.id === id && state.sync.status === "running";
+  if (!isCurrent() || state.syncCancelling) return;
+  state.syncCancelling = true;
+  syncActions();
+  try { await api(`/api/sync/${encodeURIComponent(id)}/cancel`, {}, isCurrent); }
+  catch (error) {
+    if (!isCurrent()) return;
+    state.syncCancelling = false;
+    syncActions();
+    notify(error.message, "error");
+  }
 }
 async function refreshProjects(isCurrent = () => true) {
   const active = refreshRequest("projectsRequest", isCurrent);
@@ -1033,6 +1180,13 @@ function costCell(row) {
   if (row.pricing_status === "missing_basis") text.append(node("span", "subline", "沿用历史金额"));
   return text;
 }
+function detailModelCell(row) {
+  const text = node("span", "", row.model);
+  const source = row.data_source === "codex_native" ? "Codex 原生日志" : "台账历史";
+  text.append(node("span", "subline", source));
+  if (row.pricing_basis) text.append(node("span", "subline", row.pricing_basis));
+  return text;
+}
 function projectCell(row) {
   const text = node("span", "", row.project_name || "未归属");
   text.append(node("span", "subline", origins[row.assignment_origin] || row.assignment_origin || "未归属"));
@@ -1055,7 +1209,7 @@ function renderRowTable() {
     {title: rollup ? "来源日期" : "北京时间", value: (row) => rollup ? row.date : row.time?.replace("T", " ").replace("+08:00", ""), wrap: false},
     {title: "项目", value: projectCell, wrap: true},
     ...(state.analysis?.availability_mode === "all" ? [{title: "使用状态", value: usageCell, wrap: true}] : []),
-    {title: "模型", value: (row) => row.model},
+    rollup ? {title: "模型", value: (row) => row.model} : {title: "模型与来源", value: detailModelCell, wrap: true},
     ...(rollup ? [{title: "代表记录数", numeric: true, value: (row) => counts(row.request_count)}] : []),
     {title: "输入", numeric: true, value: (row) => counts(row.fresh_input_tokens)},
     {title: "输出", numeric: true, value: (row) => counts(row.output_tokens)},
@@ -1446,13 +1600,6 @@ async function saveLifecycle() {
   if (state.ledger) await analyze();
   notify({withdraw: "已撤回为草稿，可以修改。", void: "已作废，用量已释放。"}[operation.action]);
 }
-async function scanMetadata() {
-  await api("/api/session-metadata", {roots: lines($("metadata-roots").value)});
-  invalidateAssociations("目录依据已更新，请重新检查待归属记录。");
-  await Promise.all([refreshLedger(), refreshProjects()]);
-  invalidate("目录依据已更新，请重新预览");
-  $("source-dialog").close(); notify("已更新目录识别。");
-}
 function renderEmptyRange(result) {
   const coverage = state.ledger?.coverage;
   const show = !hasUsage(result.summary) && result.time_coverage?.complete !== false && coverage?.start_date;
@@ -1467,34 +1614,114 @@ async function viewAllHistory() {
   await analyze();
   notify("已显示全部历史。需要申请报销时，请切换到“可用用量”。", "info");
 }
-async function openSourceBinding(location = "", continuation = {path: "/api/sync", body: {}}) {
-  const request = ++state.bindingRequest;
-  const isCurrent = () => request === state.bindingRequest && !state.stopped;
-  const binding = await api(`/api/source/binding${location ? `?path=${encodeURIComponent(location)}` : ""}`, undefined, isCurrent);
-  if (!isCurrent()) return true;
-  if (!location) state.sourceBinding = binding;
-  if (!binding.required) return false;
-  state.bindingSelection = {location, continuation, request};
-  $("source-binding-description").textContent = binding.message || "原台账及项目完整保留。将当前 CC Switch 作为新来源接续，相同消费不重复计入，不同历史值保留供核对。";
-  $("source-binding-reason").value = "将当前 CC Switch 作为新来源接续，保留已保存的历史资料。";
-  $("source-dialog").close();
-  if (!$("source-binding-dialog").open) $("source-binding-dialog").showModal();
-  renderSource();
-  return true;
+function currentSource(kind) { return state.sources.find((source) => source.kind === kind && source.configured); }
+function sourceSettingsActive(settings) {
+  return settings && state.sourceSettings === settings && $("source-dialog").open && !state.stopped;
 }
-async function saveSourceBinding() {
-  const selection = state.bindingSelection;
-  if (!selection) throw new Error("请重新选择本机来源。");
-  const reason = $("source-binding-reason").value.trim();
-  if (!reason) throw new Error("请填写接续说明。");
-  const result = await api("/api/source/binding", {path: selection.location, reason});
-  if (selection !== state.bindingSelection || state.stopped) return;
-  if (!selection.location) state.sourceBinding = {...result, required: false};
-  state.bindingSelection = null;
-  $("source-binding-dialog").close();
-  invalidate("已确认本机来源，正在接续用量");
-  renderSource();
-  await loadSource(selection.continuation.path, selection.continuation.body);
+function syncSourceSettings() {
+  const settings = state.sourceSettings;
+  const blocked = !sourceSettingsActive(settings) || settings.loading || state.busy || state.syncBusy || Boolean(state.sourceSave);
+  const distribution = $("wsl-distribution");
+  $("windows-source-root").disabled = blocked;
+  $("windows-source-since").disabled = blocked;
+  $("windows-source-all-history").disabled = blocked;
+  $("save-windows-source").disabled = blocked;
+  distribution.disabled = blocked || distribution.options.length < 2;
+  $("wsl-source-root").disabled = blocked || !distribution.value;
+  $("wsl-source-since").disabled = blocked || !distribution.value;
+  $("wsl-source-all-history").disabled = blocked || !distribution.value;
+  $("save-wsl-source").disabled = blocked || !distribution.value;
+}
+function sourceSettingsFeedback(message = "", error = "") {
+  $("source-settings-status").textContent = message;
+  $("source-settings-status").hidden = !message;
+  $("source-settings-error").textContent = error;
+  $("source-settings-error").hidden = !error;
+}
+function populateSourceSettings(settings) {
+  const local = currentSource("windows");
+  const wsl = currentSource("wsl");
+  const localRoot = $("windows-source-root");
+  localRoot.value = local?.root || "";
+  localRoot.placeholder = settings.windowsDefault || "留空自动查找 Windows 的 Codex 数据目录";
+  $("windows-source-since").value = local ? local.since || "" : settings.historyDefaultSince;
+  const select = $("wsl-distribution");
+  const available = new Set(settings.distributions);
+  if (wsl?.distribution) available.add(wsl.distribution);
+  const placeholder = node("option", "", "请选择发行版");
+  placeholder.value = "";
+  select.replaceChildren(placeholder, ...Array.from(available, (name) => {
+    const option = node("option", "", name); option.value = name; return option;
+  }));
+  select.value = wsl?.distribution || "";
+  $("wsl-source-root").value = wsl?.root || "";
+  $("wsl-source-since").value = wsl ? wsl.since || "" : settings.historyDefaultSince;
+  $("wsl-discovery-note").hidden = settings.loading || available.size > 0;
+  $("wsl-discovery-note").textContent = "未发现 WSL 发行版。可使用 Windows 来源，或启动所用发行版后重新打开此设置。";
+  syncActions();
+}
+async function openSourceSettings(trigger) {
+  const dialog = $("source-dialog");
+  if (dialog.open || state.stopped) return;
+  clearFeedback();
+  const settings = state.sourceSettings = {trigger, loading: true, windowsDefault: "", distributions: [], historyDefaultSince: ""};
+  const isCurrent = () => sourceSettingsActive(settings);
+  const sourcesAtRequest = state.sources;
+  $("source-data-directory").textContent = state.dataDirectory;
+  sourceSettingsFeedback("正在查找 Codex 数据目录和 WSL 发行版…");
+  dialog.showModal();
+  populateSourceSettings(settings);
+  try {
+    const result = await api("/api/codex-sources", undefined, isCurrent);
+    if (!isCurrent()) return;
+    if (state.sources === sourcesAtRequest) updateSources(result.sources);
+    settings.windowsDefault = result.windows_default || "";
+    settings.distributions = result.distributions || [];
+    settings.historyDefaultSince = result.history_default_since || "";
+    sourceSettingsFeedback();
+  } catch (error) {
+    if (isCurrent()) sourceSettingsFeedback("", error.message);
+  } finally {
+    if (isCurrent()) {
+      settings.loading = false;
+      populateSourceSettings(settings);
+      renderSource();
+    }
+  }
+}
+async function saveSourceSettings(kind) {
+  const settings = state.sourceSettings;
+  if (!sourceSettingsActive(settings) || $(`save-${kind}-source`).disabled) return;
+  const body = {kind, root: $(`${kind}-source-root`).value.trim(), since: $(`${kind}-source-since`).value};
+  if (kind === "wsl") body.distribution = $("wsl-distribution").value;
+  const operation = state.sourceSave = {focus: document.activeElement};
+  const isCurrent = () => state.sourceSave === operation && sourceSettingsActive(settings);
+  const name = sourceNames[kind];
+  sourceSettingsFeedback(`正在确认 ${name} 来源…`);
+  syncActions();
+  try {
+    const result = await api("/api/codex-sources", body, isCurrent);
+    if (state.sourceSave !== operation || state.stopped) return;
+    const before = currentSource(kind);
+    updateSources(result.sources);
+    const saved = currentSource(kind);
+    if (saved?.root !== before?.root || saved?.distribution !== before?.distribution || saved?.since !== before?.since) state.sync = null;
+    renderSource();
+    if (!isCurrent()) return;
+    $(`${kind}-source-root`).value = saved?.root || body.root;
+    $(`${kind}-source-since`).value = saved?.since || "";
+    sourceSettingsFeedback(`已确认 ${name} 来源。关闭设置后可立即同步。`);
+  } catch (error) {
+    if (isCurrent()) sourceSettingsFeedback("", error.message);
+  } finally {
+    if (state.sourceSave === operation) {
+      state.sourceSave = null;
+      syncActions();
+      const focus = operation.focus;
+      if (sourceSettingsActive(settings) && document.activeElement === document.body
+        && focus?.isConnected && !focus.disabled && focus.getClientRects().length) focus.focus({preventScroll: true});
+    }
+  }
 }
 function backupActive(generation) { return generation === state.backupGeneration && !state.stopped; }
 function backupProgress(message, percentage = null) {
@@ -1674,7 +1901,7 @@ async function openBackupDialog() {
 async function initialize() {
   const status = await api("/api/status");
   state.csrf = status.csrf_token; state.today = status.today; state.now = status.now; state.ledger = status.ledger;
-  state.sourceBinding = status.default_source?.binding || null;
+  updateSources(status.sources);
   state.dataDirectory = status.data_directory || "";
   state.backupLimits = status.backup_limits || state.backupLimits;
   $("source-data-directory").textContent = state.dataDirectory;
@@ -1688,9 +1915,9 @@ async function initialize() {
       if (backupActive(generation)) notify(error.message, "error");
     }).finally(() => finishBackupOperation(generation));
   }
-  const currentSync = status.sync || status.startup_sync;
-  const initialSyncGeneration = state.syncGeneration;
-  state.sync = currentSync || null; state.syncBusy = syncStatus(currentSync) === "running";
+  const latestSync = status.sync || status.startup_sync;
+  const currentSync = syncMatchesSources(latestSync) ? latestSync : null;
+  state.sync = currentSync; state.syncBusy = syncStatus(currentSync) === "running";
   $("app-version").textContent = `v${status.version}`;
   renderSource();
   if (currentSync?.status === "running") {
@@ -1700,11 +1927,10 @@ async function initialize() {
       state.syncBusy = false; handleSyncError(error); renderSource(); refreshPendingSyncPreview();
     });
   }
-  await Promise.all([refreshProjects(), refreshReconciliations(), refreshBatches()]);
-  await analyze();
-  if (!currentSync && !state.sourceBinding?.required && initialSyncGeneration === state.syncGeneration) {
-    void loadSource("/api/sync", {trigger: "startup"});
-  }
+  const generation = state.syncGeneration;
+  const isCurrent = () => state.syncGeneration === generation && !state.stopped;
+  await Promise.all([refreshProjects(isCurrent), refreshReconciliations(isCurrent), refreshBatches()]);
+  if (isCurrent()) await analyze();
 }
 async function openReconciliations() {
   await refreshReconciliations(); renderReconciliations(); $("reconciliation-dialog").showModal();
@@ -1745,6 +1971,9 @@ function renderReconciliations() {
     if (entry.current_cost_usd !== undefined) facts.append(node("p", "", `当前参考成本：${money(entry.current_cost_usd)} USD`));
     if (entry.candidate_cost_usd !== undefined) facts.append(node("p", "", `候选参考成本：${money(entry.candidate_cost_usd)} USD`));
     if (entry.detail_count !== undefined) facts.append(node("p", "", `已存明细 ${counts(entry.detail_count)} 条；来源日汇总 ${counts(entry.rollup_count)} 条，代表 ${counts(entry.rollup_record_count)} 条记录。`));
+    if (entry.type === "native_uncertain" && entry.pending_reason) {
+      facts.append(node("p", "", sourceIssueLabels[entry.pending_reason] || "该条用量的依据还无法核实。"));
+    }
     for (const [key, label] of [["previous", "此前来源"], ["observed", "本次来源"]]) {
       if (entry[key]) facts.append(node("p", "", `${label}：${counts(entry[key].detail ?? entry[key].detail_count)} 条明细，${counts(entry[key].rollup ?? entry[key].rollup_count)} 条汇总。`));
     }
@@ -1755,7 +1984,7 @@ function renderReconciliations() {
         const parts = [value.source_name || value.source?.name];
         if (summary.total_cost_usd !== undefined) parts.push(`参考成本 ${money(summary.total_cost_usd)} USD`);
         if (summary.request_count !== undefined || summary.record_count !== undefined) parts.push(`${counts(summary.request_count ?? summary.record_count)} 条记录`);
-        if (summary.created_at !== undefined) parts.push(dateTime(Number(summary.created_at) * 1000));
+        if (summary.created_at !== undefined) parts.push(dateTime(Number(summary.created_at) * 1000, true));
         if (summary.session_id) parts.push(`会话 ${summary.session_id}`);
         if (summary.input_tokens !== undefined) parts.push(`输入 ${counts(summary.input_tokens)} · 输出 ${counts(summary.output_tokens)}`);
         facts.append(node("p", "", `${label}：${parts.filter(Boolean).join(" · ") || "保留原始来源依据"}`));
@@ -1768,6 +1997,8 @@ function renderReconciliations() {
       const label = entry.type === "source" && value === "current" ? "确认此来源，保留本地历史"
         : entry.type === "rollup_origin" && value === "current" ? "确认重叠，保留历史汇总"
         : entry.type === "directory" ? (value === "candidate" ? "采用当前电脑目录" : "保留已保存目录")
+        : entry.type === "native_overlap" ? (value === "independent" ? "确认为新用量" : "沿用已入账历史")
+        : entry.type === "native_uncertain" ? "确认排除候选"
         : choiceLabels[value] || choice.label || "确认来源关系";
       const option = node("option", "", label); option.value = value; select.append(option);
     }
@@ -1786,26 +2017,42 @@ document.querySelectorAll("[data-page]").forEach((button) => button.addEventList
 }));
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
 for (const id of ["project-select", "availability-mode"]) $(id).addEventListener("change", () => invalidate());
-$("source-options").addEventListener("click", () => { clearFeedback(); $("source-dialog").showModal(); });
+$("source-options").addEventListener("click", () => { void openSourceSettings($("source-options")); });
 $("backup-options").addEventListener("click", openBackupDialog);
 $("create-full-backup").addEventListener("click", () => { void createFullBackup(); });
 $("restore-form").addEventListener("submit", (event) => { event.preventDefault(); void restoreFullBackup(); });
 $("cancel-backup").addEventListener("click", () => { void cancelBackupOperation(); });
 $("clear-unfinished-uploads").addEventListener("click", () => run("正在清理未完成上传…", clearUnfinishedUploads));
-$("source-binding-form").addEventListener("submit", (event) => { event.preventDefault(); void run("正在确认本机来源…", saveSourceBinding); });
-$("source-binding-dialog").addEventListener("close", () => { state.bindingSelection = null; state.bindingRequest += 1; });
-$("bind-default-source").addEventListener("click", () => run("正在读取本机来源…", () => openSourceBinding()));
+$("source-dialog").addEventListener("close", () => {
+  if ($("source-dialog").open) return;
+  AhaForms.closeAll();
+  const trigger = state.sourceSettings?.trigger;
+  state.sourceSettings = null;
+  syncSourceSettings();
+  if (trigger?.isConnected && !trigger.disabled) trigger.focus({preventScroll: true});
+  else if (!$("source-options").disabled) $("source-options").focus({preventScroll: true});
+});
+for (const kind of Object.keys(sourceNames)) {
+  $(`${kind}-source-all-history`).addEventListener("click", () => {
+    $(`${kind}-source-since`).value = "";
+    sourceSettingsFeedback();
+  });
+  $(`${kind}-source-form`).addEventListener("submit", (event) => {
+    event.preventDefault(); void saveSourceSettings(kind);
+  });
+}
+$("wsl-distribution").addEventListener("change", () => {
+  const wsl = currentSource("wsl");
+  const bound = wsl?.distribution === $("wsl-distribution").value ? wsl : null;
+  $("wsl-source-root").value = bound?.root || "";
+  $("wsl-source-since").value = bound ? bound.since || "" : state.sourceSettings?.historyDefaultSince || "";
+  sourceSettingsFeedback();
+  syncSourceSettings();
+});
 $("view-all-history").addEventListener("click", () => run("正在查询全部历史…", viewAllHistory));
 $("load-default").addEventListener("click", () => { void loadSource(); });
+$("cancel-sync").addEventListener("click", () => { void cancelSync(); });
 $("review-data").addEventListener("click", () => run("正在加载核对依据…", openReconciliations));
-for (const id of ["import-sql", "dialog-import-sql"]) $(id).addEventListener("click", () => $("sql-file").click());
-$("sql-file").addEventListener("change", (event) => {
-  const file = event.target.files[0]; event.target.value = "";
-  void importSQL(file).catch((error) => notify(error.message, "error"));
-});
-$("sqlite-form").addEventListener("submit", (event) => { event.preventDefault(); void loadSource("/api/sync", {path: $("sqlite-path").value}); });
-$("metadata-form").addEventListener("submit", (event) => { event.preventDefault(); run("正在刷新目录识别…", scanMetadata); });
-$("refresh-metadata").addEventListener("click", () => { clearFeedback(); $("source-dialog").showModal(); });
 for (const id of ["analyze", "refresh-availability"]) $(id).addEventListener("click", () => run("正在更新预览…", analyze));
 $("new-project").addEventListener("click", () => openProject());
 $("project-form").addEventListener("submit", (event) => { event.preventDefault(); if (!$("project-editor").hidden) void run("正在检查目录关联影响…", saveProject); });

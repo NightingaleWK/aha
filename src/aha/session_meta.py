@@ -91,24 +91,33 @@ def _header(path: Path) -> tuple[str, str, str | None]:
     payload = value.get("payload")
     if not isinstance(payload, dict):
         raise _HeaderError("invalid_header")
-    session_id = payload.get("id")
+    return _header_fields(payload)
+
+
+def _header_fields(payload: dict[str, Any]) -> tuple[str, str, str | None]:
+    """Read only the thread identifier, directory, and parent from a session header."""
+    session_id, parent = _header_identity(payload)
     cwd = payload.get("cwd")
     if (
-        not isinstance(session_id, str)
-        or not session_id
-        or len(session_id) > 256
-        or not isinstance(cwd, str)
+        not isinstance(cwd, str)
         or not cwd
         or len(cwd) > 8192
         or any(ord(char) < 32 for char in cwd)
     ):
+        raise _HeaderError("invalid_header")
+    return session_id, cwd, parent
+
+
+def _header_identity(payload: dict[str, Any]) -> tuple[str, str | None]:
+    session_id = payload.get("id")
+    if not isinstance(session_id, str) or not session_id or len(session_id) > 256:
         raise _HeaderError("invalid_header")
     parent = payload.get(
         "forked_from_id", payload.get("parent_thread_id", payload.get("parent_id"))
     )
     if parent is not None and (not isinstance(parent, str) or len(parent) > 256):
         raise _HeaderError("invalid_header")
-    return session_id, cwd, parent or None
+    return session_id, parent or None
 
 
 def _local_path(raw: str) -> Path:

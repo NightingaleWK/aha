@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import http.client
 import http.cookiejar
@@ -23,9 +22,11 @@ from unittest.mock import patch
 from urllib.parse import urlsplit
 from urllib.request import HTTPCookieProcessor, build_opener
 
-from test_sources import database, detail, dump, price, rollup
+from native_usage_fixtures import write_rollout
+from test_sources import detail, price, rollup
 
 from aha import __version__
+from aha.domain import AppError, build_source_data
 from aha.server import JSON_LIMIT, create_server
 from aha.sync import _Stager
 
@@ -37,13 +38,8 @@ class HTTPTests(unittest.TestCase):
         self.enterContext(patch(
             "aha.source_bindings.installation_id", return_value="synthetic-http-installation"
         ))
-        source_patch = patch(
-            "aha.server.default_sqlite_path", return_value=self.root / "synthetic-source.db"
-        )
-        source_patch.start()
-        self.addCleanup(source_patch.stop)
+        self.source_root = self.root / "synthetic-codex"
         self.server = create_server(self.root / "data")
-        self.server.app.metadata_roots = [self.root / "isolated-codex"]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.cookie = ""
@@ -112,22 +108,15 @@ class HTTPTests(unittest.TestCase):
             job = self.json("GET", "/api/sync/" + job["id"])
         return job
 
+    def configure_windows(self) -> dict[str, Any]:
+        return self.json("POST", "/api/codex-sources", {
+            "kind": "windows", "root": str(self.source_root),
+        })
+
     def load_usage(self, count: int = 55) -> dict[str, Any]:
-        event = int(datetime.fromisoformat("2026-10-26T08:00:00+08:00").timestamp())
-        raw = dump(
-            [detail(request_id=f"request-{i}", created_at=event + i) for i in range(count)],
-            [],
-            [price()],
-        )
-        job = self.json(
-            "POST",
-            "/api/source/sql",
-            {
-                "name": r"C:\private\usage.sql",
-                "content_base64": base64.b64encode(raw).decode(),
-            },
-        )
-        completed = self.wait_sync(job)
+        write_rollout(self.source_root, count)
+        self.configure_windows()
+        completed = self.wait_sync(self.json("POST", "/api/sync", {}))
         self.assertEqual(completed["status"], "completed", completed)
         return completed
 
@@ -267,14 +256,16 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.request("GET", "/licenses")[0], 200)
 
     def test_startup_is_once_per_launch_and_queries_are_not_locked_by_sync(self) -> None:
+        write_rollout(self.source_root, 1)
+        self.configure_windows()
         entered, release = threading.Event(), threading.Event()
 
         def sync(*args: Any, **kwargs: Any) -> dict[str, Any]:
             entered.set()
             release.wait(timeout=5)
-            return {"status": "completed"}
+            return {"state": "completed"}
 
-        with patch.object(self.server.app.store, "sync_sqlite", side_effect=sync) as mocked:
+        with patch.object(self.server.app.store, "sync_codex", side_effect=sync) as mocked:
             first = self.json("POST", "/api/sync", {"trigger": "startup"})
             self.assertTrue(entered.wait(timeout=2))
             try:
@@ -296,14 +287,8 @@ class HTTPTests(unittest.TestCase):
         self.load_usage()
         analysis = self.analyze()
         before = self.json("GET", "/api/ledger")
-        job = self.json(
-            "POST",
-            "/api/source/sql",
-            {
-                "name": "invalid.sql",
-                "content_base64": base64.b64encode(b"invalid SQL").decode(),
-            },
-        )
+        self.source_root.rename(self.root / "disconnected")
+        job = self.json("POST", "/api/sync", {})
         failed = self.wait_sync(job)
         self.assertEqual(failed["status"], "failed")
         after = self.json("GET", "/api/ledger")
@@ -314,7 +299,7 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(after["last_attempt"]["error_message"], failed["message"])
         self.assertEqual(self.json("GET", "/api/status")["sync"], failed)
         with patch.object(
-            self.server.app.store, "sync_sqlite", side_effect=AssertionError("query read source")
+            self.server.app.store, "sync_codex", side_effect=AssertionError("query read source")
         ):
             page = self.json("GET", f"/api/analysis/{analysis['analysis_id']}/details?kind=detail")
             self.assertEqual(len(page["rows"]), 50)
@@ -324,6 +309,12 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(self.json("GET", "/api/ledger")["last_attempt"]["state"], "completed")
 
     def test_failed_first_sync_has_recoverable_status_and_no_success_time(self) -> None:
+        code, _, raw = self.request("POST", "/api/sync", {})
+        self.assertEqual(code, 409)
+        self.assertEqual(json.loads(raw)["code"], "source_binding_required")
+        write_rollout(self.source_root, 1)
+        self.configure_windows()
+        self.source_root.rename(self.root / "disconnected")
         failed = self.wait_sync(self.json("POST", "/api/sync", {}))
         self.assertEqual(failed["status"], "failed")
         status = self.json("GET", "/api/status")
@@ -336,10 +327,7 @@ class HTTPTests(unittest.TestCase):
         self.load_usage(1)
         analysis = self.analyze()
         before = self.json("GET", "/api/ledger")
-        source = database(
-            self.root / "synthetic-source.db", [detail(request_id=f"new-{n}") for n in range(520)]
-        )
-        source.close()
+        write_rollout(self.source_root, 521, first_index=1)
         trigger, locked, release = threading.Event(), threading.Event(), threading.Event()
         original_flush = _Stager.flush
         flushes = 0
@@ -388,73 +376,103 @@ class HTTPTests(unittest.TestCase):
         with self.server.app.store.read_connection() as connection:
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM sync_stage").fetchone()[0], 0)
 
-    def test_source_versions_report_actual_version_and_unknown_keeps_local_data(self) -> None:
-        for version in (23, 24, 25, 26, 27):
-            with self.subTest(adapter="sql", version=version):
-                job = self.wait_sync(self.json("POST", "/api/source/sql", {
-                    "name": "versions.sql",
-                    "content_base64": base64.b64encode(
-                        dump([detail()], [], [price()], version=version)
-                    ).decode(),
-                }))
-                self.assertEqual(job["status"], "completed", job)
-                self.assertEqual(job["result"]["source_schema_version"], version)
-                self.assertEqual(job["result"]["new_count"], 1 if version == 23 else 0)
-                self.assertEqual(
-                    self.json("GET", "/api/ledger")["last_sync"]["source_schema_version"], version
-                )
-        source = self.root / "synthetic-source.db"
-        connection = database(source, [detail()], version=27)
-        connection.close()
-        for payload in ({"trigger": "startup"}, {}):
-            with self.subTest(adapter="sqlite", payload=payload):
-                job = self.wait_sync(self.json("POST", "/api/sync", payload))
-                self.assertEqual(job["status"], "completed", job)
-                self.assertEqual(job["result"]["source_schema_version"], 27)
-                self.assertEqual(job["result"]["new_count"], 0)
-                self.assertEqual(job["result"]["revised_count"], 0)
-                self.assertEqual(job["result"]["unchanged_count"], 1)
-        analysis = self.analyze()
-        self.assertEqual(analysis["usage_projection_schema_version"], 23)
-        before = self.json("GET", "/api/ledger")
-        with closing(sqlite3.connect(source)) as connection:
-            connection.execute("PRAGMA user_version=28")
-            connection.commit()
-        failed = self.wait_sync(self.json("POST", "/api/sync", {"path": str(source)}))
-        self.assertEqual(failed["status"], "failed", failed)
-        self.assertEqual(failed["code"], "unsupported_schema")
-        self.assertIn("结构版本 28 暂不支持", failed["message"])
-        self.assertIn("23、24、25、26、27", failed["message"])
-        after = self.json("GET", "/api/ledger")
-        self.assertEqual(after["counts"], before["counts"])
-        self.assertEqual(after["last_successful_sync_at"], before["last_successful_sync_at"])
-        self.assertEqual(after["last_sync"]["source_schema_version"], 27)
-        rows = self.json("GET", f"/api/analysis/{analysis['analysis_id']}/details")
-        self.assertEqual(len(rows["rows"]), 1)
+    def test_native_sources_run_independently_and_old_entry_points_are_retired(self) -> None:
+        write_rollout(self.source_root, 2)
+        self.configure_windows()
+        with patch("aha.server.codex_sessions.probe_source", side_effect=lambda source: source):
+            self.json("POST", "/api/codex-sources", {
+                "kind": "wsl", "distribution": "Synthetic", "root": "/synthetic/codex",
+            })
+        sync_codex = self.server.app.store.sync_codex
 
-    def test_source_needing_review_finishes_without_becoming_success(self) -> None:
-        source = self.root / "synthetic-ccs.db"
-        with closing(database(source, [detail(request_id=f"request-{i}") for i in range(3)])):
-            pass
-        self.server.app.metadata_roots = [self.root / "isolated-codex"]
-        initial = self.wait_sync(self.json("POST", "/api/sync", {"path": str(source)}))
-        self.assertEqual(initial["status"], "completed")
+        def sync(source: Any, *args: Any, **kwargs: Any) -> dict[str, Any]:
+            if source.kind == "wsl":
+                raise AppError("wsl_unavailable", "WSL 当前不可用。", 409)
+            return sync_codex(source, *args, **kwargs)
+
+        with patch.object(self.server.app.store, "sync_codex", side_effect=sync):
+            job = self.wait_sync(self.json("POST", "/api/sync", {"trigger": "startup"}))
+            self.assertEqual(job["status"], "needs_review", job)
+            self.assertEqual(job["result"]["new_count"], 2)
+            windows, wsl = job["sources"]
+            self.assertEqual(windows["status"], "completed")
+            self.assertIsNotNone(windows["last_success_at"])
+            self.assertIn("coverage_from", windows["result"])
+            self.assertEqual(wsl["status"], "unavailable")
+            self.assertIsNone(wsl["last_success_at"])
+            repeat = self.wait_sync(self.json("POST", "/api/sync", {}))
+            self.assertEqual(repeat["result"]["new_count"], 0)
+            self.assertEqual(repeat["sources"][0]["status"], "no_change")
+
+        self.assertEqual(self.analyze()["summary"]["detail_count"], 2)
+        for route in ("/api/source/sqlite", "/api/source/sql", "/api/source/binding"):
+            self.assertEqual(self.request("POST", route, {})[0], 404)
+        self.assertEqual(self.request("POST", "/api/sync", {"path": "old.db"})[0], 400)
+
+    def test_cancel_after_first_source_has_committed_keeps_its_results(self) -> None:
+        write_rollout(self.source_root, 1)
+        self.configure_windows()
+        with patch("aha.server.codex_sessions.probe_source", side_effect=lambda source: source):
+            self.json("POST", "/api/codex-sources", {
+                "kind": "wsl", "distribution": "Synthetic", "root": "/synthetic/codex",
+            })
+        sync_codex = self.server.app.store.sync_codex
+        entered = threading.Event()
+
+        def sync(source: Any, *args: Any, **kwargs: Any) -> dict[str, Any]:
+            if source.kind != "wsl":
+                return sync_codex(source, *args, **kwargs)
+            entered.set()
+            self.assertTrue(kwargs["cancel"].wait(5))
+            raise AppError("sync_cancelled", "同步已取消。", 409)
+
+        with patch.object(self.server.app.store, "sync_codex", side_effect=sync):
+            job = self.json("POST", "/api/sync", {})
+            self.assertTrue(entered.wait(5))
+            self.json("POST", f"/api/sync/{job['id']}/cancel", {})
+            finished = self.wait_sync(job)
+        self.assertEqual(finished["status"], "cancelled")
+        self.assertEqual([source["status"] for source in finished["sources"]],
+                         ["completed", "cancelled"])
+        self.assertEqual(self.analyze()["summary"]["detail_count"], 1)
+
+    def test_scoped_history_sync_defaults_to_last_legacy_day_and_can_expand(self) -> None:
+        newer = datetime.fromisoformat("2026-10-27T08:00:00+08:00")
+        self.server.app.store.sync_data(build_source_data(
+            [detail(created_at=int(newer.timestamp()))], [], [price()], {},
+        ))
+        write_rollout(self.source_root, 1)
+        write_rollout(
+            self.source_root, 1,
+            session="019aa0bf-0730-7000-8000-000000000002", start=newer,
+        )
+        self.assertEqual(
+            self.json("GET", "/api/codex-sources")["history_default_since"], "2026-10-27"
+        )
+        self.assertEqual(self.configure_windows()["sources"][0]["since"], "2026-10-27")
+        first = self.wait_sync(self.json("POST", "/api/sync", {}))
+        self.assertEqual(first["result"]["new_count"], 1)
+        self.assertTrue(first["sources"][0]["result"]["coverage_from"].startswith("2026-10-27"))
+        self.assertEqual(self.json("POST", "/api/codex-sources", {
+            "kind": "windows", "root": str(self.source_root), "since": "2026-10-26",
+        })["sources"][0]["since"], "2026-10-26")
+        second = self.wait_sync(self.json("POST", "/api/sync", {}))
+        self.assertEqual(second["result"]["new_count"], 1)
+        self.assertEqual(self.json("GET", "/api/ledger")["counts"]["detail_count"], 3)
+
+    def test_partial_source_does_not_replace_last_success_or_clear_history(self) -> None:
+        self.load_usage(3)
         before = self.json("GET", "/api/ledger")
-        with closing(sqlite3.connect(source)) as connection:
-            connection.execute("DELETE FROM proxy_request_logs WHERE request_id!='request-0'")
-            connection.commit()
-        job = self.wait_sync(self.json("POST", "/api/sync", {"path": str(source)}))
-        self.assertEqual(job["status"], "needs_review")
-        self.assertEqual(job["result"]["state"], "needs_review")
-        self.assertIn("finished_at", job)
-        self.assertEqual(self.json("GET", "/api/status")["sync"], job)
+        rollout = next(self.source_root.rglob("*.jsonl"))
+        with rollout.open("ab") as stream:
+            stream.write(b'{"timestamp":\"bad\",broken}\n')
+        job = self.wait_sync(self.json("POST", "/api/sync", {}))
+        self.assertEqual(job["status"], "needs_review", job)
+        self.assertEqual(job["sources"][0]["status"], "partial")
         after = self.json("GET", "/api/ledger")
         self.assertEqual(after["last_successful_sync_at"], before["last_successful_sync_at"])
         self.assertEqual(after["counts"]["detail_count"], 3)
-        analysis = self.analyze(mode="all")
-        rows = self.json("GET", f"/api/analysis/{analysis['analysis_id']}/details?kind=detail")
-        self.assertEqual(len(rows["rows"]), 3)
-        self.assertTrue(self.json("GET", "/api/reconciliations")["cases"])
+        self.assertEqual(self.analyze()["summary"]["detail_count"], 3)
 
     def test_all_preview_tabs_use_local_cursor_pages_and_revision_binding(self) -> None:
         self.load_usage()
@@ -669,12 +687,10 @@ class HTTPTests(unittest.TestCase):
 
     def test_partial_day_rollup_http_saves_certain_members_and_keeps_incompleteness(self) -> None:
         event = int(datetime.fromisoformat("2026-10-26T08:00:00+08:00").timestamp())
-        raw = dump([detail(created_at=event)],
-                   [rollup(date="2026-10-26", model="rollup-only-model")], [price()])
-        job = self.json("POST", "/api/source/sql", {
-            "name": "synthetic-range.sql", "content_base64": base64.b64encode(raw).decode(),
-        })
-        self.assertEqual(self.wait_sync(job)["status"], "completed")
+        self.server.app.store.sync_data(build_source_data(
+            [detail(created_at=event)], [rollup(date="2026-10-26", model="rollup-only-model")],
+            [price()], {},
+        ))
         analysis = self.json("POST", "/api/analysis", {"time_range": {
             "kind": "custom", "start": "2026-10-26T08:00", "end": "2026-10-26T08:00",
             "follow_now": False,

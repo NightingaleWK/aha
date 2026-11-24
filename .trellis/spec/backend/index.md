@@ -1,6 +1,6 @@
 # 后端开发规范
 
-aha 是 Python 3.12+ 本机 Codex 台账与费用证据工具。主线是长期留存每条消费、正确归属项目、核算费用并形成报销证据。产品版本以 `aha.__version__` 为准；实现位于 `src/aha/`，CCS 来源只读，业务在独立 Store/schema4 查询；SQLite 运行时必须通过并发修复门禁。这里记录当前实现的开发约束；用户说明见 [README](../../../README.md)。
+aha 是 Python 3.12+ 本机 Codex 台账与费用证据工具。主线是长期留存每条消费、正确归属项目、核算费用并形成报销证据。产品版本以 `aha.__version__` 为准；实现位于 `src/aha/`，Codex 原生会话只读，业务在独立 Store/schema 5 查询；SQLite 运行时必须通过并发修复门禁。这里记录当前实现的开发约束；用户说明见 [README](../../../README.md)。
 
 ## 开发前检查
 
@@ -21,7 +21,8 @@ aha 是 Python 3.12+ 本机 Codex 台账与费用证据工具。主线是长期�
 | [目录与模块职责](./directory-structure.md) | 功能放在哪里、如何通过 Store 门面复用领域模块 |
 | [SQLite 与持久化](./database-guidelines.md) | 只读来源、事务、备份、迁移及不可变文件 |
 | [逐笔归属与项目费用](./project-association-contract.md) | 持久记录关系、待归属批量处理、历史恢复/追溯、schema3升级与冻结覆盖说明 |
-| [CCS 来源版本兼容](./ccs-source-compatibility.md) | 外部结构 23–27、内部投影 23、实际版本观测与材料说明 |
+| [Codex 原生采集](./codex-native-source-contract.md) | Windows/WSL 来源、读取、进度、去重和参考价 |
+| [历史 CCS 记录](./ccs-source-compatibility.md) | 旧版结构 23–27、历史语义及内部投影 23 |
 | [换机与完整恢复](./recovery-and-device-contract.md) | 本机来源绑定、旧目录依据、完整备份/还原与独立资料目录 |
 | [错误处理](./error-handling.md) | AppError、状态码、安全消息和故障回滚 |
 | [运行输出与操作历史](./logging-guidelines.md) | 私有启动输出、关闭的默认日志和库内审计事件 |

@@ -11,8 +11,8 @@ from .domain import AppError
 if TYPE_CHECKING:
     from .storage import Store
 
-SCHEMA_VERSION = 4
-SUPPORTED_BACKUP_SCHEMAS = (3, 4)
+SCHEMA_VERSION = 5
+SUPPORTED_BACKUP_SCHEMAS = (3, 4, SCHEMA_VERSION)
 MONTHLY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS monthly_usage_stats(month TEXT NOT NULL,
  project_id TEXT NOT NULL,model TEXT NOT NULL,kind TEXT NOT NULL,state TEXT NOT NULL,
@@ -128,10 +128,26 @@ CREATE TABLE project_assignment_events(id INTEGER PRIMARY KEY,operation_id TEXT 
 CREATE INDEX assignment_events_record ON project_assignment_events(record_key,id);
 CREATE INDEX assignment_events_operation ON project_assignment_events(operation_id,id);
 """
-SCHEMA = SCHEMA_V3 + ASSOCIATION_SCHEMA
+SCHEMA_V4 = SCHEMA_V3 + ASSOCIATION_SCHEMA
+CODEX_SCHEMA = """
+CREATE INDEX sync_runs_source ON sync_runs(source_id);
+CREATE INDEX codex_history_rollup_day ON usage_records(day)
+ WHERE kind='rollup' AND suppressed=0;
+CREATE INDEX codex_history_session_time ON usage_records(session_id,day,model,event_time)
+ WHERE kind='detail' AND semantic_key IS NOT NULL AND suppressed=0;
+CREATE TABLE codex_file_progress(source_id TEXT NOT NULL REFERENCES source_profiles(id),
+ path_key TEXT NOT NULL,cursor_json TEXT NOT NULL,PRIMARY KEY(source_id,path_key));
+CREATE TABLE codex_event_evidence(version_id INTEGER NOT NULL REFERENCES usage_versions(id),
+ source_id TEXT NOT NULL REFERENCES source_profiles(id),evidence_hash TEXT NOT NULL,
+ event_id TEXT NOT NULL,run_id TEXT NOT NULL REFERENCES sync_runs(id),pricing_basis TEXT,
+ evidence_json TEXT NOT NULL,PRIMARY KEY(version_id,source_id,evidence_hash));
+CREATE INDEX codex_snapshot_identity ON codex_event_evidence(
+ json_extract(evidence_json,'$.snapshot_id'),event_id);
+"""
+SCHEMA = SCHEMA_V4 + CODEX_SCHEMA
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=len(SUPPORTED_BACKUP_SCHEMAS))
 def schema_definition(
     version: int,
 ) -> tuple[dict[str, list[tuple[object, ...]]], dict[str, str]]:
@@ -140,7 +156,7 @@ def schema_definition(
         raise AppError("unsupported_backup_store", "这份 aha 资料版本不受支持。", 409)
     connection = sqlite3.connect(":memory:")
     try:
-        connection.executescript(SCHEMA_V3 if version == 3 else SCHEMA)
+        connection.executescript({3: SCHEMA_V3, 4: SCHEMA_V4, SCHEMA_VERSION: SCHEMA}[version])
         initialize_monthly(connection)
         initialize_source_observations(connection)
         initialize_query_indexes(connection)
@@ -207,7 +223,21 @@ def upgrade_schema3(connection: sqlite3.Connection, now: str) -> None:
         WHERE r.assignment_origin='directory_rule' AND r.project_id!=''
         GROUP BY r.session_id HAVING COUNT(DISTINCT r.project_id)=1""", (now, now),
     )
+    connection.execute("PRAGMA user_version=4")
+    if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
+        raise AppError("storage_damaged", "资料关联校验失败，升级未完成。", 409)
+
+
+def upgrade(connection: sqlite3.Connection, version: int, now: str) -> None:
+    """Upgrade an isolated restore or a live ledger with a verified rollback backup."""
+    if version == 3:
+        upgrade_schema3(connection, now)
+    validate_structure(connection, 4)
+    for statement in CODEX_SCHEMA.split(";"):
+        if statement.strip():
+            connection.execute(statement)
     connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
+    validate_structure(connection, SCHEMA_VERSION)
     if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
         raise AppError("storage_damaged", "资料关联校验失败，升级未完成。", 409)
 
@@ -217,8 +247,8 @@ def initialize(store: Store, base_schema: str = "") -> None:
     version = int(connection.execute("PRAGMA user_version").fetchone()[0])
     if version == SCHEMA_VERSION:
         return
-    if version == 3:
-        upgrade_schema3(connection, store._now())
+    if version in SUPPORTED_BACKUP_SCHEMAS:
+        upgrade(connection, version, store._now())
         return
     if (
         version != 0

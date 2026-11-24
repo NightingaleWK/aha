@@ -2,16 +2,14 @@
 
 ## 1. 范围与触发
 
-修改来源身份、核对、目录依据、备份/恢复、相关HTTP/CLI时阅读。aha历史台账独立于当前CCS快照；程序位置不决定资料位置。完整恢复与CCS用量导入分开，当前只支持单向迁移/独立目录恢复，不协调两个独立业务库的报销占用。
-
-当前应用schema4，支持schema3完整备份的严格校验与新目录无损升级；逐笔归属、历史目录恢复和升级回退以[项目归属合同](./project-association-contract.md)为准。消费归属和项目费用是业务终点，保住来源/目录并不等于已恢复失效的项目统计。
+修改来源身份、核对、目录依据、备份/恢复及 HTTP/CLI 时阅读。aha 自有台账和报销原包可独立备份恢复。应用 schema 5 支持正式 schema 3/4 完整备份的严格校验及新目录升级。
 
 ## 2. 签名与所有者
 
 ```text
-source_bindings.binding_status(store, path, *, installation_id=None)
-source_bindings.bind_source(store, path, reason, *, installation_id=None)
-Store.source_binding_status(path, **kwargs) / Store.bind_source(path, reason, **kwargs)
+source_bindings.configured_codex_sources(store)
+source_bindings.bind_codex_source(store, source, expected_id, *, since=None)
+Store.sync_codex(source, source_id, *, trigger="manual", startup_id=None, cancel=None, since=None)
 backup.create_backup(data_dir, destination, *, cancel=None, shutdown=None)
 backup.restore_backup(archive, destination, *, cancel=None)
 Store.create_backup(destination, *, cancel=None) / Store.restore_backup(...)
@@ -23,7 +21,7 @@ aha.exe --restore-backup FILE.aha-backup --restore-dir NEW_DIRECTORY
 
 HTTP使用既有Cookie/Host/Origin/CSRF边界：
 
-- `GET/POST /api/source/binding`：可选path（缺省本机CCS），POST必须有非空reason，最长4000。
+- `GET/POST /api/codex-sources`：显示及确认本机来源、发行版和可选北京时间起日，详见 [页面合同](../frontend/local-web-contract.md)。
 - `POST /api/backups {}` → job；`GET /api/backups/{id}` 查询；`GET/HEAD .../download`下载；`POST .../cancel`取消。
 - `POST /api/restore-uploads {size}` → id/chunk_bytes；`POST .../{id}/chunks`使用`application/octet-stream`、`X-AHA-Upload-Offset`和有界Content-Length；`POST .../{id}/restore {destination?}`创建恢复job。
 - `POST /api/restore-uploads/{id}/cancel`及遗留上传清理入口只清本次应用持有的上传；`POST /api/backups/{restore_id}/open`启动恢复目录实例，不更改默认data-dir。
@@ -33,9 +31,8 @@ HTTP使用既有Cookie/Host/Origin/CSRF边界：
 ### 来源和历史依据
 
 - 安装UUID在账本外的本机`aha-device/installation.json`，Windows基于LOCALAPPDATA，Linux基于XDG_STATE_HOME或`~/.local/state`。不上传/进入材料或完整恢复包；测试必须patch或隔离profile。
-- `settings.source_bindings_v1`为`{format_version:1,bindings:{key:entry}}`；key结合安装ID、规范路径和当前restore_id。profile仍放source_profiles，来源实例ID不直接等于路径。
-- 旧库已有SQLite来源而缺当前绑定，或恢复副本没有匹配restore_id的绑定时，`source_binding_required`在创建run前返回；原历史保持可查，不把全部旧历史挂pending。空新库或只有SQL历史的首次SQLite接入可建新实例，异源事实冲突仍保留候选。
-- 绑定前先独立恢复已知失败/过期run，再检查有效同步，保留有界writer等待与“恢复提交不被后续竞争回滚”的契约。
+- 每端配置保存在 `settings` 的 `codex_source_windows`、`codex_source_wsl`。绑定上下文取安装和当前还原标识的摘要，来源 ID 同时关联确认的根、发行版和时间范围。恢复后即使路径相同也要求重新确认。旧的 CCS 设置只作为历史记录。
+- 确认前无有效来源时返回 `source_binding_required`。绑定先独立恢复失败和过期租约，再受限检查正在执行的作业，并校验保存请求对应的旧绑定。
 - 全局消费key、旧内容版本、claims与冻结包不批量改写。同key同内容幂等；来源确认不等于接受已有/曾明确保留当前值的revision候选。不同来源同值汇总仍需确认重叠（rollup_origin），未知成员范围不盲加。
 - 当前机器没找到旧会话头，不撤销已保存matched cwd/项目；真正不同目录进入directory候选。current保留旧目录，candidate采用已确定的新目录；缺唯一候选时不提供candidate。候选尚开放而当前会话parent等元数据变化时，旧case必须过时/被替代并保留可处理的新候选，不能留下永远stale_case的开放事项。
 
@@ -44,9 +41,9 @@ HTTP使用既有Cookie/Host/Origin/CSRF边界：
 - ZIP容器，`manifest.json`的format=`aha-full-backup`、format_version=1；记录application_version、store_schema_version、created_at、files的path/size/sha256及排除项。
 - SQLite backup API从一致读事务复制已提交WAL，释放源后打包；全部revisions引用的ZIP（含历史/作废版）按原hash保留，objects逐文件保全。项目/归属/报销/占用/核对在DB中完整保留。
 - 不直接拷贝活动主库，不备份runtime凭证/锁/temporary/嵌套backups/旧restore marker/机器身份。未知资料文件明确阻断，不静默丢弃。生成与恢复默认最多4GiB归档、16GiB展开、100000成员；manifest/中央目录也有独立上限，传输不走128MiB SQL base64协议。
-- 恢复按manifest所标schema3/4的权威定义校验表结构、索引/触发器DDL、quick_check、foreign keys、包引用与SHA，清单/DB版本必须一致；拒绝重复或大小写碰撞路径、穿越、绝对路径、保留设备名、链接/重解析点、缺失/多余成员及不支持格式。
+- 恢复按manifest所标schema 3/4/5 的权威定义校验表结构、索引/触发器DDL、quick_check、foreign keys、包引用与SHA，清单/DB版本必须一致；拒绝重复或大小写碰撞路径、穿越、绝对路径、保留设备名、链接/重解析点、缺失/多余成员及不支持格式。
 - 目标必须尚不存在，且不嵌套源/当前资料目录；独占staging验证后按平台noreplace原子落位，失败清理只限本次staging。当前库始终不在线替换。
-- 新`restore-info.json`含format_version1、restore_id UUID、restored_at、archive_sha256，恢复后同机也需新来源绑定。同版本且无running/staging时DB保留原字节；schema3恢复只在独立staging受控升schema4。有未完成run时仅恢复新目录将其failed/sync_interrupted并清暂存，不改归档或已发布事实/原包；旧ZIP在所有路径保持原字节。
+- 新`restore-info.json`含format_version1、restore_id UUID、restored_at、archive_sha256，恢复后同机也需新来源绑定。同版本且无running/staging时DB保留原字节；schema 3/4 完整包只在独立 staging 升至 schema 5。有未完成run时仅恢复新目录将其failed/sync_interrupted并清暂存，不改归档或已发布事实/原包；旧ZIP在所有路径保持原字节。
 - 完整备份为私有资料，与费用分享包不同。恢复目录与默认目录独立；再次双击默认EXE仍打开默认目录，结果需提供再次打开恢复目录的方式。
 
 ## 4. 验证与错误矩阵
@@ -67,7 +64,7 @@ HTTP使用既有Cookie/Host/Origin/CSRF边界：
 ## 5. 正常、基础与错误场景
 
 - 正常：旧台账完整保留，新电脑明确绑定后补入新key；重复同步不增加，旧cwd和原包保持。
-- 基础：新机CCS为空或不支持时仍可查全部历史；早期只有日汇总按整日使用，已经被明细替代的汇总不重复计入。
+- 基础：新机 Codex 来源暂未确认或不可用时仍可查全部历史；早期只有日汇总按整日使用，已经被明细替代的汇总不重复计入。
 - 错误：把同路径当同设备、确认来源当全部修订同意、找不到旧日志就清cwd、只备DB不备原包、在线替换当前库、把两份复制账本当自动协调报销。
 
 ## 6. 必需测试

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import binascii
 import copy
 import json
 import os
@@ -21,18 +19,16 @@ from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
-from . import __version__, backup, time_ranges
-from .domain import AppError, content_hash
+from . import __version__, backup, codex_sessions, source_bindings, time_ranges
+from .domain import AppError, content_hash, parse_date
 from .instance import PROTOCOL_VERSION, profile_id
 from .storage import Store
 
-SQL_LIMIT = 128 * 1024 * 1024
 JSON_LIMIT = 2 * 1024 * 1024
-UPLOAD_LIMIT = ((SQL_LIMIT + 2) // 3) * 4 + JSON_LIMIT
 BEIJING = timezone(timedelta(hours=8))
 SAFE_ID = r"([A-Za-z0-9_-]{1,128})"
 WEB_DIR = Path(__file__).with_name("web")
@@ -98,8 +94,44 @@ def _retry_key(body: dict[str, Any]) -> str:
     return key
 
 
-def default_sqlite_path() -> Path:
-    return Path.home() / ".cc-switch" / "cc-switch.db"
+CODEX_SOURCE_KINDS = ("windows", "wsl")
+SOURCE_SUCCESS = {"completed", "no_change"}
+SOURCE_COUNT_FIELDS = ("new_count", "revised_count", "unchanged_count", "pending_count")
+
+
+def _source_outcome(result: dict[str, Any]) -> dict[str, Any]:
+    run_state = result["state"]
+    fields = {
+        key: result[key] for key in (*SOURCE_COUNT_FIELDS, "files", "issues", "coverage")
+        if key in result
+    }
+    for field, source_field in (("coverage_from", "first_at"), ("coverage_through", "last_at")):
+        stamp = result.get(source_field)
+        if type(stamp) is int:
+            fields[field] = datetime.fromtimestamp(stamp, BEIJING).isoformat(timespec="seconds")
+    if run_state in {"failed", "cancelled"}:
+        code = result.get("error_code")
+        if code in {"source_unavailable", "wsl_unavailable"}:
+            status = "unavailable"
+        elif code == "sync_cancelled" or run_state == "cancelled":
+            status = "cancelled"
+        else:
+            status = "failed"
+        return {
+            "status": status, "code": code, "message": result.get("error_message"),
+            "result": fields,
+        }
+    if run_state == "running":
+        return {"status": "running"}
+    if run_state == "needs_review" or fields.get("coverage") == "partial":
+        return {"status": "partial", "result": fields}
+    status = "completed" if any(fields.get(key) for key in SOURCE_COUNT_FIELDS[:2]) else "no_change"
+    return {
+        "status": status, "result": fields, "last_success_at": result.get("completed_at"),
+        "last_success_range": {
+            key: fields[key] for key in ("coverage_from", "coverage_through") if key in fields
+        },
+    }
 
 
 class Application:
@@ -112,11 +144,11 @@ class Application:
         self.session_token = secrets.token_urlsafe(32)
         self.csrf_token = secrets.token_urlsafe(32)
         self.launch_id = secrets.token_hex(16)
-        self.metadata_roots = [Path.home() / ".codex"]
         self.analyses: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self.jobs: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self.workers: dict[str, threading.Thread] = {}
         self.cancel = threading.Event()
+        self.sync_cancels: dict[str, threading.Event] = {}
         self.startup_job: str | None = None
         self.closed = False
         self.transfer_jobs: OrderedDict[str, dict[str, Any]] = OrderedDict()
@@ -125,10 +157,8 @@ class Application:
         self.transfer_directory: tempfile.TemporaryDirectory[str] | None = None
 
     def close(self) -> None:
-        self.cancel.set()
+        self.begin_shutdown()
         with self.lock:
-            self.closed = True
-            self.cancel_transfers()
             workers = list(self.workers.values())
         for worker in workers:
             worker.join()
@@ -137,6 +167,14 @@ class Application:
         self.store.close()
         if self.transfer_directory is not None:
             self.transfer_directory.cleanup()
+
+    def begin_shutdown(self) -> None:
+        self.cancel.set()
+        with self.lock:
+            self.closed = True
+            for signal in self.sync_cancels.values():
+                signal.set()
+            self.cancel_transfers()
 
     def cancel_transfers(self) -> None:
         with self.lock:
@@ -147,17 +185,6 @@ class Application:
         if self.transfer_directory is None:
             self.transfer_directory = tempfile.TemporaryDirectory(prefix="aha-backups-")
         return Path(self.transfer_directory.name)
-
-    def _binding(self, path: Path) -> dict[str, Any]:
-        if not path.is_file():
-            return {"required": False, "bound": False, "available": False}
-        try:
-            return {**self.store.source_binding_status(path), "available": True}
-        except AppError as error:
-            return {
-                "required": True, "bound": False, "available": True,
-                "code": error.code, "message": error.message,
-            }
 
     def _transfer_job(self, job_id: str) -> dict[str, Any]:
         with self.lock:
@@ -376,6 +403,7 @@ class Application:
         with self.lock:
             latest_job = max(self.jobs.values(), key=lambda job: job["started_at"], default=None)
             current_sync = copy.deepcopy(latest_job)
+            sources = self._source_status(job=latest_job)
             latest_transfer = next(reversed(self.transfer_jobs), None)
             current_transfer = self._transfer_job(latest_transfer) if latest_transfer else None
             current_uploads = [
@@ -390,17 +418,12 @@ class Application:
             "timezone": "Asia/Shanghai",
             "csrf_token": self.csrf_token,
             "launch_id": self.launch_id,
-            "default_source": {
-                "name": "cc-switch.db",
-                "available": default_sqlite_path().is_file(),
-                "binding": self._binding(default_sqlite_path()),
-            },
+            "sources": sources,
             "data_directory": str(self.store.data_dir.resolve()),
             "backup_limits": {
                 "archive_bytes": backup.MAX_ARCHIVE_BYTES,
                 "chunk_bytes": BACKUP_CHUNK_BYTES,
             },
-            "sql_limit_bytes": SQL_LIMIT,
             "ledger": self.store.ledger_status(),
             "startup_sync": self._job(self.startup_job) if self.startup_job else None,
             "sync": current_sync,
@@ -414,98 +437,217 @@ class Application:
                 raise AppError("sync_not_found", "未找到这次同步，请重新打开同步状态。", 404)
             return copy.deepcopy(self.jobs[job_id])
 
-    def _sync_worker(self, job_id: str, kind: str, source: Any, name: str, trigger: str) -> None:
+    def _source_status(
+        self,
+        bindings: dict[str, source_bindings.CodexBinding] | None = None,
+        *,
+        job: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        sources = []
+        binding_error = None
+        if bindings is None:
+            try:
+                bindings = source_bindings.configured_codex_sources(self.store)
+            except AppError as error:
+                bindings = {}
+                binding_error = error.message
+        job_sources = {source["kind"]: source for source in job["sources"]} if job else {}
+        with self.store.read_connection() as connection:
+            for kind in CODEX_SOURCE_KINDS:
+                binding = bindings.get(kind)
+                entry: dict[str, Any] = {
+                    "kind": kind,
+                    "root": binding.source.root if binding else "",
+                    "distribution": binding.source.distribution if binding else None,
+                    "since": binding.since if binding else None,
+                    "configured": binding is not None,
+                    "status": "ready" if binding else "unconfigured",
+                    "last_success_at": None,
+                }
+                if binding:
+                    attempt = connection.execute(
+                        "SELECT state,completed_at,result_json,error_code,error_message "
+                        "FROM sync_runs WHERE source_id=? ORDER BY rowid DESC LIMIT 1",
+                        (binding.source_id,),
+                    ).fetchone()
+                    if attempt:
+                        entry.update(_source_outcome({
+                            **self.store._decode(attempt["result_json"]), **dict(attempt),
+                        }))
+                        if entry["status"] not in SOURCE_SUCCESS:
+                            success = connection.execute(
+                                "SELECT completed_at,result_json FROM sync_runs WHERE source_id=? "
+                                "AND state='completed' ORDER BY rowid DESC LIMIT 1",
+                                (binding.source_id,),
+                            ).fetchone()
+                            if success:
+                                last = _source_outcome({
+                                    **self.store._decode(success["result_json"]),
+                                    "state": "completed", "completed_at": success["completed_at"],
+                                })
+                                entry["last_success_at"] = last["last_success_at"]
+                                entry["last_success_range"] = last["last_success_range"]
+                    current = job_sources.get(kind)
+                    if current and current["configured"] and all(
+                        entry[key] == current[key] for key in ("root", "distribution", "since")
+                    ):
+                        entry.update(copy.deepcopy(current))
+                elif binding_error:
+                    entry.update(status="unavailable", message=binding_error)
+                sources.append(entry)
+        return sources
+
+    def _configure_source(self, body: dict[str, Any]) -> dict[str, Any]:
+        if set(body) - {"kind", "root", "distribution", "since"}:
+            raise AppError("invalid_field", "来源设置包含未识别的字段。")
+        kind = _string(body, "kind", limit=16)
+        root = _string(body, "root")
+        distribution = _string(body, "distribution", limit=256) or None
+        if kind == "windows" and distribution is None:
+            proposed = codex_sessions.CodexSource("windows", root)
+        elif kind == "wsl" and distribution is not None:
+            proposed = codex_sessions.CodexSource("wsl", root, distribution)
+        else:
+            raise AppError("invalid_source", "请选择 Codex 来源及其 WSL 发行版。")
+        with self.lock:
+            self._check_sync_available()
+            previous = source_bindings.configured_codex_sources(self.store).get(kind)
+        if "since" in body:
+            date_value = _string(body, "since", limit=10)
+            since = parse_date(date_value).isoformat() if date_value else None
+        else:
+            since = (
+                previous.since if previous else source_bindings.history_default_since(self.store)
+            )
+        source = codex_sessions.probe_source(proposed)
+        with self.lock:
+            self._check_sync_available()
+            source_bindings.bind_codex_source(
+                self.store, source, previous.source_id if previous else None, since=since
+            )
+            return {"sources": self._source_status()}
+
+    def _check_sync_available(self) -> None:
+        if self.closed or self.cancel.is_set():
+            raise AppError("application_closed", "程序正在退出，请重新启动。", 409)
+        if any(job["status"] == "running" for job in self.jobs.values()):
+            raise AppError("sync_in_progress", "已有同步正在进行，请等待本次完成。", 409)
+
+    def _sync_worker(
+        self,
+        job_id: str,
+        bindings: dict[str, source_bindings.CodexBinding],
+        trigger: str,
+        signal: threading.Event,
+    ) -> None:
         try:
-            if kind == "sqlite":
-                result = self.store.sync_sqlite(
-                    source,
-                    self.metadata_roots,
-                    trigger=trigger,
-                    startup_id=self.launch_id if trigger == "startup" else None,
-                    cancel=self.cancel,
-                )
-            else:
-                result = self.store.sync_sql(
-                    source, name, self.metadata_roots, trigger=trigger, cancel=self.cancel
-                )
-            run_state = result.get("state", result.get("status"))
-            failed = run_state in {"failed", "cancelled"}
-            needs_review = run_state == "needs_review"
-            public_status = "failed" if failed else "needs_review" if needs_review else "completed"
-            with self.lock:
-                self.jobs[job_id].update(
-                    {
-                        "status": public_status,
-                        "result": result,
-                        "finished_at": datetime.now(BEIJING).isoformat(),
-                    }
-                )
-                if failed:
-                    self.jobs[job_id]["message"] = result.get(
-                        "message", "同步未完成，原本地数据已保留。"
+            job = self.jobs[job_id]
+            for entry in job["sources"]:
+                kind = entry["kind"]
+                binding = bindings.get(kind)
+                if binding is None:
+                    continue
+                with self.lock:
+                    entry["status"] = "running"
+                    entry.pop("message", None)
+                    entry.pop("result", None)
+                try:
+                    if signal.is_set() or self.cancel.is_set():
+                        raise AppError("sync_cancelled", "同步已取消。", 409)
+                    result = self.store.sync_codex(
+                        binding.source,
+                        binding.source_id,
+                        trigger=trigger,
+                        startup_id=f"{self.launch_id}-{kind}" if trigger == "startup" else None,
+                        cancel=signal,
+                        since=binding.since,
                     )
-        except AppError as error:
-            with self.lock:
-                self.jobs[job_id].update(
-                    {
-                        "status": "failed",
-                        "code": error.code,
-                        "message": error.message,
-                        "finished_at": datetime.now(BEIJING).isoformat(),
+                    outcome = _source_outcome(result)
+                except AppError as error:
+                    outcome = _source_outcome({
+                        "state": "failed", "error_code": error.code, "error_message": error.message,
+                    })
+                    outcome["code"] = error.code
+                except Exception:
+                    outcome = {
+                        "status": "failed", "code": "sync_failed",
+                        "message": "同步未完成，已保存的本地用量仍可查看。",
                     }
-                )
-        except Exception:
+                with self.lock:
+                    entry.update(outcome)
             with self.lock:
-                self.jobs[job_id].update(
-                    {
-                        "status": "failed",
-                        "code": "sync_failed",
-                        "message": "同步未完成，原本地数据已保留，请重试。",
-                        "finished_at": datetime.now(BEIJING).isoformat(),
-                    }
+                configured = [entry for entry in job["sources"] if entry["configured"]]
+                states = {entry["status"] for entry in configured}
+                if "cancelled" in states:
+                    status = "cancelled"
+                elif states <= SOURCE_SUCCESS:
+                    status = "completed"
+                elif states & (SOURCE_SUCCESS | {"partial"}):
+                    status = "needs_review"
+                else:
+                    status = "failed"
+                job.update(
+                    status=status, finished_at=datetime.now(BEIJING).isoformat(),
+                    result={
+                        key: sum(entry.get("result", {}).get(key, 0) for entry in configured)
+                        for key in SOURCE_COUNT_FIELDS
+                    },
                 )
+                if status == "failed" or status == "cancelled":
+                    first: dict[str, Any] = next(
+                        (entry for entry in configured if entry.get("message")), {}
+                    )
+                    job["message"] = first.get(
+                        "message", "本次同步未完成，已保存的本地用量仍可查看。"
+                    )
+                    if code := first.get("code"):
+                        job["code"] = code
         finally:
             with self.lock:
+                self.sync_cancels.pop(job_id, None)
                 self.workers.pop(job_id, None)
 
-    def _start_sync(self, body: dict[str, Any], *, sql: bool = False) -> dict[str, Any]:
+    def _start_sync(self, body: dict[str, Any]) -> dict[str, Any]:
         trigger = _string(body, "trigger", "manual", 16)
-        if trigger not in {"startup", "manual"} or sql and trigger != "manual":
-            raise AppError("invalid_sync_trigger", "请选择打开时同步或手动同步。")
-        # Decode/validate an explicit import before allocating a worker.
-        source: Any
-        name = "cc-switch.db"
-        if sql:
-            encoded = _string(body, "content_base64", limit=UPLOAD_LIMIT)
-            if len(encoded) > ((SQL_LIMIT + 2) // 3) * 4:
-                raise AppError("file_too_large", "SQL 文件不能超过 128 MiB。", 413)
-            try:
-                source = base64.b64decode(encoded, validate=True)
-            except (ValueError, binascii.Error):
-                raise AppError("invalid_upload", "文件读取失败，请重新选择 SQL 备份。") from None
-            if len(source) > SQL_LIMIT:
-                raise AppError("file_too_large", "SQL 文件不能超过 128 MiB。", 413)
-            name = PureWindowsPath(_string(body, "name", "backup.sql", 255)).name
-        else:
-            file_path = _string(body, "path")
-            source = Path(file_path) if file_path else default_sqlite_path()
+        if trigger not in {"startup", "manual"} or set(body) - {"trigger"}:
+            raise AppError("invalid_sync", "请选择打开时同步或手动同步，并先确认 Codex 来源。")
         with self.lock:
-            if self.closed:
-                raise AppError("application_closed", "程序正在退出，请重新启动。", 409)
             if trigger == "startup" and self.startup_job is not None:
                 return self._job(self.startup_job)
-            running = next((job for job in self.jobs.values() if job["status"] == "running"), None)
-            if running is not None:
-                raise AppError("sync_in_progress", "已有同步正在进行，请等待本次完成。", 409)
+            self._check_sync_available()
+            bindings = source_bindings.configured_codex_sources(self.store)
+            if not bindings:
+                raise AppError("source_binding_required", "请先在数据来源中确认 Codex 来源。", 409)
             job_id = secrets.token_hex(16)
-            job = {
+            job: dict[str, Any] = {
                 "id": job_id,
                 "status": "running",
                 "trigger": trigger,
-                "source_name": name,
                 "started_at": datetime.now(BEIJING).isoformat(),
+                "sources": self._source_status(bindings),
             }
+            for entry in job["sources"]:
+                if entry["configured"]:
+                    entry["status"] = "ready"
+                    for field in ("message", "result", "code"):
+                        entry.pop(field, None)
+            signal = threading.Event()
+            worker = threading.Thread(
+                target=self._sync_worker,
+                args=(job_id, bindings, trigger, signal),
+                name="aha-codex-sync",
+                daemon=True,
+            )
             self.jobs[job_id] = job
+            self.sync_cancels[job_id] = signal
+            self.workers[job_id] = worker
+            try:
+                worker.start()
+            except RuntimeError as error:
+                self.jobs.pop(job_id)
+                self.sync_cancels.pop(job_id)
+                self.workers.pop(job_id)
+                raise AppError("sync_failed", "无法启动 Codex 同步，请重试。", 500) from error
             if trigger == "startup":
                 self.startup_job = job_id
             while len(self.jobs) > 32:
@@ -514,15 +656,19 @@ class Application:
                     self.jobs.move_to_end(first)
                     continue
                 self.jobs.pop(first)
-            worker = threading.Thread(
-                target=self._sync_worker,
-                args=(job_id, "sql" if sql else "sqlite", source, name, trigger),
-                name="aha-explicit-sync",
-                daemon=True,
-            )
-            self.workers[job_id] = worker
-            worker.start()
             return copy.deepcopy(job)
+
+    def start_configured_sync(self) -> None:
+        # A binding or source problem cannot prevent reading the existing ledger.
+        with suppress(AppError):
+            self._start_sync({"trigger": "startup"})
+
+    def _cancel_sync(self, job_id: str) -> dict[str, Any]:
+        with self.lock:
+            job = self._job(job_id)
+            if signal := self.sync_cancels.get(job_id):
+                signal.set()
+            return job
 
     def _analysis(self, analysis_id: str, *, check_claims: bool = True) -> dict[str, Any]:
         with self.lock:
@@ -642,12 +788,13 @@ class Application:
     def get(self, path: str, query: dict[str, list[str]]) -> Any:
         if path == "/api/status":
             return self.status()
-        if path == "/api/source/binding":
-            locations = query.get("path", [""])
-            if len(locations) != 1:
-                raise AppError("invalid_field", "请选择一个来源文件。")
-            location = _string({"path": locations[0]}, "path")
-            return self._binding(Path(location) if location else default_sqlite_path())
+        if path == "/api/codex-sources":
+            return {
+                "sources": self._source_status(),
+                "windows_default": codex_sessions.default_local_root(),
+                "distributions": codex_sessions.list_distributions(),
+                "history_default_since": source_bindings.history_default_since(self.store),
+            }
         if match := re.fullmatch(r"/api/backups/" + SAFE_ID, path):
             return self._transfer_job(match[1])
         if path == "/api/ledger":
@@ -713,19 +860,8 @@ class Application:
             )
             self.invalidate()
             return result
-        if path == "/api/source/binding":
-            location = _string(body, "path")
-            selected = Path(location) if location else default_sqlite_path()
-            if not selected.is_file():
-                raise AppError(
-                    "source_unavailable", "未找到当前 CC Switch 数据库，请检查路径。", 409
-                )
-            with self.lock:
-                if any(job["status"] == "running" for job in self.jobs.values()):
-                    raise AppError("sync_in_progress", "请等待当前同步结束后再确认来源。", 409)
-                result = self.store.bind_source(selected, _string(body, "reason", limit=4000))
-            self.invalidate()
-            return result
+        if path == "/api/codex-sources":
+            return self._configure_source(body)
         if path == "/api/backups":
             return self._create_backup()
         if path == "/api/restore-uploads":
@@ -738,16 +874,15 @@ class Application:
             return self._cancel_transfer(match[1])
         if match := re.fullmatch(r"/api/backups/" + SAFE_ID + r"/open", path):
             return self._open_restored(match[1])
-        if path in {"/api/sync", "/api/source/sqlite"}:
+        if path == "/api/sync":
             return self._start_sync(body)
-        if path == "/api/source/sql":
-            return self._start_sync(body, sql=True)
+        if match := re.fullmatch(r"/api/sync/" + SAFE_ID + r"/cancel", path):
+            return self._cancel_sync(match[1])
         if path == "/api/session-metadata":
-            roots = _strings(body, "roots", 32)
-            self.metadata_roots = [Path(root).expanduser() for root in roots] or [
-                Path.home() / ".codex"
-            ]
-            result = self.store.refresh_metadata(self.metadata_roots)
+            bindings = source_bindings.configured_codex_sources(self.store)
+            if "windows" not in bindings:
+                raise AppError("source_binding_required", "请先确认 Windows Codex 来源。", 409)
+            result = self.store.refresh_metadata([Path(bindings["windows"].source.root)])
             self.invalidate()
             return result
         if path == "/api/projects" or re.fullmatch(r"/api/projects/" + SAFE_ID, path):
@@ -881,10 +1016,7 @@ class LocalHTTPServer(ThreadingHTTPServer):
         with self._state_lock:
             self.stopping.set()
             self._state = "stopping"
-        self.app.cancel.set()
-        with self.app.lock:
-            self.app.closed = True
-            self.app.cancel_transfers()
+        self.app.begin_shutdown()
 
     def instance_identity(self) -> dict[str, Any]:
         with self._state_lock:
@@ -1066,7 +1198,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         return raw
 
     def _body(self) -> dict[str, Any]:
-        limit = UPLOAD_LIMIT if self.path == "/api/source/sql" else JSON_LIMIT
+        limit = JSON_LIMIT
         length = self._content_length(limit)
         if self.headers.get_content_type() != "application/json":
             raise AppError("invalid_content_type", "请求必须使用 JSON。", 415)

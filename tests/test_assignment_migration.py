@@ -11,7 +11,7 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
-from test_storage_helpers import detail
+from test_storage_helpers import claim, detail, metadata, source_data
 
 from aha import backup, batches, ledger, migrations
 from aha.decimal_sql import register
@@ -89,7 +89,10 @@ class AssignmentMigrationTests(unittest.TestCase):
             before = legacy_fixture(root)
             store = Store(root)
             try:
-                self.assertEqual(store._db.execute("PRAGMA user_version").fetchone()[0], 4)
+                self.assertEqual(
+                    store._db.execute("PRAGMA user_version").fetchone()[0],
+                    migrations.SCHEMA_VERSION,
+                )
                 for key, table in (
                     ("usage", "usage_records"),
                     ("daily", "daily_usage_stats"),
@@ -128,7 +131,7 @@ class AssignmentMigrationTests(unittest.TestCase):
             archive_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
             original_hash = hashlib.sha256((root / "aha.sqlite3").read_bytes()).hexdigest()
             restored_result = backup.restore_backup(archive, restored)
-            self.assertEqual(restored_result["store_schema_version"], 4)
+            self.assertEqual(restored_result["store_schema_version"], migrations.SCHEMA_VERSION)
             self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), archive_hash)
             self.assertEqual(
                 hashlib.sha256((root / "aha.sqlite3").read_bytes()).hexdigest(), original_hash
@@ -168,6 +171,60 @@ class AssignmentMigrationTests(unittest.TestCase):
                 hashlib.sha256((root / "aha.sqlite3").read_bytes()).hexdigest(), before
             )
             self.assertEqual(list((root / "backups").glob("*.aha-backup")), [])
+
+    def test_schema4_backup_and_live_upgrade_preserve_frozen_bytes_and_claims(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "old"
+            store = Store(root)
+            try:
+                store.sync_data(source_data(), metadata(), trust="live")
+                batch = store.create_batch(
+                    store.analyze("2026-10-26", "2026-10-26"), claim(), "old-frozen"
+                )
+                original, _ = store.download(batch["id"], batch["version"])
+                original_bytes = original.read_bytes()
+            finally:
+                store.close()
+            with closing(sqlite3.connect(root / "aha.sqlite3")) as connection:
+                connection.executescript("""
+                    DROP TABLE codex_event_evidence;
+                    DROP TABLE codex_file_progress;
+                    DROP INDEX sync_runs_source;
+                    DROP INDEX codex_history_rollup_day;
+                    DROP INDEX codex_history_session_time;
+                    PRAGMA user_version=4;
+                """)
+                migrations.validate_structure(connection, 4)
+            old_backup = base / "v4.aha-backup"
+            self.assertEqual(backup.create_backup(root, old_backup)["store_schema_version"], 4)
+            original_backup_hash = hashlib.sha256(old_backup.read_bytes()).hexdigest()
+            recovered = base / "recovered"
+            restored = backup.restore_backup(old_backup, recovered)
+            self.assertEqual(restored["store_schema_version"], migrations.SCHEMA_VERSION)
+            for path in (root, recovered):
+                with self.subTest(path=path.name):
+                    upgraded = Store(path)
+                    try:
+                        copy, _ = upgraded.download(batch["id"], batch["version"])
+                        self.assertEqual(copy.read_bytes(), original_bytes)
+                        analysis = upgraded.analyze(
+                            "2026-10-26", "2026-10-26", availability_mode="all"
+                        )
+                        self.assertEqual(analysis["summary"]["total_cost_usd"], "0.1234567")
+                        self.assertEqual(
+                            upgraded._db.execute("SELECT COUNT(*) FROM usage_claims").fetchone()[0],
+                            1,
+                        )
+                        if path == root:
+                            self.assertEqual(upgraded.migration_backup["store_schema_version"], 4)
+                        else:
+                            self.assertIsNone(upgraded.migration_backup)
+                    finally:
+                        upgraded.close()
+            self.assertEqual(
+                hashlib.sha256(old_backup.read_bytes()).hexdigest(), original_backup_hash
+            )
 
     def test_migration_failure_rolls_back_all_schema_changes_and_keeps_rollback_archive(
         self,

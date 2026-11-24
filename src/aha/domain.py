@@ -1,4 +1,4 @@
-"""Shared, deterministic contracts for CCS usage projections and arithmetic."""
+"""Shared, deterministic contracts for native and historical usage and arithmetic."""
 
 from __future__ import annotations
 
@@ -11,10 +11,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 Row = dict[str, Any]
-# The retained usage projection is stable across compatible external CCS schemas.
+# Keep the normalized projection discriminator used by saved history and materials.
 USAGE_PROJECTION_SCHEMA_VERSION = 23
-SUPPORTED_CCS_SCHEMA_VERSIONS = (23, 24, 25, 26, 27)
-CCS_SCHEMA_VERSIONS_TEXT = "、".join(str(version) for version in SUPPORTED_CCS_SCHEMA_VERSIONS)
 BEIJING = timezone(timedelta(hours=8), name="Asia/Shanghai")
 TOKEN_FIELDS = (
     "input_tokens",
@@ -81,15 +79,6 @@ class AppError(Exception):
         self.code = code
         self.message = message
         self.status = status
-
-
-def validate_ccs_schema_version(version: int) -> int:
-    if version not in SUPPORTED_CCS_SCHEMA_VERSIONS:
-        raise AppError(
-            "unsupported_schema",
-            f"CC Switch 结构版本 {version} 暂不支持；当前支持版本 {CCS_SCHEMA_VERSIONS_TEXT}。",
-        )
-    return version
 
 
 def canonical_bytes(value: Any) -> bytes:
@@ -222,7 +211,7 @@ def normalize_row(row: Mapping[str, Any], grain: str) -> Row:
     fields = DETAIL_FIELDS if grain == "detail" else ROLLUP_FIELDS
     if not set(fields).issubset(row):
         raise AppError(
-            "incompatible_schema", "来源缺少必要用量字段；请使用完整的 CC Switch 用量来源。"
+            "incompatible_schema", "来源缺少必要用量字段，请核对会话记录或历史资料。"
         )
     result: Row = {}
     nullable = {"session_id", "request_model", "pricing_model"} if grain == "detail" else set()

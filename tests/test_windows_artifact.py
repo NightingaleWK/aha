@@ -14,21 +14,23 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
+from native_usage_fixtures import COST, INPUT, MODEL, OUTPUT
+
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import verify_windows_artifact as artifact  # noqa: E402
 
 
-def material(*, cost: str = "0.570000003", tamper: bool = False) -> bytes:
+def material(*, cost: str = "0.0003915", tamper: bool = False) -> bytes:
     output = io.StringIO(newline="")
     writer = csv.DictWriter(output, fieldnames=["model", "total_cost_usd", "total_tokens"])
     writer.writeheader()
-    writer.writerows([{"model": "合成模型", "total_cost_usd": "0.190000001",
-                       "total_tokens": "105"}] * 3)
+    writer.writerows([{"model": MODEL, "total_cost_usd": COST,
+                       "total_tokens": str(INPUT + OUTPUT)}] * 3)
     files = {"使用明细.csv": output.getvalue().encode("utf-8-sig"),
-             "每日汇总.csv": b"synthetic daily", "费用说明.html": b"<p>0.570000003 USD</p>"}
+             "每日汇总.csv": b"synthetic daily", "费用说明.html": b"<p>0.0003915 USD</p>"}
     manifest = {"application": {"name": "aha", "version": "0.3.1"},
-                "summary": {"record_count": 3, "total_cost_usd": cost, "total_tokens": 315},
+                "summary": {"record_count": 3, "total_cost_usd": cost, "total_tokens": 90},
                 "members": [{}, {}, {}],
                 "files": {name: {"sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
                           for name, raw in files.items()}}
@@ -86,7 +88,7 @@ class ArtifactBoundaryTests(unittest.TestCase):
             self.assertEqual(result, hashlib.sha256(raw).hexdigest())
             self.assertEqual((root / "good/evidence.zip").read_bytes(), raw)
             for label, raw, version in (
-                ("wrong-cost", material(cost="0.570000002"), "0.3.1"),
+                ("wrong-cost", material(cost="0.0003914"), "0.3.1"),
                 ("damaged-file", material(tamper=True), "0.3.1"),
                 ("wrong-version", material(), "0.4.0"),
             ):

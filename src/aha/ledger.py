@@ -39,6 +39,14 @@ def record_projection(row: dict[str, Any], kind: str) -> dict[str, Any]:
     enriched = {**row, "date": day}
     member = claims.member_from_row(enriched, kind)
     fresh = fresh_input(row)
+    coverage = [
+        day, row["app_type"], row["provider_id"], row["model"],
+        row.get("request_model") or "", row.get("pricing_model") or "",
+    ]
+    if row.get("data_source") == "codex_native":
+        # An old daily aggregate has no member identity. Native overlap is
+        # reconciled separately, leaving the historic aggregate's basis intact.
+        coverage.append("codex_native")
     return {
         "record_key": record_key(row, kind),
         "kind": kind,
@@ -47,16 +55,7 @@ def record_projection(row: dict[str, Any], kind: str) -> dict[str, Any]:
         "event_time": event_time,
         "scope_key": claims.scope_key(member),
         "semantic_key": claims.semantic_key(member),
-        "coverage_key": content_hash(
-            [
-                day,
-                row["app_type"],
-                row["provider_id"],
-                row["model"],
-                row.get("request_model") or "",
-                row.get("pricing_model") or "",
-            ]
-        ),
+        "coverage_key": content_hash(coverage),
         "model": row["model"],
         "pricing_model": row.get("pricing_model") or row["model"],
         "session_id": row.get("session_id"),
@@ -98,9 +97,14 @@ def set_current(
         raise AppError("invalid_candidate", "核对候选不存在。", 409)
     import json
 
-    projection = record_projection(
-        json.loads(version["payload_json"]), version["record_key"].split(":", 1)[0]
-    )
+    payload = json.loads(version["payload_json"])
+    projection = record_projection(payload, version["record_key"].split(":", 1)[0])
+    if payload.get("data_source") == "codex_native":
+        priced = connection.execute(
+            "SELECT 1 FROM codex_event_evidence WHERE version_id=? AND pricing_basis IS NOT NULL",
+            (version_id,),
+        ).fetchone()
+        projection["pricing_status"] = "available" if priced else "unpriced"
     canonical = canonical_record_key(connection, projection["record_key"])
     if logical_key is not None and canonical != logical_key:
         raise AppError("invalid_candidate", "事实候选不属于该消费身份。", 409)
@@ -430,6 +434,15 @@ def _insert_stats(connection: sqlite3.Connection, where: str, parameters: tuple[
     )
 
 
+def reconciliation_usage_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: payload.get(key) for key in (
+            "model", "session_id", "created_at", "input_tokens", "output_tokens",
+            "cache_read_tokens", "cache_creation_tokens", "total_cost_usd",
+        )
+    }
+
+
 def list_reconciliations(store: Store) -> list[dict[str, Any]]:
     with store.read_connection() as connection:
         results = []
@@ -448,6 +461,8 @@ def list_reconciliations(store: Store) -> list[dict[str, Any]]:
                 )
                 else ["same", "independent"]
                 if row["type"] == "identity"
+                else ["current", "independent"]
+                if row["type"] == "native_overlap"
                 else ["current"]
             )
             if row["type"] in {"identity", "revision"}:
@@ -479,19 +494,7 @@ def list_reconciliations(store: Store) -> list[dict[str, Any]]:
                                 "SELECT payload_json FROM usage_versions WHERE id=?", (version_id,)
                             ).fetchone()
                             payload = store._decode(candidate[0]) if candidate else payload
-                        info[label + "_summary"] = {
-                            k: payload.get(k)
-                            for k in (
-                                "model",
-                                "session_id",
-                                "created_at",
-                                "input_tokens",
-                                "output_tokens",
-                                "cache_read_tokens",
-                                "cache_creation_tokens",
-                                "total_cost_usd",
-                            )
-                        }
+                        info[label + "_summary"] = reconciliation_usage_summary(payload)
             results.append(
                 {
                     **info,
@@ -647,7 +650,11 @@ def resolve_reconciliation(
                 proposed = store._decode(candidate["payload_json"])
                 accepted.pop("request_id", None)
                 proposed.pop("request_id", None)
-                if accepted != proposed:
+                history_match = (
+                    accepted.get("data_source") == "codex_session"
+                    and proposed.get("data_source") == "codex_native"
+                ) or info.get("native_snapshot_pair") is True
+                if accepted != proposed and not history_match:
                     create_case(
                         connection, "revision", "已确认同一消费，但事实值不同，请核对版本。",
                         {
@@ -659,6 +666,27 @@ def resolve_reconciliation(
                             "candidate_cost_usd": candidate["total_cost_usd"],
                         }, key=canonical, source_id=case["source_id"],
                     )
+        elif case["type"] in {"native_overlap", "native_uncertain"}:
+            choices = {"current"}
+            if case["type"] == "native_overlap":
+                choices.add("independent")
+            if choice not in choices:
+                raise AppError("invalid_choice", "请选择保留已有历史或确认独立消费。")
+            row = connection.execute(
+                "SELECT scope_key FROM usage_records WHERE record_key=?", (case["record_key"],)
+            ).fetchone()
+            if not row:
+                raise AppError("stale_case", "原生明细已变化，请刷新。", 409)
+            if choice == "current":
+                if connection.execute(
+                    "SELECT 1 FROM usage_claims WHERE record_key=?", (case["record_key"],)
+                ).fetchone():
+                    raise AppError("usage_claimed", "该明细已占用，请先处理原报销。", 409)
+                connection.execute(
+                    "UPDATE usage_records SET suppressed=1 WHERE record_key=?",
+                    (case["record_key"],),
+                )
+            scopes.add(row[0])
         elif case["type"] == "directory":
             if choice not in {"current", "candidate"}:
                 raise AppError("invalid_choice", "请选择保留原目录或采用候选目录。")

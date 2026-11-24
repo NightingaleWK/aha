@@ -6,16 +6,16 @@ import hashlib
 import json
 import tempfile
 import unittest
-from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
-from test_sources import database
+from native_usage_fixtures import CACHED, INPUT, MODEL, OUTPUT, SESSION, START, write_rollout
 from test_storage_helpers import claim, detail, metadata, rollup, source_data
 
 from aha import source_bindings
-from aha.domain import ROLLUP_FIELDS, AppError, content_hash, record_key
+from aha.codex_sessions import CodexSource, probe_source
+from aha.domain import AppError, content_hash
 from aha.storage import Store
 
 
@@ -24,7 +24,8 @@ class DeviceContinuityTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.store = Store(self.root / "ledger")
-        self.source = self.root / "synthetic-ccs.db"
+        self.source = self.root / "synthetic-codex"
+        self.source.mkdir()
         self.enterContext(patch(
             "aha.source_bindings.installation_id", return_value="new-computer"
         ))
@@ -36,37 +37,31 @@ class DeviceContinuityTests(unittest.TestCase):
     def query(self, project: str = "all") -> dict:
         return self.store.analyze("2026-10-01", "2026-10-31", project)
 
-    def make_source(
-        self, rows: list[dict] | None = None, rollups: list[dict] | None = None
-    ) -> None:
-        if self.source.exists():
-            self.source.unlink()
-        with closing(database(self.source, rows or [], version=25)) as connection:
-            for row in rollups or []:
-                connection.execute(
-                    "INSERT INTO usage_daily_rollups VALUES ("
-                    + ",".join("?" for _ in ROLLUP_FIELDS) + ")",
-                    [row[key] for key in ROLLUP_FIELDS],
-                )
-            connection.commit()
+    def bind_source(self, root: Path | None = None) -> source_bindings.CodexBinding:
+        previous = source_bindings.configured_codex_sources(self.store).get("windows")
+        source = probe_source(CodexSource("windows", str(root or self.source)))
+        source_bindings.bind_codex_source(
+            self.store, source, previous.source_id if previous else None
+        )
+        return source_bindings.configured_codex_sources(self.store)["windows"]
 
-    def old_source(self, rows: list[dict] | None = None) -> None:
-        self.make_source([detail()] if rows is None else rows)
-        self.store.sync_sqlite(self.source, installation_id="old-computer")
+    def sync_source(self) -> dict:
+        binding = source_bindings.configured_codex_sources(self.store)["windows"]
+        return self.store.sync_codex(binding.source, binding.source_id, since=binding.since)
+
+    def old_source(self) -> source_bindings.CodexBinding:
+        write_rollout(self.source, 1)
+        with patch("aha.source_bindings.installation_id", return_value="old-computer"):
+            binding = self.bind_source()
+            self.sync_source()
+        return binding
 
     def test_same_path_new_machine_requires_confirmation_without_quarantining_history(self) -> None:
         self.old_source()
         before = self.store.ledger_status()
         with self.store.read_connection() as connection:
             runs = connection.execute("SELECT COUNT(*) FROM sync_runs").fetchone()[0]
-        status = self.store.source_binding_status(self.source)
-        self.assertTrue(status["required"])
-        self.assertFalse(status["bound"])
-        self.assertNotIn("installation_id", status)
-        self.assertNotIn(str(self.root), str(status))
-        with self.assertRaises(AppError) as error:
-            self.store.sync_sqlite(self.source)
-        self.assertEqual(error.exception.code, "source_binding_required")
+        self.assertEqual(source_bindings.configured_codex_sources(self.store), {})
         self.assertEqual(self.store.ledger_status(), before)
         self.assertEqual(self.query()["summary"]["record_count"], 1)
         self.assertEqual(self.store.list_reconciliations(), [])
@@ -76,19 +71,19 @@ class DeviceContinuityTests(unittest.TestCase):
             )
 
     def test_explicit_new_device_keeps_global_keys_claims_and_original_package(self) -> None:
-        self.old_source()
-        old = self.store.sync_status()["source_id"]
+        old = self.old_source()
+        with self.store.read_connection() as connection:
+            first_key = connection.execute("SELECT record_key FROM usage_records").fetchone()[0]
         project = self.store.save_project(None, "原项目", "", [])['project']['id']
-        self.store.assign_keys([record_key(detail())], project)
+        self.store.assign_keys([first_key], project)
         saved = self.store.create_batch(self.query(), claim(), "old-device-claim")
         package, _ = self.store.download(saved["id"], 1)
         before_sha = hashlib.sha256(package.read_bytes()).hexdigest()
-        self.make_source([detail(), detail("new", created_at=detail()["created_at"] + 1)])
-        binding = self.store.bind_source(self.source, "新电脑接续，旧电脑已停用")
-        self.assertNotEqual(binding["source_id"], old)
-        result = self.store.sync_sqlite(self.source)
+        write_rollout(self.source, 2, first_index=1)
+        binding = self.bind_source()
+        self.assertNotEqual(binding.source_id, old.source_id)
+        result = self.sync_source()
         self.assertEqual((result["new_count"], result["unchanged_count"]), (1, 1))
-        self.assertEqual(result["source_schema_version"], 25)
         self.assertEqual(self.query()["summary"]["record_count"], 1)
         self.assertEqual(self.query(project)["summary"]["record_count"], 0)
         with self.store.read_connection() as connection:
@@ -98,96 +93,103 @@ class DeviceContinuityTests(unittest.TestCase):
             self.assertEqual(
                 connection.execute("SELECT COUNT(*) FROM usage_claims").fetchone()[0], 1
             )
-        same = self.store.sync_sqlite(self.source)
+        same = self.sync_source()
         self.assertEqual((same["new_count"], same["revised_count"]), (0, 0))
         restored_package, _ = self.store.download(saved["id"], 1)
         self.assertEqual(hashlib.sha256(restored_package.read_bytes()).hexdigest(), before_sha)
 
     def test_empty_new_source_preserves_history_and_repeated_binding_is_idempotent(self) -> None:
         self.old_source()
-        self.make_source([])
-        binding = self.store.bind_source(self.source, "新电脑当前无用量，保留历史")
-        again = self.store.bind_source(self.source, "重复提交")
-        self.assertEqual(binding["source_id"], again["source_id"])
+        empty = self.root / "empty-codex"
+        (empty / "sessions").mkdir(parents=True)
+        binding = self.bind_source(empty)
+        again = self.bind_source(empty)
+        self.assertEqual(binding, again)
         for _ in range(2):
-            self.assertEqual(self.store.sync_sqlite(self.source)["new_count"], 0)
+            self.assertEqual(self.sync_source()["new_count"], 0)
         self.assertEqual(self.query()["summary"]["record_count"], 1)
         self.assertEqual(self.store.list_reconciliations(), [])
 
     def test_legacy_path_profile_is_not_adopted_as_current_device_authority(self) -> None:
-        self.make_source([detail()])
-        legacy = content_hash(["sqlite", str(self.source.resolve())])
-        old = source_data()
-        old["source"] = {"kind": "sqlite", "name": self.source.name,
-                         "location": str(self.source.resolve())}
-        self.store.sync_data(old, metadata(), source_id=legacy, trust="live")
-        self.assertTrue(self.store.source_binding_status(self.source)["required"])
-        new = self.store.bind_source(self.source, "确认独立新电脑来源")
-        self.assertNotEqual(new["source_id"], legacy)
-        self.make_source([detail(total_cost_usd="0.01")])
+        unavailable = self.root / "retired-source.sqlite"
+        legacy = content_hash(["sqlite", str(unavailable)])
+        old_row = detail(
+            session_id=SESSION, model=MODEL, pricing_model=MODEL, request_model=MODEL,
+            input_tokens=INPUT, output_tokens=OUTPUT, cache_read_tokens=CACHED,
+            cache_creation_tokens=0, created_at=int(START.timestamp()),
+        )
+        old = source_data([old_row])
+        old["source"] = {"kind": "sqlite", "name": unavailable.name, "location": str(unavailable)}
+        self.store.sync_data(old, source_id=legacy, trust="live")
+        self.assertEqual(source_bindings.configured_codex_sources(self.store), {})
+        self.assertEqual(source_bindings.history_default_since(self.store), "2026-10-26")
+        write_rollout(self.source, 1)
+        new = self.bind_source()
+        self.assertNotEqual(new.source_id, legacy)
         for _ in range(2):
-            self.assertEqual(self.store.sync_sqlite(self.source)["revised_count"], 0)
+            self.assertEqual(self.sync_source()["revised_count"], 0)
         case = self.store.list_reconciliations()[0]
-        self.assertEqual(case["type"], "revision")
-        self.store.resolve_reconciliation(case["id"], "current", "保留历史原值")
+        self.assertEqual(case["type"], "identity")
+        self.store.resolve_reconciliation(case["id"], "same", "已核对同笔历史，保留原值")
         self.assertEqual(self.query()["summary"]["total_cost_usd"], "0.1234567")
-        self.store.sync_sqlite(self.source)
+        self.sync_source()
         self.assertEqual(self.query()["summary"]["total_cost_usd"], "0.1234567")
+        self.assertEqual(self.store.list_reconciliations(), [])
+        self.assertFalse(unavailable.exists())
 
     def test_restore_marker_requires_rebinding_even_on_same_machine(self) -> None:
-        self.make_source([detail()])
-        first = self.store.sync_sqlite(self.source)
+        write_rollout(self.source, 1)
+        first = self.bind_source()
+        self.sync_source()
         marker = self.store.data_dir / "restore-info.json"
         marker.write_text(json.dumps({"format_version": 1, "restore_id": str(uuid4())}))
-        self.assertTrue(self.store.source_binding_status(self.source)["required"])
-        with self.assertRaises(AppError):
-            self.store.sync_sqlite(self.source)
-        rebound = self.store.bind_source(self.source, "确认本次独立还原后的来源")
-        self.assertNotEqual(rebound["source_id"], first["source_id"])
-        self.assertFalse(self.store.source_binding_status(self.source)["required"])
-        self.assertEqual(self.store.sync_sqlite(self.source)["unchanged_count"], 1)
+        self.assertEqual(source_bindings.configured_codex_sources(self.store), {})
+        rebound = self.bind_source()
+        self.assertNotEqual(rebound.source_id, first.source_id)
+        self.assertEqual(self.sync_source()["unchanged_count"], 1)
 
     def test_bad_restore_or_binding_metadata_fails_without_changing_history(self) -> None:
-        self.old_source()
+        write_rollout(self.source, 1)
+        self.bind_source()
+        self.sync_source()
         before = self.store.revisions()
         marker = self.store.data_dir / "restore-info.json"
         for invalid in ('{"format_version":1}', "[" * 1200 + "0" + "]" * 1200):
             marker.write_text(invalid)
             with self.assertRaises(AppError) as error:
-                self.store.source_binding_status(self.source)
+                source_bindings.configured_codex_sources(self.store)
             self.assertEqual(error.exception.code, "source_binding_damaged")
         marker.unlink()
         with self.store._transaction():
             self.store._db.execute("UPDATE settings SET value='[]' WHERE key=?",
-                                   (source_bindings.SETTINGS_KEY,))
+                                   (source_bindings.CODEX_BINDINGS_KEY + "windows",))
         with self.assertRaises(AppError) as error:
-            self.store.sync_sqlite(self.source)
+            source_bindings.configured_codex_sources(self.store)
         self.assertEqual(error.exception.code, "source_binding_damaged")
         self.assertEqual(self.store.revisions(), before)
         self.assertEqual(self.query()["summary"]["record_count"], 1)
 
-    def test_equal_rollups_from_another_source_need_origin_review(self) -> None:
-        self.make_source([], [rollup()])
-        self.store.sync_sqlite(self.source, installation_id="old-computer")
-        self.store.bind_source(self.source, "新电脑来源与旧汇总范围待核对")
-        result = self.store.sync_sqlite(self.source)
+    def test_equal_historical_rollups_need_origin_review(self) -> None:
+        history = source_data([], [rollup()])
+        self.store.sync_data(history, source_id="old-rollup", trust="live")
+        result = self.store.sync_data(history, source_id="copied-rollup", trust="live")
         self.assertEqual(result["new_count"], 0)
         case = self.store.list_reconciliations()[0]
         self.assertEqual(case["type"], "rollup_origin")
         self.assertEqual(case["choices"], ["current"])
         self.store.resolve_reconciliation(case["id"], "current", "确认是复制的同份历史汇总")
         self.assertEqual(self.query()["summary"]["record_count"], 7)
-        self.store.sync_sqlite(self.source)
+        self.store.sync_data(history, source_id="copied-rollup", trust="live")
         self.assertEqual(self.store.list_reconciliations(), [])
         self.assertEqual(self.query()["summary"]["record_count"], 7)
 
-    def test_new_machine_smaller_rollup_does_not_replace_old_day_on_repeat(self) -> None:
-        self.make_source([], [rollup(request_count=100)])
-        self.store.sync_sqlite(self.source, installation_id="old-computer")
-        self.make_source([], [rollup(request_count=10)])
-        self.store.bind_source(self.source, "新电脑只提供了部分同日用量")
+    def test_smaller_historical_rollup_does_not_replace_old_day_on_repeat(self) -> None:
+        self.store.sync_data(
+            source_data([], [rollup(request_count=100)]), source_id="full-history", trust="live"
+        )
+        partial = source_data([], [rollup(request_count=10)])
         for _ in range(2):
-            result = self.store.sync_sqlite(self.source)
+            result = self.store.sync_data(partial, source_id="partial-history", trust="live")
             self.assertEqual(result["revised_count"], 0)
             with self.store.read_connection() as connection:
                 self.assertEqual(connection.execute(
@@ -196,7 +198,7 @@ class DeviceContinuityTests(unittest.TestCase):
         case = self.store.list_reconciliations()[0]
         self.assertEqual(case["type"], "revision")
         self.store.resolve_reconciliation(case["id"], "current", "保留旧设备已保存的完整日")
-        self.store.sync_sqlite(self.source)
+        self.store.sync_data(partial, source_id="partial-history", trust="live")
         self.assertEqual(self.query()["summary"]["record_count"], 100)
         self.assertEqual(self.store.list_reconciliations(), [])
 

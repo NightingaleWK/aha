@@ -60,6 +60,7 @@ FREEZE_FIELDS = (
     "fresh_input_tokens",
     "total_tokens",
     "pricing_status",
+    "pricing_basis",
 )
 CHUNK_SIZE = 500
 
@@ -514,6 +515,8 @@ def _prepare_selection(
                         },
                     }
                 )
+                if "pricing_basis" in row:
+                    member["pricing_basis"] = row["pricing_basis"]
                 pending.append(
                     (
                         member["key"],

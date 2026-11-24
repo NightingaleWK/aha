@@ -1,0 +1,10 @@
+{
+  "id": "codex-dual-source-usage",
+  "kind": "feature",
+  "title": "直接同步 Windows 和 WSL 的 Codex 用量",
+  "description": "aha 直接从两端的 Codex 会话和归档增量读取用量。每端独立显示进度与失败原因，同一用量回读或复制时按证据去重。项目统计和报销材料继续使用同一本本地台账。",
+  "highlight": true,
+  "upgrade_notes": [
+    "在数据来源中确认 Windows Codex 目录和 WSL 发行版。已有历史时默认从台账最后一个北京时间日期接续，可调整起始日期补采。"
+  ]
+}

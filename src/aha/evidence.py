@@ -97,6 +97,7 @@ MEMBER_FIELDS = (
     "project_name",
     "assignment_origin",
     "pricing_status",
+    "pricing_basis",
 )
 SUMMARY_FIELDS = (
     "record_count",
@@ -285,6 +286,7 @@ def _write_report(
     claim: dict[str, Any],
     batch: dict[str, Any],
     daily_rows: Iterable[dict[str, Any]],
+    cost_notes: list[str],
 ) -> None:
     summary = _summary(analysis["summary"])
     interval = time_ranges.from_analysis(analysis)
@@ -321,7 +323,7 @@ def _write_report(
     if analysis.get("pending_count"):
         information.append(("待核对依据", f"{analysis['pending_count']} 条，未计入已核实合计"))
     notes = [
-        "参考成本为 CC Switch 保存的模型用量估算；申请报销金额由申请人填写。",
+        *cost_notes,
         "统计时间按北京时间计算；明细按实际发生秒纳入，手动结束分钟完整包含。",
         "历史日汇总仅在完整自然日被所选范围覆盖时纳入，不按小时拆分。",
     ]
@@ -417,7 +419,7 @@ thead{display:table-header-group}tr{break-inside:avoid}h2{break-after:avoid}}</s
         for note in notes:
             output.write(f"<li>{_escape(note)}</li>")
         output.write(
-            '</ul><p class="hint">数据来自 aha 本地保存的 CC Switch Codex 用量。'
+            '</ul><p class="hint">数据来自 aha 本地台账。'
             "本材料保存生成时的用量与申请说明，后续本地状态变化不改本包。"
             "逐条明细见“使用明细.csv”，文件校验和冻结依据见“导出信息.json”。</p>"
             "</body></html>"
@@ -502,8 +504,6 @@ def build_evidence(
         "pending_count": analysis.get("pending_count"),
         "claim": claim,
         "warnings": _warnings(analysis),
-        "upstream_reference_commit": UPSTREAM_COMMIT,
-        "cost_basis": "CCS 保存的历史参考成本；未按当前价格重新计算；不代表官方账单或实际支付。",
         "rollup_timezone_assumption": "历史日汇总缺少原始时区，以 Asia/Shanghai 整日解释。",
         "status_basis": "生成时为草稿；后续本地人工状态变化不改本包，不构成支付确认。",
     }
@@ -519,20 +519,56 @@ def build_evidence(
                 name: directory / name
                 for name in ("使用明细.csv", "每日汇总.csv", "费用说明.html", "导出信息.json")
             }
+            source_counts: dict[str, int] = {}
+            price_references: set[str] = set()
+
+            def detail_rows() -> Iterable[dict[str, Any]]:
+                for row in rows():
+                    native = row.get("data_source") == "codex_native"
+                    source = "codex_native" if native else "historical"
+                    source_counts[source] = source_counts.get(source, 0) + int(
+                        row.get("request_count", 1)
+                    )
+                    basis = row.get("pricing_basis")
+                    if native and isinstance(basis, str):
+                        price_references.add(basis)
+                    if row["kind"] == "detail":
+                        yield row
+
             detail_count = _write_csv(
                 files["使用明细.csv"],
                 DETAIL_COLUMNS,
-                (row for row in rows() if row["kind"] == "detail"),
+                detail_rows(),
             )
+            cost_notes = []
+            if source_counts.get("codex_native"):
+                cost_notes.append(
+                    "Codex 原生用量按采集时的模型参考价估算。申请报销金额由申请人填写。"
+                )
+                if price_references:
+                    cost_notes.append(
+                        "模型参考价依据为 " + "、".join(sorted(price_references)) + "。"
+                    )
+            if source_counts.get("historical"):
+                note = (
+                    "历史用量沿用已保存的参考成本。"
+                    if source_counts.get("codex_native")
+                    else "参考成本为 CC Switch 保存的模型用量估算；申请报销金额由申请人填写。"
+                )
+                cost_notes.append(note)
+                metadata["upstream_reference_commit"] = UPSTREAM_COMMIT
+            metadata["usage_sources"] = source_counts
+            metadata["pricing_references"] = sorted(price_references)
+            metadata["cost_basis"] = " ".join(cost_notes)
             _write_csv(files["每日汇总.csv"], DAILY_COLUMNS, daily_rows())
-            _write_report(files["费用说明.html"], analysis, claim, batch, daily_rows())
+            _write_report(files["费用说明.html"], analysis, claim, batch, daily_rows(), cost_notes)
             metadata["files"] = {
                 name: {"sha256": file_hash(path), "bytes": path.stat().st_size}
                 for name, path in files.items()
                 if name != "导出信息.json"
             }
-            with files["导出信息.json"].open("wb") as output:
-                count = _write_manifest(output, metadata, members())
+            with files["导出信息.json"].open("wb") as manifest_stream:
+                count = _write_manifest(manifest_stream, metadata, members())
             if (
                 detail_count != analysis["summary"]["detail_count"]
                 or count != analysis["member_count"]

@@ -3,12 +3,12 @@
 ## 实际链路
 
 ```text
-只读CCS SQLite/受限SQL → staging → 身份/版本/覆盖核对 → 本地SQLite事实与精确日聚合
+Windows/WSL Codex 会话只读 → staging → 身份/版本/覆盖核对 → 本地SQLite事实与精确日聚合
 页面筛选 → HTTP边界 → 本地分析/游标 → 保存事务重检 → 冻结版本/占用/事件/原包
 冻结行 → 流式CSV/HTML/manifest4/ZIP → 指定版本下载（旧manifest3包保留原字节）
 ```
 
-入口是 sources/sql_dump、sync/ledger、queries/storage、claims/batches/evidence、server 和 web/app.js。查询不重新读取CCS、不解压历史capture。
+入口是 codex_sessions/codex_source_io、native_sync/sync/ledger、queries/storage、claims/batches/evidence、server 和 web/app.js。业务查询仅访问本地台账。
 
 ## 检查边界
 

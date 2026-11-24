@@ -1,26 +1,32 @@
-"""Bind a local CCS instance without giving copied paths historical authority."""
+"""Bind confirmed source locations to this installation and ledger instance."""
 
 from __future__ import annotations
 
 import json
 import os
 import re
-import sqlite3
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID, uuid4
 
-from .domain import AppError, content_hash, source_name
+from .codex_sessions import CodexSource
+from .domain import AppError, content_hash, parse_date
 
 if TYPE_CHECKING:
     from .storage import Store
 
-SETTINGS_KEY = "source_bindings_v1"
-MAX_BINDINGS = 1024
-MAX_BINDING_BYTES = 1024 * 1024
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
+CODEX_BINDINGS_KEY = "codex_source_"
+
+
+@dataclass(frozen=True)
+class CodexBinding:
+    source: CodexSource
+    source_id: str
+    since: str | None
 
 
 def _state_file() -> Path:
@@ -104,150 +110,104 @@ def _restore_id(store: Store) -> str | None:
         ) from exc
 
 
-def _identity(value: str | None) -> str:
-    return value if value is not None else installation_id()
+def _codex_context(store: Store) -> str:
+    return content_hash([installation_id(), _restore_id(store)])
 
 
-def _key(store: Store, path: Path, identity: str | None) -> tuple[str, str]:
-    identity = _identity(identity)
-    if not isinstance(identity, str) or not identity or len(identity) > 128 or "\0" in identity:
-        raise AppError("invalid_device_identity", "本机来源标识无效。")
+def _codex_binding(context: str, key: str, value: str) -> CodexBinding | None:
     try:
-        location = str(path.resolve())
-    except (OSError, RuntimeError, ValueError) as exc:
-        raise AppError("source_unavailable", "当前来源路径无法读取。", 409) from exc
-    # normcase retains case-sensitive Unix paths and normalizes Windows paths.
-    key = content_hash([identity, os.path.normcase(location), _restore_id(store)])
-    return key, location
-
-
-def _bindings(connection: sqlite3.Connection) -> dict[str, dict[str, Any]]:
-    row = connection.execute("SELECT value FROM settings WHERE key=?", (SETTINGS_KEY,)).fetchone()
-    if row is None:
-        return {}
-    try:
-        if not isinstance(row[0], str) or len(row[0].encode("utf-8")) > MAX_BINDING_BYTES:
+        if len(value.encode("utf-8")) > 32768:
             raise ValueError("binding limit")
-        data = json.loads(row[0])
-        if (
-            not isinstance(data, dict)
-            or type(data.get("format_version")) is not int
-            or data["format_version"] != 1
-        ):
-            raise ValueError("binding version")
-        values = data.get("bindings")
-        if not isinstance(values, dict) or len(values) > MAX_BINDINGS:
-            raise ValueError("binding entries")
-        checked: dict[str, dict[str, Any]] = {}
-        for key, entry in values.items():
-            if not isinstance(key, str) or not _HASH.fullmatch(key) or not isinstance(entry, dict):
-                raise ValueError("binding entry")
-            if not isinstance(entry.get("source_id"), str) or not _HASH.fullmatch(
-                entry["source_id"]
+        data = json.loads(value)
+        if not isinstance(data, dict) or not _HASH.fullmatch(str(data.get("context", ""))):
+            raise ValueError("binding context")
+        if data["context"] != context:
+            return None
+        kind: Literal["windows", "wsl"] = (
+            "windows" if key == f"{CODEX_BINDINGS_KEY}windows" else "wsl"
+        )
+        root, distribution = data.get("root"), data.get("distribution")
+        if not isinstance(root, str) or not root or len(root) > 4096 or "\0" in root:
+            raise ValueError("binding root")
+        if kind == "wsl":
+            if (
+                not isinstance(distribution, str) or not distribution
+                or len(distribution) > 256 or "\0" in distribution
             ):
-                raise ValueError("binding source")
-            checked[key] = entry
-        return checked
-    except (ValueError, TypeError, UnicodeError, RecursionError) as exc:
+                raise ValueError("binding distribution")
+        elif distribution is not None:
+            raise ValueError("binding distribution")
+        since = data.get("since")
+        if since is not None:
+            since = parse_date(since).isoformat()
+        location = os.path.normcase(root) if kind == "windows" else root
+        source_id = content_hash(["codex-source", context, kind, distribution, location, since])
+        return CodexBinding(CodexSource(kind, root, distribution), source_id, since)
+    except (AppError, ValueError, TypeError, UnicodeError, RecursionError) as exc:
         raise AppError(
-            "source_binding_damaged", "已保存的来源绑定无法校验，原历史资料保持不变。", 409
+            "source_binding_damaged", "已保存的 Codex 来源配置无法读取，原历史资料仍可查看。", 409
         ) from exc
 
 
-def _descriptor(
-    store: Store, connection: sqlite3.Connection, key: str, location: str
-) -> dict[str, Any]:
-    bindings = _bindings(connection)
-    entry = bindings.get(key)
-    history = connection.execute("SELECT 1 FROM usage_records LIMIT 1").fetchone() is not None
-    legacy = connection.execute(
-        "SELECT 1 FROM source_profiles WHERE kind='sqlite' LIMIT 1"
-    ).fetchone() is not None
-    if entry is not None:
-        profile = connection.execute(
-            "SELECT kind,location FROM source_profiles WHERE id=?", (entry["source_id"],)
-        ).fetchone()
-        if (
-            profile is None
-            or profile["kind"] != "sqlite"
-            or not isinstance(profile["location"], str)
-            or os.path.normcase(profile["location"]) != os.path.normcase(location)
-        ):
-            raise AppError("source_binding_damaged", "来源绑定与已保存的来源不一致。", 409)
-    required = entry is None and (legacy or _restore_id(store) is not None)
-    return {
-        "required": required,
-        "bound": entry is not None,
-        "has_history": history,
-        "source_name": source_name(location),
-        "source_id": entry["source_id"] if entry else None,
-        "reason": "需要确认新电脑来源，旧历史将继续保留。" if required else "",
-        "confirmed_at": entry.get("confirmed_at") if entry else None,
-    }
-
-
-def binding_status(
-    store: Store, path: Path, *, installation_id: str | None = None
-) -> dict[str, Any]:
-    key, location = _key(store, Path(path), installation_id)
+def configured_codex_sources(store: Store) -> dict[str, CodexBinding]:
     with store.read_connection() as connection:
-        return _descriptor(store, connection, key, location)
+        rows = connection.execute(
+            "SELECT key,value FROM settings WHERE key IN (?,?) ORDER BY key",
+            (f"{CODEX_BINDINGS_KEY}windows", f"{CODEX_BINDINGS_KEY}wsl"),
+        ).fetchall()
+    if not rows:
+        return {}
+    context = _codex_context(store)
+    bindings: dict[str, CodexBinding] = {}
+    for key, value in rows:
+        if binding := _codex_binding(context, key, value):
+            bindings[binding.source.kind] = binding
+    return bindings
 
 
-def bind_source(
-    store: Store, path: Path, reason: str, *, installation_id: str | None = None
-) -> dict[str, Any]:
-    if not isinstance(reason, str) or not reason.strip() or len(reason) > 4000:
-        raise AppError("reason_required", "请填写新电脑来源的接续说明。")
-    key, location = _key(store, Path(path), installation_id)
-    # Binding can precede the first _begin on an old/restored ledger. Recover
-    # expired leases independently before checking for a genuinely active run.
+def history_default_since(store: Store) -> str | None:
+    with store.read_connection() as connection:
+        if connection.execute(
+            "SELECT 1 FROM source_profiles WHERE kind NOT IN ('codex_windows','codex_wsl') LIMIT 1"
+        ).fetchone() is None:
+            return None
+        last = connection.execute("""
+            SELECT r.day FROM usage_records r JOIN usage_versions v ON v.id=r.version_id
+            WHERE r.suppressed=0 AND
+                (r.kind='rollup' OR json_extract(v.payload_json,'$.data_source')='codex_session')
+            ORDER BY r.day DESC LIMIT 1
+        """).fetchone()
+    return str(last[0]) if last else None
+
+
+def bind_codex_source(
+    store: Store, source: CodexSource, expected_id: str | None, *, since: str | None = None
+) -> None:
     from .sync import _recover_failed_runs
 
+    context = _codex_context(store)
+    key = f"{CODEX_BINDINGS_KEY}{source.kind}"
+    encoded = store._encode({
+        "context": context,
+        "root": source.root,
+        "distribution": source.distribution,
+        "since": since,
+    })
+    desired = _codex_binding(context, key, encoded)
+    assert desired is not None
     _recover_failed_runs(store)
     with store._staging_transaction(lambda: None):
         connection = store._db
-        status = _descriptor(store, connection, key, location)
-        if status["bound"]:
-            return status
         if connection.execute("SELECT 1 FROM sync_runs WHERE state='running'").fetchone():
-            raise AppError("sync_in_progress", "已有同步正在进行，请稍后连接来源。", 409)
-        bindings = _bindings(connection)
-        if len(bindings) >= MAX_BINDINGS:
-            raise AppError("source_binding_limit", "已保存的来源绑定过多，请先保全资料。", 409)
-        source_id = content_hash(["sqlite-instance", uuid4().hex])
-        created = store._now()
-        connection.execute(
-            "INSERT INTO source_profiles(id,kind,name,location,trust,created_at) "
-            "VALUES(?,'sqlite',?,?,'live',?)",
-            (source_id, source_name(location), location, created),
-        )
-        bindings[key] = {"source_id": source_id, "confirmed_at": created, "reason": reason.strip()}
-        encoded = store._encode({"format_version": 1, "bindings": bindings})
-        if len(encoded.encode("utf-8")) > MAX_BINDING_BYTES:
-            raise AppError("source_binding_limit", "已保存的来源绑定过多，请先保全资料。", 409)
+            raise AppError("sync_in_progress", "请等待当前同步结束后再确认来源。", 409)
+        row = connection.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        current = _codex_binding(context, key, row[0]) if row is not None else None
+        if current == desired:
+            return
+        if (current.source_id if current else None) != expected_id:
+            raise AppError("stale_source_binding", "来源配置已更新，请重新打开设置。", 409)
         connection.execute(
             "INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) "
             "DO UPDATE SET value=excluded.value",
-            (SETTINGS_KEY, encoded),
+            (key, encoded),
         )
-        return _descriptor(store, connection, key, location)
-
-
-def source_id_for_sync(
-    store: Store, path: Path, *, installation_id: str | None = None
-) -> str:
-    identity = _identity(installation_id)
-    status = binding_status(store, path, installation_id=identity)
-    if status["required"]:
-        raise AppError(
-            "source_binding_required",
-            "需要先确认新电脑来源；已保存的历史仍可查看，请在数据来源中连接当前电脑。",
-            409,
-        )
-    if not status["bound"]:
-        status = bind_source(store, path, "首次连接本机CCS来源", installation_id=identity)
-    source_id = status["source_id"]
-    if not isinstance(source_id, str):
-        raise AppError("source_binding_damaged", "当前来源绑定不完整。", 409)
-    return source_id

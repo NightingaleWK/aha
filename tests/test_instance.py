@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
+from native_usage_fixtures import write_rollout
 from test_http_cli import stop_owned_server
 
 from aha.__main__ import _launch
@@ -433,15 +434,25 @@ class RuntimeTests(unittest.TestCase):
         self.runtime.start()
         cookie, csrf, _ = credentials(self.server.bootstrap_url)
         entered, cancelled, release = threading.Event(), threading.Event(), threading.Event()
+        root = self.data.parent / "codex"
+        write_rollout(root, 1)
 
         def slow_sync(*args: object, **kwargs: object) -> dict:
             entered.set()
-            if self.server.app.cancel.wait(5):
+            signal = kwargs["cancel"]
+            if isinstance(signal, threading.Event) and signal.wait(5):
                 cancelled.set()
             release.wait(5)
             return {"state": "cancelled"}
 
-        with patch.object(self.server.app.store, "sync_sqlite", side_effect=slow_sync):
+        with (
+            patch("aha.source_bindings.installation_id", return_value="synthetic-runtime"),
+            patch.object(self.server.app.store, "sync_codex", side_effect=slow_sync),
+        ):
+            status, _ = post(self.server.bootstrap_url, cookie, csrf, "/api/codex-sources", {
+                "kind": "windows", "root": str(root),
+            })
+            self.assertEqual(status, 200)
             status, _ = post(self.server.bootstrap_url, cookie, csrf, "/api/sync", {})
             self.assertEqual(status, 200)
             self.assertTrue(entered.wait(3))

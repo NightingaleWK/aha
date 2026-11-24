@@ -62,7 +62,6 @@ function page() {
       createElement() { return new Element(); },
       querySelector() { return null; },
       querySelectorAll(selector) {
-        if (selector === "[data-sync-control]") return [this.getElementById("sync-control")];
         if (["[data-association-select]", "[data-association-group]", "[data-usage-select]"].includes(selector)) {
           const matches = new Set(); const attribute = selector.slice(1, -1);
           function visit(element) {
@@ -93,6 +92,7 @@ function page() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, "../src/aha/web/app.js"), "utf8"), context);
   const evaluate = (code) => vm.runInContext(code, context);
   evaluate(`state.busy = false; state.ledger = {};
+    state.sources = [{kind: "windows", configured: true, root: "C:\\\\Example\\\\.codex", status: "ready"}];
     state.analysis = {analysis_id: "old", availability_mode: "available"};`);
   return {
     evaluate,
@@ -123,9 +123,8 @@ test("source card prioritizes failure, running, review and recovery with histori
   const app = page();
   app.evaluate(`state.ledger = {
     counts: {detail_count: 2, rollup_count: 1}, coverage: {start_date: "2026-10-01", end_date: "2026-10-02"},
-    last_successful_sync_at: "2026-10-02T02:47:00Z",
-    last_attempt: {state: "failed", error_message: "来源读取超过时限。"}
-  }; state.sync = null; renderSource();`);
+    last_successful_sync_at: "2026-10-02T02:47:00Z"
+  }; state.sync = {status: "failed", message: "来源读取超过时限。"}; renderSource();`);
   assert.equal(app.evaluate('$("source-mode").textContent'), "同步失败");
   assert.match(app.evaluate('$("sync-error").textContent'), /来源读取超过时限/);
   assert.match(app.evaluate('$("sync-error").textContent'), /当前显示已保存的本地数据/);
@@ -135,7 +134,7 @@ test("source card prioritizes failure, running, review and recovery with histori
   app.evaluate('state.syncBusy = true; renderSource();');
   assert.equal(app.evaluate('$("source-mode").textContent'), "同步中");
   assert.equal(app.evaluate('$("sync-error").hidden'), true);
-  assert.equal(app.evaluate('$("sync-control").disabled'), true);
+  assert.equal(app.evaluate('$("load-default").disabled'), true);
 
   app.evaluate('state.syncBusy = false; state.sync = {status: "needs_review"}; renderSource();');
   assert.equal(app.evaluate('$("source-mode").textContent'), "需要核对");
@@ -143,7 +142,7 @@ test("source card prioritizes failure, running, review and recovery with histori
 
   app.evaluate('state.sync = {status: "completed"}; renderSource();');
   assert.equal(app.evaluate('$("source-mode").textContent'), "已同步");
-  assert.equal(app.evaluate('$("sync-control").disabled'), false);
+  assert.equal(app.evaluate('$("load-default").disabled'), false);
   assert.equal(app.evaluate('$("sync-error").hidden'), true);
 });
 
@@ -158,20 +157,19 @@ test("a restored failed job keeps the detailed reason in its persisted result", 
 
 test("a failed first attempt never presents an empty local ledger as actual usage", () => {
   const app = page();
-  app.evaluate(`state.ledger = {counts: {}, coverage: {},
-    last_attempt: {state: "failed", error_message: "找不到所选数据库。"}};
+  app.evaluate(`state.ledger = {counts: {}, coverage: {}};
+    state.sources[0].status = "unavailable"; state.sources[0].message = "找不到所选 Codex 目录。";
     state.sync = null; renderSource();`);
   assert.equal(app.evaluate('$("source-mode").textContent'), "同步失败");
-  assert.match(app.evaluate('$("sync-error").textContent'), /找不到所选数据库/);
+  assert.match(app.evaluate('$("sync-error").textContent'), /找不到所选 Codex 目录/);
   assert.match(app.evaluate('$("sync-error").textContent'), /尚未成功同步，当前统计不代表实际用量/);
   assert.match(app.evaluate('$("source-description").textContent'), /尚无成功同步/);
 });
 
 test("saved review data can exist before the first successful sync", () => {
   const app = page();
-  app.evaluate(`state.ledger = {counts: {detail_count: 2}, coverage: {},
-    last_attempt: {state: "failed", error_message: "来源读取失败。"}};
-    state.sync = null; renderSource();`);
+  app.evaluate(`state.ledger = {counts: {detail_count: 2}, coverage: {}};
+    state.sync = {status: "failed", message: "来源读取失败。"}; renderSource();`);
   assert.match(app.evaluate('$("sync-error").textContent'), /当前显示已保存的本地数据/);
   assert.match(app.evaluate('$("sync-error").textContent'), /尚未成功同步，当前统计不代表实际用量/);
 });
@@ -186,12 +184,12 @@ test("a retry immediately hides failure and restores the card after success", as
   const retry = app.evaluate("loadSource()");
   assert.equal(app.evaluate('$("source-mode").textContent'), "同步中");
   assert.equal(app.evaluate('$("sync-error").hidden'), true);
-  assert.equal(app.evaluate('$("sync-control").disabled'), true);
+  assert.equal(app.evaluate('$("load-default").disabled'), true);
   app.reply(true, {id: "retry", status: "completed"});
   await retry;
   assert.equal(app.evaluate('$("source-mode").textContent'), "已同步");
   assert.equal(app.evaluate('$("sync-error").hidden'), true);
-  assert.equal(app.evaluate('$("sync-control").disabled'), false);
+  assert.equal(app.evaluate('$("load-default").disabled'), false);
 });
 
 test("a completed job carrying a review result uses review status and feedback", async () => {
@@ -270,7 +268,7 @@ test("a terminal polling response updates the card before slow refresh requests 
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(app.evaluate('$("source-mode").textContent'), "同步失败");
   assert.match(app.evaluate('$("sync-error").textContent'), /来源读取失败/);
-  assert.equal(app.evaluate('$("sync-control").disabled'), false);
+  assert.equal(app.evaluate('$("load-default").disabled'), false);
 });
 
 test("late refresh success or failure from an older job cannot affect a retry", async () => {
@@ -290,7 +288,7 @@ test("late refresh success or failure from an older job cannot affect a retry", 
     app.reply(true, {cases: [{id: "old"}]});
     await old;
     assert.equal(app.evaluate('$("source-mode").textContent'), "同步中");
-    assert.equal(app.evaluate('$("sync-control").disabled'), true);
+    assert.equal(app.evaluate('$("load-default").disabled'), true);
     assert.equal(app.evaluate("state.ledger.counts.detail_count"), 2);
     assert.equal(app.evaluate("state.config.projects.length"), 0);
     assert.equal(app.evaluate("state.reconciliations.length"), 0);
@@ -305,7 +303,7 @@ test("late refresh success or failure from an older job cannot affect a retry", 
     await retry;
     assert.equal(app.evaluate('$("source-mode").textContent'), "同步失败");
     assert.match(app.evaluate('$("sync-error").textContent'), /新来源失败/);
-    assert.equal(app.evaluate('$("sync-control").disabled'), false);
+    assert.equal(app.evaluate('$("load-default").disabled'), false);
   }
 });
 
@@ -321,16 +319,63 @@ test("initial rendering uses the current job before an older successful ledger",
   assert.match(app.evaluate('$("sync-error").textContent'), /本次来源失败/);
 });
 
-test("initial rendering restores a persisted failed attempt when no job exists", async () => {
+test("initial rendering restores per-source failures when no job exists", async () => {
   const app = page();
   app.evaluate('refreshProjects = () => new Promise(() => {});');
   app.statusReply({csrf_token: "token", today: "2026-10-03", version: "test", ledger: {
-    counts: {}, coverage: {}, last_successful_sync_at: "2026-10-02T02:47:00Z",
-    last_attempt: {state: "failed", error_message: "上次同步未完成。"}
-  }});
+    counts: {}, coverage: {}, last_successful_sync_at: "2026-10-02T02:47:00Z"
+  }, sources: [{kind: "windows", configured: true, status: "failed", message: "上次同步未完成。"}]});
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(app.evaluate('$("source-mode").textContent'), "同步失败");
   assert.match(app.evaluate('$("sync-error").textContent'), /上次同步未完成/);
+});
+
+test("reload ignores jobs for replaced source bindings and preserves matching results", async () => {
+  const windows = {kind: "windows", configured: true, root: "WIN", since: null, status: "no_change"};
+  const wsl = {kind: "wsl", configured: true, root: "/codex", distribution: "Ubuntu", status: "completed"};
+  const matching = [windows, wsl];
+  for (const sources of [
+    [{...windows, root: "NEW", status: "ready"}, wsl],
+    [{...windows, since: "2026-10-02", status: "ready"}, wsl],
+    [windows, {...wsl, distribution: "Debian", status: "ready"}],
+    [windows, {...wsl, configured: false, status: "unconfigured"}],
+    matching,
+  ]) {
+    const app = page();
+    app.evaluate('refreshProjects = () => new Promise(() => {});');
+    app.statusReply({csrf_token: "token", today: "2026-10-03", version: "test", ledger: {
+      counts: {detail_count: 4}, coverage: {}, last_successful_sync_at: "2026-10-02T02:47:00Z",
+    }, sources, sync: {id: "attempt", status: "failed", message: "旧来源失败。", sources: matching}});
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.match(app.evaluate('$("source-description").textContent'), /4 条明细.*台账上次成功/);
+    assert.equal(app.evaluate("state.sync?.id"), sources === matching ? "attempt" : undefined);
+    assert.equal(app.evaluate('$("sync-error").hidden'), sources !== matching);
+    const mode = sources === matching ? "同步失败" : sources[1].configured ? "本地资料" : "已同步";
+    assert.equal(app.evaluate('$("source-mode").textContent'), mode);
+    assert.equal(app.evaluate("state.analysis.analysis_id"), "old");
+  }
+});
+
+test("an in-flight poll for an old binding cannot replace newly discovered sources", async () => {
+  const app = page();
+  app.evaluate('state.sources[0].root = "OLD";');
+  const loading = app.evaluate("loadSource()");
+  const previous = {kind: "windows", configured: true, root: "OLD"};
+  app.replyTo("/api/sync", true, {id: "old", status: "running",
+    sources: [{...previous, status: "running"}]});
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const opened = app.evaluate('openSourceSettings($("source-options"))');
+  app.replyTo("/api/codex-sources", true, {
+    sources: [{...previous, root: "NEW", status: "ready"}], distributions: [],
+  });
+  await opened;
+  app.replyTo("/api/sync/old", true, {id: "old", status: "completed",
+    sources: [{...previous, status: "completed"}]});
+  await loading;
+  assert.equal(app.evaluate('currentSource("windows").root'), "NEW");
+  assert.equal(app.evaluate('$("source-mode").textContent'), "本地资料");
+  assert.equal(app.evaluate("state.analysis.analysis_id"), "old");
+  assert.equal(app.evaluate("state.syncBusy"), false);
 });
 
 test("initialization failure cannot abandon a running job or leave sync disabled", async () => {
@@ -346,7 +391,7 @@ test("initialization failure cannot abandon a running job or leave sync disabled
   app.reply(true, {id: "startup", status: "completed"});
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(app.evaluate('$("source-mode").textContent'), "已同步");
-  assert.equal(app.evaluate('$("sync-control").disabled'), false);
+  assert.equal(app.evaluate('$("load-default").disabled'), false);
   assert.equal(app.evaluate('$("sync-error").hidden'), true);
 });
 
@@ -549,34 +594,167 @@ test("empty current filters explain retained history without changing the chosen
   assert.equal(app.evaluate('$("empty-range-note").hidden'), true);
 });
 
-test("an unbound copied ledger opens source confirmation while retaining the local preview", async () => {
+test("an unbound restored ledger offers native sources while retaining the local preview", async () => {
   const app = page();
-  app.evaluate('state.sourceBinding = {required: true}; renderSource();');
+  app.evaluate(`state.sources = [{kind: "windows", configured: false, status: "unconfigured"},
+    {kind: "wsl", configured: false, status: "unconfigured"}]; renderSource();`);
   assert.equal(app.evaluate('$("source-mode").textContent'), "待确认本机来源");
   const operation = app.evaluate("loadSource()");
-  app.reply(true, {required: true, has_history: true, source_name: "cc-switch.db"});
+  app.replyTo("/api/codex-sources", true, {distributions: ["Ubuntu"]});
   await operation;
-  assert.equal(app.evaluate('$("source-binding-dialog").open'), true);
+  assert.equal(app.evaluate('$("source-dialog").open'), true);
   assert.equal(app.evaluate("state.analysis.analysis_id"), "old");
   assert.equal(app.evaluate("state.syncBusy"), false);
   assert.equal(app.pendingUrls().includes("/api/sync"), false);
+  app.evaluate('$("source-dialog").close();');
+  assert.equal(app.evaluate('$("load-default").focused'), true);
 });
 
-test("source confirmation records the explicit reason before starting continuation", async () => {
+test("WSL confirmation sends its selected distribution and updates only that source", async () => {
   const app = page();
-  app.evaluate(`state.sourceBinding = {required: true};
-    state.bindingSelection = {location: "", continuation: {path: "/api/sync", body: {}}};
-    $("source-binding-reason").value = "新电脑接续，保留历史";
-    loadSource = async (path, body) => { state.continuation = {path, body}; };`);
-  const operation = app.evaluate("saveSourceBinding()");
+  const opened = app.evaluate('openSourceSettings($("source-options"))');
+  app.replyTo("/api/codex-sources", true, {distributions: ["Ubuntu", "Debian"]});
+  await opened;
+  assert.equal(app.evaluate('$("save-wsl-source").disabled'), true);
+  app.evaluate('$("wsl-distribution").value = "Ubuntu"; $("wsl-distribution").emit("change");');
+  assert.equal(app.evaluate('$("save-wsl-source").disabled'), false);
+  const operation = app.evaluate('saveSourceSettings("wsl")');
   const payload = JSON.parse(app.pendingRequests()[0].options.body);
-  assert.equal(payload.reason, "新电脑接续，保留历史");
-  assert.equal(app.evaluate("state.continuation"), undefined);
-  app.reply(true, {bound: true, required: false});
+  assert.deepEqual(payload, {kind: "wsl", root: "", since: "", distribution: "Ubuntu"});
+  assert.equal(app.evaluate('$("load-default").disabled'), true);
+  app.replyTo("/api/codex-sources", true, {sources: [
+    {kind: "wsl", root: "/home/example/.codex", distribution: "Ubuntu", configured: true, status: "ready"},
+  ]});
   await operation;
-  assert.equal(app.evaluate("state.sourceBinding.required"), false);
+  assert.equal(app.evaluate('currentSource("windows").configured'), true);
+  assert.equal(app.evaluate('$("wsl-source-root").value'), "/home/example/.codex");
+  assert.match(app.evaluate('$("source-settings-status").textContent'), /已确认 WSL 来源/);
+  assert.equal(app.evaluate("state.analysis.analysis_id"), "old");
+  assert.equal(app.pendingUrls().includes("/api/sync"), false);
+  app.evaluate('$("wsl-distribution").value = "Debian"; $("wsl-distribution").emit("change");');
+  assert.equal(app.evaluate('$("wsl-source-root").value'), "");
+});
+
+test("closed or replaced source discovery ignores stale success, rejection and disconnect", async () => {
+  for (const response of ["success", "conflict", "disconnect"]) {
+    const app = page();
+    const old = app.evaluate('openSourceSettings($("source-options"))');
+    app.evaluate('$("source-dialog").close()');
+    const latest = app.evaluate('openSourceSettings($("source-options"))');
+    app.replyLatest("/api/codex-sources", true, {distributions: ["Debian"], history_default_since: "2026-11-23"});
+    await latest;
+    app.evaluate('$("windows-source-root").value = "CURRENT";');
+    if (response === "success") app.replyTo("/api/codex-sources", true, {distributions: ["Ubuntu"], history_default_since: "2026-10-01"});
+    if (response === "conflict") app.replyTo("/api/codex-sources", false, {code: "data_changed", message: "旧请求"});
+    if (response === "disconnect") app.disconnectTo("/api/codex-sources");
+    await old;
+    assert.equal(app.evaluate('$("wsl-distribution").options.at(-1).value'), "Debian");
+    assert.equal(app.evaluate('$("windows-source-root").value'), "CURRENT");
+    assert.equal(app.evaluate('$("wsl-source-since").value'), "2026-11-23");
+    assert.equal(app.evaluate('$("source-settings-error").hidden'), true);
+    assert.equal(app.evaluate("state.analysis.analysis_id"), "old");
+  }
+});
+
+test("an unbound source defaults to legacy coverage while a confirmed all-history setting remains empty", async () => {
+  const app = page();
+  const opened = app.evaluate('openSourceSettings($("source-options"))');
+  app.replyTo("/api/codex-sources", true, {
+    history_default_since: "2026-11-18",
+    distributions: ["Ubuntu"],
+    sources: [{kind: "windows", configured: true, status: "ready", root: "CURRENT", since: null}],
+  });
+  await opened;
+  assert.equal(app.evaluate('$("windows-source-since").value'), "");
+  assert.equal(app.evaluate('$("wsl-source-since").value'), "2026-11-18");
+  app.evaluate('$("wsl-distribution").value = "Ubuntu"; $("wsl-distribution").emit("change");');
+  assert.equal(app.evaluate('$("wsl-source-since").value'), "2026-11-18");
+  app.evaluate('$("wsl-source-all-history").emit("click");');
+  const saved = app.evaluate('saveSourceSettings("wsl")');
+  assert.deepEqual(JSON.parse(app.pendingRequests()[0].options.body),
+    {kind: "wsl", root: "", since: "", distribution: "Ubuntu"});
+  app.replyTo("/api/codex-sources", true, {sources: [
+    {kind: "wsl", configured: true, status: "ready", root: "/example", distribution: "Ubuntu", since: null},
+  ]});
+  await saved;
+  assert.equal(app.evaluate('$("wsl-source-since").value'), "");
+});
+
+test("a saved old source can update the card without replacing a newer source draft", async () => {
+  const app = page();
+  const opened = app.evaluate('openSourceSettings($("source-options"))');
+  app.replyTo("/api/codex-sources", true, {distributions: []});
+  await opened;
+  app.evaluate('$("windows-source-root").value = "OLD";');
+  const old = app.evaluate('saveSourceSettings("windows")');
+  app.evaluate('$("source-dialog").close()');
+  const latest = app.evaluate('openSourceSettings($("source-options"))');
+  app.replyLatest("/api/codex-sources", true, {distributions: []});
+  await latest;
+  assert.equal(app.evaluate('$("save-windows-source").disabled'), true);
+  app.evaluate('$("windows-source-root").value = "NEW";');
+  app.replyTo("/api/codex-sources", true, {sources: [
+    {kind: "windows", root: "CANONICAL_OLD", configured: true, status: "ready"},
+  ]});
+  await old;
+  assert.equal(app.evaluate('currentSource("windows").root'), "CANONICAL_OLD");
+  assert.equal(app.evaluate('$("windows-source-root").value'), "NEW");
+  assert.equal(app.evaluate('$("source-settings-status").hidden'), true);
+  assert.equal(app.evaluate('$("save-windows-source").disabled'), false);
+});
+
+const windowsSynced = {
+  kind: "windows", root: "C:\\Example\\.codex", configured: true, status: "completed",
+  last_success_at: "2026-11-24T02:00:00Z",
+  result: {coverage_from: "2026-11-22T10:00:00+08:00", coverage_through: "2026-11-24T09:30:00+08:00",
+    files: 3, new_count: 4, unchanged_count: 2, pending_count: 0, issues: {}},
+};
+const wslReading = {
+  kind: "wsl", distribution: "Ubuntu", root: "/home/example/.codex", configured: true,
+  status: "running", last_success_at: null,
+};
+test("a resolved startup job shows Windows results and WSL failure separately without posting another startup", async () => {
+  const app = page();
+  app.evaluate(`refreshProjects = async () => {}; refreshReconciliations = async () => {};
+    refreshBatches = async () => {}; analyze = async () => {};`);
+  const sources = [windowsSynced, {...wslReading, status: "unavailable", message: "WSL 暂时无法读取。"}];
+  app.statusReply({csrf_token: "token", today: "2026-11-24", version: "test",
+    ledger: {counts: {detail_count: 4}, coverage: {}}, sources,
+    sync: {id: "launch", status: "needs_review", sources}});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate('$("source-mode").textContent'), "部分完成");
+  assert.match(app.evaluate('$("source-endpoints").children[0].children[1].textContent'), /2026\/11\/24/);
+  assert.match(app.evaluate('$("source-endpoints").children[0].children[2].textContent'), /09:30:00/);
+  assert.match(app.evaluate('$("source-endpoints").children[0].children[3].textContent'), /新增 4 条.*检查 3 个文件/);
+  assert.equal(app.evaluate('$("source-endpoints").children[1].children[0].children[1].textContent'), "暂不可用");
+  assert.match(app.evaluate('$("source-endpoints").children[1].children[2].textContent'), /WSL 暂时无法读取/);
+  assert.equal(app.pendingUrls().includes("/api/sync"), false);
+});
+
+test("one committed source expires old saving even while the second source is running or cancelled", async () => {
+  const app = page();
+  app.evaluate(`state.busy = true; state.pendingBatch = {signature: "old"};
+    refreshLedger = async () => {}; refreshProjects = async () => {}; refreshReconciliations = async () => {};`);
+  const operation = app.evaluate("loadSource()");
+  assert.deepEqual(JSON.parse(app.pendingRequests()[0].options.body), {trigger: "manual"});
+  app.replyTo("/api/sync", true, {id: "dual", status: "running", sources: [windowsSynced, wslReading]});
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(app.evaluate("state.analysis"), null);
-  assert.equal(app.evaluate("state.continuation.path"), "/api/sync");
+  assert.equal(app.evaluate("state.pendingBatch"), null);
+  assert.equal(app.evaluate('$("cancel-sync").disabled'), false);
+  const cancel = app.evaluate("cancelSync()");
+  assert.deepEqual(JSON.parse(app.pendingRequests()[0].options.body), {});
+  assert.equal(app.evaluate('$("cancel-sync").disabled'), true);
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const sources = [windowsSynced, {...wslReading, status: "cancelled"}];
+  app.replyTo("/api/sync/dual", true, {id: "dual", status: "cancelled", sources});
+  await operation;
+  app.replyTo("/api/sync/dual/cancel", false, {code: "data_changed", message: "过时的取消结果"});
+  await cancel;
+  assert.equal(app.evaluate('$("source-mode").textContent'), "已取消");
+  assert.equal(app.evaluate('$("cancel-sync").hidden'), true);
+  assert.equal(app.evaluate("state.syncPreviewPending"), true);
+  assert.match(app.evaluate('$("notice").children[0].textContent'), /完成的来源已入账/);
 });
 
 test("reconciliation immediately expires saving and automatically previews the same filters", async () => {
@@ -676,11 +854,14 @@ test("restore uploads binary chunks and ignores late chunk success after cancell
   assert.equal(app.evaluate("state.backupBusy"), false);
 });
 
-test("directory and rollup-origin reconciliation display their real choices", () => {
+test("directory and historical reconciliation display their real choices and native evidence", () => {
   const app = page();
   app.evaluate(`state.reconciliations = [
     {id: "directory", type: "directory", current_cwd: "C:/old-project", candidate_cwd: "D:/new-project", choices: ["current", "candidate"]},
-    {id: "rollup", type: "rollup_origin", choices: ["current"]}
+    {id: "rollup", type: "rollup_origin", choices: ["current"]},
+    {id: "native-overlap", type: "native_overlap", choices: ["current", "independent"]},
+    {id: "native-uncertain", type: "native_uncertain", pending_reason: "cumulative_baseline_unconfirmed",
+      candidate_summary: {input_tokens: 3, output_tokens: 2}, choices: ["current"]}
   ]; renderReconciliations();`);
   const text = app.evaluate(`JSON.stringify((function collect(element) {
     return [element.textContent || "", ...element.children.flatMap(collect)];
@@ -690,6 +871,11 @@ test("directory and rollup-origin reconciliation display their real choices", ()
   assert.match(text, /采用当前电脑目录/);
   assert.match(text, /保留已保存目录/);
   assert.match(text, /确认重叠，保留历史汇总/);
+  assert.match(text, /沿用已入账历史/);
+  assert.match(text, /确认为新用量/);
+  assert.match(text, /累计用量的起点待确认/);
+  assert.match(text, /输入 3 · 输出 2/);
+  assert.match(text, /确认排除候选/);
 });
 
 function directoryPreview(overrides = {}) {

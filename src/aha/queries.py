@@ -619,6 +619,14 @@ def _enrich_row(
             "semantic_key": row["semantic_key"],
         }
     )
+    if result.get("data_source") == "codex_native":
+        basis = connection.execute(
+            "SELECT pricing_basis FROM codex_event_evidence WHERE version_id=? "
+            "AND pricing_basis IS NOT NULL ORDER BY evidence_hash LIMIT 1",
+            (row["version_id"],),
+        ).fetchone()
+        if basis:
+            result["pricing_basis"] = basis[0]
     if owners and row["availability_state"] != "available":
         # UNION ALL keeps every relationship on its exact range; the outer DISTINCT
         # retains the same bounded owner set without a dynamic-kind scope scan.
