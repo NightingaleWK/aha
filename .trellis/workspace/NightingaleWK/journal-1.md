@@ -739,3 +739,25 @@ v0.5.1已正式公开，发布源码f044119；功能PR11与发布PR12均合入ma
 ### Status
 
 [OK] **Completed**
+
+
+## Session 26: 完成数据核对跨页批量确认与原生候选采用
+<!-- trellis-session: v=2 fp=300a80110afd82ad -->
+
+**Date**: 2026-11-24
+**Task**: 完成数据核对跨页批量确认与原生候选采用
+**Branch**: `codex/codex-dual-source-usage`
+
+### Summary
+
+跨页批量确认、一次重算、原生候选参考成本及确认说明通过桌面和万级验证。桌面单文件已交付，合成资料及临时环境已清理。累计变更继续纳入 v0.7.0 草稿。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6ee52e92b98f889346d4a6454072fb248293c656` | feat: 支持数据核对批量确认与提速 |
+
+### Status
+
+[OK] **Completed**

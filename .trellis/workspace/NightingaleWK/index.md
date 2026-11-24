@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 25
+- **Total Sessions**: 26
 - **Last Active**: 2026-11-24
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~741 | Active |
+| `journal-1.md` | ~763 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 26 | 2026-11-24 | 完成数据核对跨页批量确认与原生候选采用 | `6ee52e92b98f889346d4a6454072fb248293c656` | `codex/codex-dual-source-usage` |
 | 25 | 2026-11-24 | 双端原生 Codex 采集、历史迁移与本机交付 | `1c867679a78736004cea43265a00f0af57f990bd` | `codex/codex-dual-source-usage` |
 | 23 | 2026-11-18 | 适配 CC Switch 结构 27 | `ecbe1dd`, `334893e` | `codex/ccs-schema-27` |
 | 22 | 2026-11-13 | 项目按目录整体关联与桌面交付 | `803bffc6cf6a21a5b4b6decc6038f76ef144d703` | `codex/project-link-onboarding` |
