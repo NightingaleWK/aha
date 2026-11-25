@@ -9,7 +9,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
+from test_native_sync import LOCAL, usage
 from test_storage_helpers import claim, detail, rollup, source_data
 
 from aha import claims, ledger, queries
@@ -150,57 +152,51 @@ class DenseAvailabilityTests(unittest.TestCase):
         self.assertLess(target_work[1], target_work[0] * 2.5, target_work)
         self.assertLessEqual(owner_work[1], owner_work[0] + 500, owner_work)
 
-    def test_cross_grain_owners_and_pending_priority_survive_exact_index_branches(self) -> None:
-        for owned_kind in ("detail", "rollup"):
-            with self.subTest(owned_kind=owned_kind), tempfile.TemporaryDirectory() as directory:
-                store = Store(Path(directory))
-                try:
-                    first, history = detail(), rollup(date="2026-10-26", request_model="separate")
-                    store.sync_data(source_data([first], [history]), trust="live")
-                    projects = {kind: store.save_project(None, kind, "", [])["project"]["id"]
-                                for kind in ("detail", "rollup")}
-                    for kind, row in (("detail", first), ("rollup", history)):
-                        store.assign_keys([record_key(row, kind)], projects[kind])
-                    saved = store.create_batch(
-                        store.analyze("2026-10-26", "2026-10-26", projects[owned_kind]),
-                        claim(), "cross-grain-owner",
+    def test_archived_owner_covers_paired_day_until_voided(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            store = Store(Path(directory))
+            try:
+                first = detail("old-request", model="old-unrelated")
+                store.sync_data(source_data([first]), trust="live")
+                saved = store.create_batch(
+                    store.analyze("2026-10-26", "2026-10-26"), claim(), "archived-owner",
+                )
+                peer = usage("peer", model="modern-label", pricing_model="shared-price")
+                peer.evidence["snapshot_timestamp"] = "2026-10-25T15:59:59.999999+00:00"
+
+                def scan(source, load_cursor, on_event, on_cursor, *, cancel):
+                    on_event(peer)
+                    return {"files": 1, "bytes_read": 1, "events": 1, "coverage": "complete",
+                            "issues": {}, "first_at": None, "last_at": None}
+
+                with patch("aha.native_sync.scan_source", side_effect=scan):
+                    store.sync_codex(LOCAL, "paired-fixture")
+                member = claims.member_from_row(
+                    rollup(date="2026-10-25", model="old-label", pricing_model="shared-price"),
+                    "rollup",
+                )
+                with store._transaction():
+                    store._db.execute(
+                        "INSERT INTO usage_claims VALUES(?,?,?,'rollup',?,NULL,?)",
+                        (member["key"], saved["id"], 1, claims.scope_key(member),
+                         store._encode(member)),
                     )
-                    self.assertEqual(store.list_reconciliations(), [])
-                    peer = "rollup" if owned_kind == "detail" else "detail"
-                    states = {row["kind"]: (row["availability_state"], row["usage_reason"])
-                              for row in store._db.execute("SELECT * FROM usage_records")}
-                    self.assertEqual(states[owned_kind], ("claimed", "identity"))
-                    self.assertEqual(states[peer], ("pending", "overlap"))
-                    peer_row = store._db.execute(
-                        "SELECT r.*,v.payload_json,'' AS project_name FROM usage_records r "
-                        "JOIN usage_versions v ON v.id=r.version_id WHERE kind=?", (peer,)
-                    ).fetchone()
-                    self.assertEqual(queries._enrich_row(
-                        store, store._db, peer_row, owners=True,
-                    )["usage_owners"], [{"batch_id": saved["id"], "version": 1}])
-                    own_target = store.analyze("2026-10-26", "2026-10-26", projects[peer],
-                                               target_batch_id=saved["id"])
-                    self.assertEqual(own_target["summary"]["record_count"],
-                                     1 if peer == "detail" else history["request_count"])
-                    candidate = source_data(
-                        [{**first, "total_cost_usd": "9"}] if owned_kind == "detail" else [],
-                        [{**history, "total_cost_usd": "9"}] if owned_kind == "rollup" else [],
-                    )
-                    candidate["source"]["name"] = "revision.sql"
-                    store.sync_data(candidate)
-                    owned_state = store._db.execute(
-                        "SELECT availability_state,usage_reason FROM usage_records WHERE kind=?",
-                        (owned_kind,),
-                    ).fetchone()
-                    self.assertEqual(tuple(owned_state), ("pending", "reconciliation"))
-                    store.sync_data(source_data([]), trust="live")
-                    self.assertTrue(all(tuple(row) == ("pending", "reconciliation")
-                                        for row in store._db.execute(
-                                            "SELECT availability_state,usage_reason "
-                                            "FROM usage_records"
-                                        )))
-                    self.assertEqual(store._db.execute(
-                        "SELECT COUNT(*) FROM usage_claims"
-                    ).fetchone()[0], 1)
-                finally:
-                    store.close()
+                    ledger.refresh_availability(store._db)
+                detail_row = store._db.execute(
+                    "SELECT r.*,v.payload_json,'' AS project_name FROM usage_records r "
+                    "JOIN usage_versions v ON v.id=r.version_id WHERE r.record_key=?",
+                    (record_key(peer.row),),
+                ).fetchone()
+                self.assertEqual(
+                    (detail_row["availability_state"], detail_row["usage_reason"]),
+                    ("pending", "overlap"),
+                )
+                self.assertEqual(queries._enrich_row(
+                    store, store._db, detail_row, owners=True,
+                )["usage_owners"], [{"batch_id": saved["id"], "version": 1}])
+                store.void_batch(saved["id"], saved["generation"], "历史占用作废", "release")
+                result = store.analyze("2026-10-26", "2026-10-26")
+                self.assertEqual(result["summary"]["record_count"], 2)
+                self.assertEqual(result["pending_count"], 0)
+            finally:
+                store.close()

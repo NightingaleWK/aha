@@ -22,7 +22,7 @@
 | `GET /api/projects` | 项目配置与分类 revision |
 | `POST /api/projects/preview`、`/api/projects/apply` | 目录草稿→整体影响→一次确认，原子保存配置和历史，见[目录整体合同](../backend/project-association-contract.md#8-已确认目录的整体归属合同) |
 | `POST /api/projects`、`/api/projects/{id}` | 旧兼容路径，目录变更须先预览确认；仅允许不改目录的元信息更新 |
-| `POST /api/assignments` | `project_id` 加 keys 或 session_ids；rollup 按整条记录处理 |
+| POST /api/assignments | project_id 和 keys 或 session_ids，目标是逐笔用量 |
 | `GET /api/project-associations`、`/records` | 项目费用/待归属分组及修订绑定的keyset记录清单 |
 | `POST /api/project-associations/preview`、`/apply` | 全筛选/逐条/整会话的归属影响预览与原子幂等应用；协议见[项目归属合同](../backend/project-association-contract.md) |
 | `GET /api/reconciliations/summary` | `{total}`，台账中待处理的核对事项数 |
@@ -33,7 +33,7 @@
 | `GET /api/reconciliations` | 兼容入口，返回 `{cases}` |
 | `POST /api/reconciliations/{id}` | `choice/reason/expected_generation/idempotency_key`，按实际候选确认 |
 | `POST /api/analysis` | project、time_range意图或旧起止日期（二者互斥）、`availability_mode=available|all`；只查本地库 |
-| `GET /api/analysis/{id}/details` | `kind` 可选 `detail`、`rollup`、`daily`、`models`，支持 cursor、size1–200。daily 可带 `day` |
+| GET /api/analysis/{id}/details | kind 为 detail、daily 或 models。支持 cursor 和 size 1 至 200。daily 可带 day |
 | `GET /api/analysis/{id}/trend` | 首页分析的有界费用趋势，返回 `grain` 和 `points` |
 | `POST /api/batches/{id}/analysis` | base_version、expected_generation 与当前筛选，绑定目标修订主体 |
 | `POST /api/batches/preview` | analysis 或有效冻结版本加 claim，返回阻断与占用信息 |
@@ -63,7 +63,7 @@
 
 来源、目录规则、人工归属、筛选、占用或数据 revision 改变后清当前预览、选择和保存身份。服务端返回 analysis_expired/data_changed/classification_changed/availability_changed/usage_claimed 等权威失效时，也须清打开的 current 修订分析并禁保存。frozen 修订仍以原冻结依据为准。
 
-时间面板支持快捷范围、日历和分钟输入；取消保留原预览，确认直接更新。页面范围、报销列表/详情和材料展示服务端实际解析结果。部分日历史汇总单独提示“统计不完整”，不伪造小时排除费用，不等同“待核对”；提供“改查整天”，有合法确定成员仍可保存。旧冻结完整性缺失显示未知，不能标为完整。精确合同见 [时间范围](../backend/time-range-contract.md)。
+时间面板支持快捷范围、日历和分钟输入。取消保留当前预览，确认直接更新。筛选、报销和材料展示服务端实际范围，范围内逐笔明细按事件时间查询。 [时间范围](../backend/time-range-contract.md)
 
 ## 4. 保存、冻结与生命周期
 
@@ -122,7 +122,7 @@
 
 ### 验证
 
-对照趋势精确金额与完整摘要，覆盖跨日月年、部分日省略、占用及待核对、多页、缺价和失效。浏览器验收日柱的局部筛选、切换标签、取消时间、报销侧栏焦点、陈旧预览以及重下原材料。
+趋势精确金额与完整摘要覆盖跨日月年、部分自然日、占用及待核对、多页、缺价和失效。浏览器核对日柱局部筛选、切换标签、取消时间、报销侧栏焦点、陈旧预览和旧材料下载。
 
 ### 实现示例
 

@@ -537,9 +537,12 @@ class HTTPTests(unittest.TestCase):
             {r["record_key"] for r in first["rows"]} & {r["record_key"] for r in second["rows"]}
         )
         self.assertEqual(self.request("GET", path + "?size=201")[0], 400)
-        for kind in ("daily", "models", "rollup"):
+        for kind in ("daily", "models"):
             page = self.json("GET", path + "?kind=" + kind)
             self.assertLessEqual(len(page["rows"]), 50)
+        code, _, raw = self.request("GET", path + "?kind=rollup")
+        self.assertEqual(code, 400)
+        self.assertEqual(json.loads(raw)["code"], "invalid_grain")
         self.load_usage(56)
         self.assertEqual(self.request("GET", path + "?kind=detail")[0], 409)
 
@@ -734,7 +737,7 @@ class HTTPTests(unittest.TestCase):
         original = self.request("GET", old_url)[2]
         with zipfile.ZipFile(io.BytesIO(original)) as package:
             manifest = json.loads(package.read("导出信息.json"))
-            self.assertEqual(manifest["manifest_version"], 4)
+            self.assertEqual(manifest["manifest_version"], 5)
             self.assertEqual(manifest["selection"]["time_range"], analysis["time_range"])
             self.assertEqual(len(manifest["members"]), 10)
         own = self.json("POST", f"/api/batches/{batch_id}/analysis", {
@@ -760,7 +763,7 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(revision["time_range"], own["time_range"])
         self.assertEqual(self.request("GET", old_url)[2], original)
 
-    def test_partial_day_rollup_http_saves_certain_members_and_keeps_incompleteness(self) -> None:
+    def test_partial_day_preview_and_package_use_only_historical_detail(self) -> None:
         event = int(datetime.fromisoformat("2026-10-26T08:00:00+08:00").timestamp())
         self.server.app.store.sync_data(build_source_data(
             [detail(created_at=event)], [rollup(date="2026-10-26", model="rollup-only-model")],
@@ -770,11 +773,11 @@ class HTTPTests(unittest.TestCase):
             "kind": "custom", "start": "2026-10-26T08:00", "end": "2026-10-26T08:00",
             "follow_now": False,
         }})
-        self.assertFalse(analysis["summary_complete"])
+        self.assertTrue(analysis["summary_complete"])
         self.assertEqual(analysis["pending_count"], 0)
         self.assertEqual(analysis["summary"]["record_count"], 1)
         self.assertEqual(analysis["availability"]["excluded_summary"]["total_cost_usd"], "0")
-        self.assertEqual(analysis["time_coverage"]["omitted_days"], ["2026-10-26"])
+        self.assertNotIn("time_coverage", analysis)
         self.assertFalse(self.json("POST", "/api/batches/preview", {
             "analysis_id": analysis["analysis_id"], "claim": self.claim(),
         })["blocking"])
@@ -783,8 +786,8 @@ class HTTPTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(self.request("GET", package_url)[2])) as package:
             manifest = json.loads(package.read("导出信息.json"))
             self.assertEqual(manifest["summary"]["record_count"], 1)
-            self.assertFalse(manifest["summary_complete"])
-            self.assertEqual(manifest["time_coverage"], analysis["time_coverage"])
+            self.assertTrue(manifest["summary_complete"])
+            self.assertNotIn("time_coverage", manifest)
 
 
 if __name__ == "__main__":

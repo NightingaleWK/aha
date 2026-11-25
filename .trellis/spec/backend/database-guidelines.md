@@ -2,7 +2,7 @@
 
 ## 所有权与连接
 
-本地应用 schema 5，内部规范化用量投影仍为 23。职责分别在 [storage.py](../../../src/aha/storage.py)、[migrations.py](../../../src/aha/migrations.py) 和 [native_sync.py](../../../src/aha/native_sync.py)。schema 3/4 升级前先完整备份，应用 schema 1/2 仍需单独保全后受控重建。运行时实际 SQLite 必须通过 `sqlite_wal_safe`。
+本地应用使用 schema 6。内部历史投影格式为 23。schema 3 至 5 在迁移前生成完整回退备份，schema 1 和 2 通过试用资料重建流程保全。运行时 SQLite 必须通过 `sqlite_wal_safe`。 [Store](../../../src/aha/storage.py) · [迁移](../../../src/aha/migrations.py)
 
 连接统一开启 foreign keys、trusted schema 保护并注册精确聚合。正常运行采用 WAL，Store 管理同进程写者，跨进程依靠 SQLite 事务和约束。读连接只读，使用独立快照。
 
@@ -40,13 +40,21 @@ revision_members 与 batch_events 有不可变保护。候选成员和四文件�
 - 日/月派生统计按相同project/model/kind/state精确口径，在事实、分类、覆盖和占用变更的同一事务更新。完整自然月读月表，首尾非完整月份读日表，段间不能重叠。聚合不经过REAL；冻结主体仍按其完整成员。
 - keyset除tuple严格比较外，还须显式收紧event_time标量范围。执行计划和VM工作量应证明直接seek，不能仅凭SQL中存在游标断言深页恒定。
 - 原生日志分块只读解析，暂存允许投影后进入本地写入。写者争用和取消仍有界。
-- 同源新key的旧语义成员缺席当前完整staging时才提示身份重建；本轮并存的同秒同Token不同key请求不能误合并。rollup代表量下降单独以已确认观察基线核对，不将降价误判为重建。
+- 同源新key的旧语义成员缺席当前完整staging时才提示身份重建；本轮并存的同秒同Token不同key请求不能误合并。
 
 SQLite 查询游标和连接在异常、取消时显式释放，Windows 不依赖 GC 清理临时文件。
 
+## 退役旧日汇总
+
+- `migrations.upgrade(connection, version, now)` 在同一写事务校验旧 DDL、升级并验证外键。Store 在事务前建立完整备份。旧备份恢复重用升级逻辑并写入独立目录。
+- schema 6 的活动用量只接受 `usage_records.kind='detail'`。历史投影输入忽略旧汇总，已退役的事实、非冻结版本、证据、关联和聚合从台账清理。先前仅因旧汇总选择而被抑制的逐笔明细恢复，由现有身份、待核对及占用规则计算可用性。
+- 已保存报销引用的版本、冻结成员及 ZIP 保留。对仍有效的旧占用，按冻结成员中的日期和模型检查同日及已验证的配对时间，索引为 `usage_claim_archived_day`。作废时重算相关明细可用性。
+- 写入非明细活动事实由 `aha_detail_required` 拒绝。迁移失败则回滚旧 schema 与事实。已冻结旧汇总的批次支持查看、下载和状态操作，新材料只使用逐笔成员。
+- `test_migrations` 覆盖回退、原明细解抑制、备份还原和日月金额。`test_availability_scaling` 及 `test_native_sync` 覆盖遗留占用、配对日期及原生补采。
+
 状态卡的全局计数/代表量/待核对数从monthly_usage_stats聚合，日期上下界用日表索引首尾各seek一条；不要在一个MIN/MAX/SUM查询中隐式扫描全日表。排除说明的前100组应使用排除态partial索引及一致的day/model/state分组顺序；LIMIT不等于只访问100组，要用VM工作量对比全范围与前缀范围。
 
-相关子查询还要验证同一scope内的密度增长。将`c.scope_key=r.scope_key AND (c.kind='rollup' OR r.kind='rollup')`写在一个分支，可能使明细也扫描该scope的全部明细占用；应按粒度拆成可精确使用`(scope_key,kind)`的分支。覆盖、记录及来源核对也分别使用其索引范围，避免对每条事实扫描全部开放事项。可用性刷新、目标报销重选及列表占用说明须检查同类路径；用同日/同模型的密集事实和占用/核对事项翻倍对比VM工作量，不能只测试均匀分散的小样本。
+相关子查询要测试同一范围内的密度增长。旧占用按日走局部索引，逐笔占用和核对各用其相应索引。可用性刷新、目标报销重选和占用说明使用同日同模型的密集样本检查 VM 工作量。
 
 ## 原生同步事务
 

@@ -45,12 +45,6 @@ window.AhaTimeRange = (() => {
     if (["preset", "custom"].includes(range.intent?.kind)) return clone(range.intent);
     return {kind: "custom", start: range.start_at.slice(0, 16), end: inclusiveEnd(range).slice(0, 16), follow_now: false};
   }
-  function wholeDays(result) {
-    const range = fromAnalysis(result);
-    if (!range) return null;
-    return {kind: "custom", start: `${range.start_at.slice(0, 10)}T00:00`, end: `${inclusiveEnd(range).slice(0, 10)}T23:59`, follow_now: false};
-  }
-
   class Picker {
     constructor(root, {id, label = "时间范围", context, onApply}) {
       this.root = root; this.id = id; this.label = label; this.context = context; this.onApply = onApply;
@@ -323,7 +317,10 @@ window.AhaTimeRange = (() => {
       }
       const preview = this.preview(this.draft);
       const explanation = preview ? `${describe(preview)}。` : "请选择起止时间。";
-      this.explanation.textContent = explanation + (follow ? "保存时采用本次预览的截止时间。" : this.draft.kind === "preset" && this.draft.preset !== "all" ? "编辑起止时间可按分钟选择。" : "包含起止分钟。历史日汇总按整天计入。");
+      const hint = follow ? "保存时采用本次预览的截止时间。"
+        : this.draft.kind === "custom" ? "包含起止分钟。"
+          : this.draft.preset === "all" ? "" : "编辑起止时间可按分钟选择。";
+      this.explanation.textContent = explanation + hint;
       this.renderCalendar();
       if (this.opened) this.position();
     }
@@ -437,5 +434,5 @@ window.AhaTimeRange = (() => {
       this.applying = false; this.close(); this.abort.abort(); this.root.replaceChildren();
     }
   }
-  return {create: (root, options) => new Picker(root, options), describe, fromAnalysis, editableIntent, wholeDays, name};
+  return {create: (root, options) => new Picker(root, options), describe, fromAnalysis, editableIntent, name};
 })();

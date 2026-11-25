@@ -71,15 +71,12 @@ class ProjectTests(unittest.TestCase):
         self.assertEqual(self.row()["assignment_origin"], "directory_rule")
         self.assertNotIn("overrides", self.store.config())
 
-    def test_complete_rollup_assignment_is_whole_and_not_inferred(self) -> None:
+    def test_historical_projection_associates_detail_evidence(self) -> None:
         project = self.project("project", ["/work/a"])
-        self.store.sync_data(source_data([], [rollup()]), metadata())
-        analysis = self.store.analyze("2026-10-24", "2026-10-24")
-        row = self.store.analysis_details(analysis, kind="rollup")["rows"][0]
-        self.assertIsNone(row["project_id"])
-        self.store.assign_keys([row["record_key"]], project)
-        result = self.store.analyze("2026-10-24", "2026-10-24", project)
-        self.assertEqual(result["summary"]["record_count"], 7)
+        self.store.sync_data(source_data([detail()], [rollup()]), metadata())
+        self.assertEqual(self.row()["project_id"], project)
+        result = self.store.analyze("2026-10-24", "2026-10-26", project)
+        self.assertEqual(result["summary"]["record_count"], 1)
 
     def test_multiple_session_assignment_is_one_transaction(self) -> None:
         project = self.project("manual", [])

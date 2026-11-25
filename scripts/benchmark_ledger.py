@@ -296,8 +296,6 @@ def _seed_database(
         for key in (
             "record_count",
             "detail_count",
-            "rollup_record_count",
-            "rollup_count",
             "unpriced_count",
             "fresh_input_tokens",
             "output_tokens",
@@ -332,7 +330,7 @@ def _seed_database(
                     now,
                     now,
                     now,
-                    json.dumps({"observed": {"detail": count, "rollup": 0, "pricing": 20}}),
+                    json.dumps({"observed": {"detail": count, "pricing": 20}}),
                 ),
             )
         for i in range(100):

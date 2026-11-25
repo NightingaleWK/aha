@@ -173,8 +173,7 @@ def history_default_since(store: Store) -> str | None:
             return None
         last = connection.execute("""
             SELECT r.day FROM usage_records r JOIN usage_versions v ON v.id=r.version_id
-            WHERE r.suppressed=0 AND
-                (r.kind='rollup' OR json_extract(v.payload_json,'$.data_source')='codex_session')
+            WHERE r.suppressed=0 AND json_extract(v.payload_json,'$.data_source')='codex_session'
             ORDER BY r.day DESC LIMIT 1
         """).fetchone()
     return str(last[0]) if last else None

@@ -1,4 +1,4 @@
-"""Precise Beijing selection, coarse-grain omissions and immutable range evidence."""
+"""Precise Beijing selection, detail statistics and immutable range evidence."""
 
 from __future__ import annotations
 
@@ -158,7 +158,7 @@ class PreciseLedgerTests(unittest.TestCase):
                       "cache_creation_tokens", "total_tokens"):
             self.assertEqual(sum(row[field] for row in rows), expected[field], field)
 
-    def test_inclusive_end_minute_and_four_views_freeze_same_exact_members(self) -> None:
+    def test_inclusive_end_minute_and_three_views_freeze_same_exact_members(self) -> None:
         rows = [precise_detail(key, when, total_cost_usd=amount, input_token_semantics=2,
                                input_tokens=2**63 - 1)
                 for key, when, amount in (
@@ -171,14 +171,14 @@ class PreciseLedgerTests(unittest.TestCase):
         result = self.store.analyze_time_range(custom("2026-10-26T10:00", "2026-10-26T11:00"))
         selected = self.all_rows(result, "detail")
         self.assertEqual({row["request_id"] for row in selected}, {"start", "end"})
-        self.assertEqual(result["row_counts"], {"detail": 2, "rollup": 0})
+        self.assertEqual(result["row_counts"], {"detail": 2})
         self.assertEqual(result["unassigned_count"], 2)
         for kind in ("daily", "models"):
             self.assert_totals(result["summary"], self.all_rows(result, kind))
         saved = self.store.create_batch(result, claim(), "precise-evidence")
         with zipfile.ZipFile(self.store.download(saved["id"], 1)[0]) as package:
             manifest = json.loads(package.read("导出信息.json"))
-            self.assertEqual(manifest["manifest_version"], 4)
+            self.assertEqual(manifest["manifest_version"], 5)
             self.assertEqual(manifest["selection"]["time_range"], result["time_range"])
             self.assertTrue(manifest["summary_complete"])
             self.assertEqual(manifest["summary"], result["summary"])
@@ -191,25 +191,16 @@ class PreciseLedgerTests(unittest.TestCase):
             self.assertIn("2026-10-26 10:00:00", report)
             self.assertIn("2026-10-26 11:00:59", report)
 
-    def test_full_month_and_both_partial_days_never_overlap_rollups(self) -> None:
+    def test_full_month_and_both_partial_days_have_disjoint_detail_stats(self) -> None:
         rows = [precise_detail(str(index), day + "T12:00:00", model="detail-model",
                                total_cost_usd=f"{index}.00000000000001")
                 for index, day in enumerate(("2024-01-31", "2024-02-01", "2024-02-28",
                                               "2024-02-29", "2024-03-01"), 1)]
-        rollups = [rollup(date=day, model="rollup-model", total_cost_usd="0.00000000000009")
-                   for day in ("2024-01-31", "2024-02-01", "2024-02-29", "2024-03-01")]
-        self.store.sync_data(source_data(rows, rollups), trust="live")
+        self.store.sync_data(source_data(rows), trust="live")
         result = self.store.analyze_time_range(custom("2024-01-31T12:00", "2024-03-01T12:00"))
-        self.assertEqual(result["summary"]["record_count"], 5 + 14)
-        self.assertEqual(result["time_coverage"], {
-            "complete": False, "omitted_rollup_count": 2,
-            "omitted_days": ["2024-01-31", "2024-03-01"],
-            "reason": "daily_rollup_has_no_event_time",
-        })
+        self.assertEqual(result["summary"]["record_count"], 5)
         self.assertEqual(result["pending_count"], 0)
-        self.assertFalse(result["summary_complete"])
-        self.assertEqual([row["date"] for row in self.all_rows(result, "rollup")],
-                         ["2024-02-01", "2024-02-29"])
+        self.assertTrue(result["summary_complete"])
         for kind in ("daily", "models"):
             self.assert_totals(result["summary"], self.all_rows(result, kind))
         monthly = self.store.analyze_time_range(custom("2024-01-30T12:00", "2024-03-01T12:00"))
@@ -219,8 +210,8 @@ class PreciseLedgerTests(unittest.TestCase):
             (point["start_date"], point["end_date"], point["total_cost_usd"], point["record_count"])
             for point in trend["points"]
         ], [
-            ("2024-01-30", "2024-01-31", "1.0000000000001", 8),
-            ("2024-02-01", "2024-02-29", "9.00000000000021", 17),
+            ("2024-01-30", "2024-01-31", "1.00000000000001", 1),
+            ("2024-02-01", "2024-02-29", "9.00000000000003", 3),
             ("2024-03-01", "2024-03-01", "5.00000000000001", 1),
         ])
         partial = self.store.analysis_details(result, kind="daily", day="2024-03-01")
@@ -235,27 +226,28 @@ class PreciseLedgerTests(unittest.TestCase):
         saved = self.store.create_batch(result, claim(), "partial-month")
         with zipfile.ZipFile(self.store.download(saved["id"], 1)[0]) as package:
             manifest = json.loads(package.read("导出信息.json"))
-            self.assertEqual(manifest["time_coverage"], result["time_coverage"])
-            self.assertFalse(manifest["summary_complete"])
-            self.assertEqual(len(manifest["members"]), 7)
+            self.assertNotIn("time_coverage", manifest)
+            self.assertTrue(manifest["summary_complete"])
+            self.assertEqual(len(manifest["members"]), 5)
             daily = list(csv.DictReader(io.StringIO(package.read("每日汇总.csv")
                                                     .decode("utf-8-sig"))))
             amount = DecimalSum()
             for row in daily:
                 amount.step(row["total_cost_usd"])
             self.assertEqual(amount.finalize(), result["summary"]["total_cost_usd"])
-            self.assertIn("统计不完整", package.read("费用说明.html").decode())
+            self.assertNotIn("历史日汇总", package.read("费用说明.html").decode())
 
-    def test_only_partial_rollups_are_unknown_not_zero_and_cannot_be_saved(self) -> None:
+    def test_legacy_aggregate_input_leaves_empty_ranges_unavailable_for_saving(self) -> None:
         self.store.sync_data(source_data([], [rollup(date="2026-10-26")]), trust="live")
         result = self.store.analyze_time_range(custom("2026-10-26T10:00", "2026-10-26T11:00"))
         self.assertEqual(result["summary"]["record_count"], 0)
         self.assertEqual(result["summary"]["total_cost_usd"], "0")
-        self.assertFalse(result["summary_complete"])
+        self.assertTrue(result["summary_complete"])
+        self.assertNotIn("time_coverage", result)
         self.assertEqual(result["pending_count"], 0)
         self.assertEqual(result["availability"]["excluded_summary"]["total_cost_usd"], "0")
         self.assertEqual(result["availability"]["excluded_groups"], [])
-        for kind in ("detail", "rollup", "daily", "models"):
+        for kind in ("detail", "daily", "models"):
             self.assertEqual(self.all_rows(result, kind), [])
         self.assertEqual(self.store.analysis_trend(result), {"grain": "day", "points": [{
             "start_date": "2026-10-26", "end_date": "2026-10-26", "total_cost_usd": "0",
@@ -266,30 +258,31 @@ class PreciseLedgerTests(unittest.TestCase):
         self.assertEqual(failure.exception.code, "empty_usage")
         whole = self.store.analyze_time_range(custom("2026-10-26T00:00", "2026-10-26T23:59"))
         self.assertTrue(whole["summary_complete"])
-        self.assertEqual(whole["summary"]["record_count"], 7)
-        self.assertEqual(len(self.all_rows(whole, "rollup")), 1)
-        self.store.create_batch(whole, claim(), "whole-rollup-owner")
-        partial = self.store.analyze_time_range(custom("2026-10-26T10:00", "2026-10-26T11:00"))
-        self.assertEqual(partial["time_coverage"]["omitted_rollup_count"], 1)
-        self.assertEqual(partial["availability"]["excluded_summary"]["total_cost_usd"], "0")
+        self.assertEqual(whole["summary"]["record_count"], 0)
+        with self.assertRaises(AppError) as failure:
+            self.store.create_batch(whole, claim(), "empty-whole-day")
+        self.assertEqual(failure.exception.code, "empty_usage")
 
-    def test_coverage_uses_project_and_suppression_separately_from_pending(self) -> None:
-        self.store.sync_data(source_data([detail()], [rollup(date="2026-10-26")]), trust="live")
+    def test_pending_counts_are_scoped_by_project_and_resolved_minute(self) -> None:
+        self.store.sync_data(source_data(), trust="live")
+        edited = source_data([detail(total_cost_usd="99")])
+        edited["source"]["name"] = "other.sql"
+        self.store.sync_data(edited)
         selected = custom("2026-10-26T01:00", "2026-10-26T01:00")
         pending = self.store.analyze_time_range(selected, availability_mode="all")
         self.assertEqual(pending["pending_count"], 1)  # Only the actual minute's detail.
-        self.assertEqual(pending["time_coverage"]["omitted_rollup_count"], 1)
+        self.assertFalse(pending["summary_complete"])
         self.assertEqual(pending["summary"]["record_count"], 0)
         self.assertEqual(self.store.analysis_trend(pending)["points"][0]["record_count"], 0)
         other = self.store.save_project(None, "other", "", [])['project']['id']
-        self.assertTrue(self.store.analyze_time_range(selected, other)["time_coverage"]["complete"])
+        self.assertTrue(self.store.analyze_time_range(selected, other)["summary_complete"])
         case = self.store.list_reconciliations()[0]
         self.store.resolve_reconciliation(
-            case["id"], "detail", "已核对逐条依据", case["generation"]
+            case["id"], "current", "已核对逐条依据", case["generation"]
         )
         resolved = self.store.analyze_time_range(selected)
         self.assertTrue(resolved["summary_complete"])
-        self.assertEqual(resolved["time_coverage"]["omitted_rollup_count"], 0)
+        self.assertEqual(resolved["pending_count"], 0)
         self.assertEqual(resolved["summary"]["record_count"], 1)
 
     def test_daily_trend_and_scoped_cursors_cover_group_pages_without_narrowing_save(self) -> None:
@@ -381,10 +374,10 @@ class PreciseLedgerTests(unittest.TestCase):
         self.assertEqual(failure.exception.code, "invalid_time_range")
         self.store.sync_data(source_data([detail()], [rollup()]), trust="live")
         result = self.store.analyze_time_range(intent)
-        self.assertEqual(result["time_range"]["start_at"], "2026-10-24T00:00:00+08:00")
+        self.assertEqual(result["time_range"]["start_at"], "2026-10-26T00:00:00+08:00")
         self.assertEqual(result["time_range"]["end_before"], "2026-10-27T00:00:00+08:00")
         self.assertTrue(result["summary_complete"])
-        self.assertEqual(result["summary"]["record_count"], 8)
+        self.assertEqual(result["summary"]["record_count"], 1)
 
     def test_same_range_ignores_display_intent_but_cursor_binds_different_hours(self) -> None:
         self.store.sync_data(source_data([detail(str(n)) for n in range(55)]), trust="live")
@@ -418,15 +411,16 @@ class PreciseLedgerTests(unittest.TestCase):
 
     def test_new_frozen_incompleteness_does_not_get_rejudged_after_coverage_changes(self) -> None:
         original = detail()
-        history = rollup(date="2026-10-26", model="history")
-        self.store.sync_data(source_data([original], [history]), trust="live")
+        candidate = detail("candidate", model="other-model")
+        self.store.sync_data(source_data([original, candidate]), trust="live")
+        adjusted = source_data([original, {**candidate, "total_cost_usd": "99"}])
+        adjusted["source"]["name"] = "other.sql"
+        self.store.sync_data(adjusted)
         intent = custom("2026-10-26T01:00", "2026-10-26T01:00")
         before = self.store.analyze_time_range(intent)
         first = self.store.create_batch(before, claim(), "incomplete-first")
-        self.store.sync_data(source_data([original, detail("verified-history", model="history")],
-                                         [history]), trust="live")
-        case = next(c for c in self.store.list_reconciliations() if c["type"] == "coverage")
-        self.store.resolve_reconciliation(case["id"], "detail", "后续已经核对完整明细")
+        case = next(c for c in self.store.list_reconciliations() if c["type"] == "revision")
+        self.store.resolve_reconciliation(case["id"], "current", "后续已经核对完整明细")
         current = self.store.analyze_time_range(intent, availability_mode="all")
         self.assertTrue(current["summary_complete"])
         frozen = frozen_analysis(self.store, first["id"])
@@ -434,7 +428,7 @@ class PreciseLedgerTests(unittest.TestCase):
                                           "incomplete-revision", first["id"])
         self.assertEqual(changed["summary"], before["summary"])
         self.assertFalse(changed["summary_complete"])
-        self.assertEqual(changed["time_coverage"], before["time_coverage"])
+        self.assertEqual(changed["pending_count"], before["pending_count"])
         self.assertEqual(changed["warnings"], before["warnings"])
 
     def test_exact_target_exemption_and_exclusions_share_partial_range(self) -> None:
@@ -567,7 +561,7 @@ class PreciseLedgerTests(unittest.TestCase):
 
     def test_independent_v3_zip_and_frozen_rows_survive_new_writer_and_fact_changes(self) -> None:
         # Construct the old persisted contract directly. Neither analyze() nor
-        # create_batch()/build_evidence() creates this fixture, so version 4's
+        # create_batch()/build_evidence() creates this fixture, so the current
         # writer cannot accidentally stand in for compatibility evidence.
         data = source_data()
         self.store.sync_data(data, metadata(), trust="live")
@@ -655,24 +649,31 @@ class PreciseLedgerTests(unittest.TestCase):
         old = self.store.batch_detail(batch["id"])
         self.assertEqual(old["time_range"]["intent"]["kind"], "legacy_dates")
         self.assertIsNone(old["summary_complete"])
-        self.assertIsNone(old["time_coverage"])
+        self.assertNotIn("time_coverage", old)
         self.assertIsNone(old["assignment_coverage"])
         self.assertIsNone(old["revisions"][0]["analysis"]["assignment_coverage"])
         self.assertEqual(old["warnings"], analysis["warnings"])
         self.assertEqual(self.store.download(batch["id"], 1)[0].read_bytes(), original_bytes)
+        unchanged = self.store.create_batch(
+            frozen_analysis(self.store, batch["id"]), claim(), "legacy-no-change", batch["id"],
+        )
+        self.assertEqual(unchanged["version"], 1)
         self.store.sync_data(source_data([detail(total_cost_usd="99")]), metadata(), trust="live")
         frozen = frozen_analysis(self.store, batch["id"])
         revised = self.store.create_batch(frozen, claim(purpose="仅补充用途"), "legacy-revise",
                                          batch["id"])
         self.assertEqual(revised["version"], 2)
-        self.assertEqual(revised["summary"], summary)
+        detail_summary = {key: value for key, value in summary.items()
+                          if key not in {"rollup_record_count", "rollup_count", "rollup_cost_usd",
+                                         "detail_cost_usd"}}
+        self.assertEqual(revised["summary"], detail_summary)
         self.assertIsNone(revised["summary_complete"])
         self.assertIsNone(revised["assignment_coverage"])
         with zipfile.ZipFile(self.store.download(batch["id"], 2)[0]) as package:
             new_manifest = json.loads(package.read("导出信息.json"))
-            self.assertEqual(new_manifest["manifest_version"], 4)
-            self.assertEqual(new_manifest["summary"], summary)
-            self.assertIsNone(new_manifest["time_coverage"])
+            self.assertEqual(new_manifest["manifest_version"], 5)
+            self.assertEqual(new_manifest["summary"], detail_summary)
+            self.assertNotIn("time_coverage", new_manifest)
             self.assertIsNone(new_manifest["summary_complete"])
             self.assertIsNone(new_manifest["assignment_coverage"])
             self.assertEqual(new_manifest["selection_hash"], selection_hash)

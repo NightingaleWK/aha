@@ -27,7 +27,7 @@ Windows 的临时目录可能含 `RUNNER~1` 等8.3短名，而恢复接口及后
 | 本地查询/归属 | test_analysis、test_time_ranges、test_projects；秒/分钟/日/月分段、一次取钟、部分汇总A政策、游标与revision绑定、聚合精确、未归属、目录最长匹配、人工覆盖 |
 | 占用/报销 | test_claims、test_batches、test_claim_concurrency；跨连接/进程竞争、冻结成员、换版回滚、别名修订、防重复报销、原包SHA |
 | 新库/重建 | test_migrations、test_rebuild_trial_data；拒绝旧库、保全/回滚、受保护源与未知文件阻断、历史精确提取 |
-| 材料 | test_evidence、test_time_ranges；全范围流式输出、BOM、公式/HTML保护、manifest4与独立旧manifest3兼容、冻结不漂移、隐私、空/零/非法金额 |
+| 材料 | test_evidence 和 test_time_ranges 覆盖全范围流式输出、BOM、公式与 HTML 保护、manifest 5、旧原包、冻结范围、隐私和金额 |
 | 运行/HTTP | test_instance、test_http、test_http_cli、test_tray_windows；跨进程运行权、启动同步去重、job真实终态、Cookie/Origin/CSRF、旧预览409、请求/同步清理、退出重启和原生托盘 |
 
 失败测试必须检查持久状态、旧成功时间和文件，不能只看返回值。并发不能只用一个线程内的锁代替独立连接/进程。复用合成夹具，资源显式关闭，私有源/包/截图留 Git 外。

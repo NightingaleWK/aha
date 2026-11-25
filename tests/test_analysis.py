@@ -149,24 +149,20 @@ class LocalAnalysisTests(unittest.TestCase):
         self.assertEqual(day["summary"]["record_count"], 1)
         self.assertEqual(len(self.store.analysis_details(day)["rows"]), 1)
 
-    def test_partial_rollup_not_added_to_details_or_fabricated(self) -> None:
+    def test_legacy_projection_uses_only_its_detail_rows(self) -> None:
         self.store.sync_data(
             source_data(
                 [detail(str(n)) for n in range(60)], [rollup(date="2026-10-26", request_count=100)]
             )
         )
         analysis = self.store.analyze("2026-10-26", "2026-10-26", availability_mode="all")
-        self.assertEqual(analysis["pending_count"], 61)
-        self.assertEqual(analysis["summary"]["record_count"], 0)
-        case = self.store.list_reconciliations()[0]
-        self.assertEqual(case["detail_count"], 60)
-        self.assertEqual(case["rollup_record_count"], 100)
-        self.store.resolve_reconciliation(
-            case["id"], "rollup", "采用来源完整日汇总", case["generation"]
-        )
-        result = self.store.analyze("2026-10-26", "2026-10-26")
-        self.assertEqual(result["summary"]["record_count"], 100)
-        self.assertEqual(result["summary"]["detail_count"], 0)
+        self.assertEqual(analysis["pending_count"], 0)
+        self.assertEqual(analysis["summary"]["record_count"], 60)
+        self.assertEqual(analysis["summary"]["detail_count"], 60)
+        self.assertNotIn("rollup_count", analysis["summary"])
+        self.assertFalse(self.store.list_reconciliations())
+        with self.assertRaises(AppError):
+            self.store.analysis_details(analysis, kind="rollup")
 
     def test_aggregate_tabs_are_paged_local_results(self) -> None:
         self.store.sync_data(source_data([detail("a"), detail("b", model="model-b")]), metadata())
@@ -339,12 +335,15 @@ class LocalAnalysisTests(unittest.TestCase):
             self.assertEqual(self.store.analyze(start, end)["summary"]["record_count"], 0)
 
     def test_monthly_pending_coverage_is_updated_after_explicit_basis_choice(self) -> None:
-        self.store.sync_data(source_data([detail()], [rollup(date="2026-10-26")]))
+        self.store.sync_data(source_data(), trust="live")
+        edited = source_data([detail(total_cost_usd="99")])
+        edited["source"]["name"] = "other.sql"
+        self.store.sync_data(edited)
         pending = self.store.analyze("2026-10-01", "2026-10-31")
-        self.assertEqual(pending["pending_count"], 2)
+        self.assertEqual(pending["pending_count"], 1)
         self.assertEqual(pending["summary"]["record_count"], 0)
         case = self.store.list_reconciliations()[0]
-        self.store.resolve_reconciliation(case["id"], "detail", "采用已存明细")
+        self.store.resolve_reconciliation(case["id"], "current", "采用已存明细")
         monthly = self.store.analyze("2026-10-01", "2026-10-31")
         daily = self.store.analyze("2026-10-26", "2026-10-26")
         self.assertEqual(monthly["summary"], daily["summary"])
@@ -354,7 +353,7 @@ class LocalAnalysisTests(unittest.TestCase):
         # This fixture isolates projection-query work. Other tests cover deriving
         # these rows from facts, claims and reconciliation transactions.
         projected = []
-        expected_counts = {"detail": 0, "rollup": 0, "pending": 0, "represented": 0}
+        expected_counts = {"detail": 0, "pending": 0, "represented": 0}
         reference = {}
         start = date(2020, 1, 1)
         end = date(2024, 12, 31)
@@ -362,27 +361,24 @@ class LocalAnalysisTests(unittest.TestCase):
             day = (start + timedelta(days=offset)).isoformat()
             for project in ("", "p1", "p2"):
                 for model in ("m0", "m1"):
-                    for kind in ("detail", "rollup"):
-                        for state in ("available", "claimed", "pending"):
-                            represented = 1 if kind == "detail" else 5
-                            if (day, project, model, kind, state) == (
-                                "2020-01-02", "p2", "m0", "rollup", "claimed"
-                            ):
-                                represented = 2**63 + 3
-                            projected.append((
-                                day, project, model, kind, state, 1, str(represented),
-                                "10", "2", "3", "0", "15", "0.01", "0",
-                            ))
-                            expected_counts[kind] += 1
-                            if state == "pending":
-                                expected_counts["pending"] += 1
-                            else:
-                                expected_counts["represented"] += represented
-                            if state != "available":
-                                for selection in ("all", project):
-                                    key = (selection, day, model, state)
-                                    count, total = reference.get(key, (0, 0))
-                                    reference[key] = (count + 1, total + represented)
+                    for state in ("available", "claimed", "pending"):
+                        represented = 1
+                        if (day, project, model, state) == ("2020-01-02", "p2", "m0", "claimed"):
+                            represented = 2**63 + 3
+                        projected.append((
+                            day, project, model, "detail", state, 1, str(represented),
+                            "10", "2", "3", "0", "15", "0.01", "0",
+                        ))
+                        expected_counts["detail"] += 1
+                        if state == "pending":
+                            expected_counts["pending"] += 1
+                        else:
+                            expected_counts["represented"] += represented
+                        if state != "available":
+                            for selection in ("all", project):
+                                key = (selection, day, model, state)
+                                count, total = reference.get(key, (0, 0))
+                                reference[key] = (count + 1, total + represented)
         with self.store._transaction():
             self.store._db.executemany(
                 "INSERT INTO daily_usage_stats VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", projected
@@ -406,7 +402,7 @@ class LocalAnalysisTests(unittest.TestCase):
         with patch.object(self.store, "read_connection", measured_reader):
             status = self.store.ledger_status()
         self.assertEqual(status["counts"], {
-            "detail_count": expected_counts["detail"], "rollup_count": expected_counts["rollup"],
+            "detail_count": expected_counts["detail"],
             "record_count": expected_counts["represented"],
             "pending_count": expected_counts["pending"],
         })

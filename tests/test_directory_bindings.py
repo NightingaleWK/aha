@@ -243,17 +243,14 @@ class DirectoryBindingTests(unittest.TestCase):
         }
         self.assertEqual(classify(row, metadata(), config)["project_id"], target)
 
-    def test_rollups_are_not_guessed_and_corrupt_policy_rejects(self) -> None:
+    def test_directory_binding_handles_details_and_corrupt_policy_rejects(self) -> None:
         self.store.sync_data(source_data([detail()], [rollup()]), metadata(), trust="live")
         preview = self.preview()
         self.assertEqual(preview["summary"]["detail_count"], 1)
         self.apply(preview)
-        self.assertEqual(
-            self.store._db.execute(
-                "SELECT project_id FROM usage_records WHERE kind='rollup'"
-            ).fetchone()[0],
-            "",
-        )
+        self.assertEqual(self.store._db.execute(
+            "SELECT COUNT(*) FROM usage_records WHERE kind!='detail'"
+        ).fetchone()[0], 0)
         self.store._db.execute(
             "UPDATE settings SET value=? WHERE key='directory_assignment_policy'",
             (json.dumps({"version": 99, "projects": []}),),

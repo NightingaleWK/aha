@@ -1,6 +1,6 @@
 # 后端开发规范
 
-aha 是 Python 3.12+ 本机 Codex 台账与费用证据工具。主线是长期留存每条消费、正确归属项目、核算费用并形成报销证据。产品版本以 `aha.__version__` 为准；实现位于 `src/aha/`，Codex 原生会话只读，业务在独立 Store/schema 5 查询；SQLite 运行时必须通过并发修复门禁。这里记录当前实现的开发约束；用户说明见 [README](../../../README.md)。
+aha 是 Python 3.12+ 本机 Codex 台账与费用证据工具。主线是长期留存每条消费、正确归属项目、核算费用并形成报销证据。产品版本以 `aha.__version__` 为准；实现位于 `src/aha/`，Codex 原生会话只读，业务在独立 Store/schema 6 查询；SQLite 运行时必须通过并发修复门禁。这里记录当前实现的开发约束；用户说明见 [README](../../../README.md)。
 
 ## 开发前检查
 
@@ -16,7 +16,7 @@ aha 是 Python 3.12+ 本机 Codex 台账与费用证据工具。主线是长期�
 | 文档 | 解决的问题 |
 | --- | --- |
 | [用量证据与本机运行契约](./usage-evidence-contract.md) | 来源、核算、独占、版本、迁移、HTTP 与交付的不变量 |
-| [北京时间范围与冻结材料](./time-range-contract.md) | 分钟/秒边界、快捷意图、部分日汇总、manifest4 和旧材料兼容 |
+| [北京时间范围与冻结材料](./time-range-contract.md) | 分钟/秒边界、快捷意图、部分自然日、manifest 5 和旧材料兼容 |
 | [实例与生命周期契约](./runtime-lifecycle-contract.md) | 按资料目录互斥、认证重开、Windows 托盘与完整退出 |
 | [目录与模块职责](./directory-structure.md) | 功能放在哪里、如何通过 Store 门面复用领域模块 |
 | [SQLite 与持久化](./database-guidelines.md) | 只读来源、事务、备份、迁移及不可变文件 |

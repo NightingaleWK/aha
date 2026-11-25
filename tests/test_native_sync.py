@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from test_storage_helpers import claim, detail, metadata, rollup, source_data
+from test_codex_sessions import FOLLOWUP, _compacted, _context, _header, _response, _snapshot
+from test_storage_helpers import claim, detail, metadata, source_data
 
 from aha import backup
 from aha.codex_sessions import CodexSource
@@ -117,25 +119,100 @@ class NativeSyncTests(unittest.TestCase):
         self.assertEqual(continued["state"], "completed")
 
     def test_native_history_candidates_do_not_reprice_or_suppress_saved_history(self) -> None:
-        self.store.sync_data(source_data(rollups=[rollup()]), metadata(), trust="live")
+        self.store.sync_data(source_data(), metadata(), trust="live")
         self.sync([usage("legacy-same", total_cost_usd="7.12")])
-        self.assertEqual(self.query()["summary"]["total_cost_usd"], "1.12345671")
+        self.assertEqual(self.query()["summary"]["total_cost_usd"], "0.1234567")
         case = self.store.list_reconciliations()[0]
         self.assertEqual(case["type"], "identity")
         self.store.resolve_reconciliation(case["id"], "same", "已核对历史")
         self.assertEqual(self.store.list_reconciliations(), [])
         self.sync([usage("legacy-same", total_cost_usd="9.13")], source=WSL)
         self.assertEqual(self.store.list_reconciliations(), [])
-        self.assertEqual(self.query()["summary"]["total_cost_usd"], "1.12345671")
-        on_rollup = int(detail()["created_at"]) - 2 * 86400
-        self.sync(
-            [usage("rollup-candidate", created_at=on_rollup)], expected_cursor={"offset": 100}
+        self.assertEqual(self.query()["summary"]["total_cost_usd"], "0.1234567")
+
+    def test_archived_claim_still_protects_a_day_and_model(self) -> None:
+        self.sync([usage("existing")])
+        batch = self.store.create_batch(self.query(), claim(), "existing-reimbursement")
+        # Emulate a legacy claim retained solely for the frozen material after migration.
+        archived = {
+            "date": "2026-10-24", "model": "historical-model-alias", "pricing_model": "model-a",
+        }
+        with self.store._transaction():
+            self.store._db.execute(
+                "INSERT INTO usage_claims VALUES(?,?,?,'rollup',?,NULL,?)",
+                ("rollup:archived", batch["id"], batch["version"], "archived-scope",
+                 self.store._encode(archived)),
+            )
+        on_archived_day = int(datetime.fromisoformat("2026-10-24T12:00:00+08:00").timestamp())
+        overlap = usage("archived-candidate", created_at=on_archived_day)
+        unrelated = usage(
+            "other-candidate", created_at=on_archived_day, model="model-b", pricing_model="model-b",
         )
-        case = self.store.list_reconciliations()[0]
-        self.assertEqual(case["type"], "native_overlap")
-        self.assertEqual(self.query()["summary"]["total_cost_usd"], "1.12345671")
-        self.store.resolve_reconciliation(case["id"], "current", "保留历史日汇总")
-        self.assertEqual(self.query()["summary"]["total_cost_usd"], "1.12345671")
+        result = self.sync([overlap, unrelated], expected_cursor={"offset": 100})
+        self.assertEqual(result["state"], "completed")
+        self.assertEqual(self.store.list_reconciliations(), [])
+        with self.store.read_connection() as database:
+            states = dict(database.execute(
+                "SELECT record_key,availability_state FROM usage_records WHERE day=?",
+                ("2026-10-24",),
+            ))
+        self.assertEqual(states, {
+            record_key(overlap.row): "pending", record_key(unrelated.row): "available",
+        })
+        self.assertEqual(self.query()["summary"]["record_count"], 1)
+
+    def test_late_paired_snapshot_refreshes_archived_claim_eligibility(self) -> None:
+        self.sync([usage("existing")])
+        batch = self.store.create_batch(self.query(), claim(), "existing-reimbursement")
+        with self.store._transaction():
+            self.store._db.execute(
+                "INSERT INTO usage_claims VALUES(?,?,?,'rollup',?,NULL,?)",
+                ("rollup:archived", batch["id"], batch["version"], "archived-scope",
+                 self.store._encode({"date": "2026-10-26", "model": "model-a"})),
+            )
+        stamp = datetime.fromisoformat("2026-10-25T23:59:59+08:00")
+        event = usage("across-midnight", created_at=int(stamp.timestamp()))
+        event.evidence["timestamp"] = stamp.isoformat()
+        before = self.sync([event], expected_cursor={"offset": 100})
+        self.assertEqual(self.query()["summary"]["record_count"], 1)
+        event.evidence["snapshot_id"] = "paired-request"
+        event.evidence["snapshot_timestamp"] = "2026-10-25T16:00:00.001Z"
+        after = self.sync([event], source=WSL)
+        self.assertEqual((after["state"], after["unchanged_count"]), ("completed", 1))
+        self.assertGreater(after["data_revision"], before["data_revision"])
+        self.assertEqual(self.query()["summary"]["record_count"], 0)
+        self.assertEqual(self.query("all")["summary"]["record_count"], 1)
+
+    def test_repairing_old_file_progress_keeps_native_facts_and_costs(self) -> None:
+        local_root = self.root / "codex"
+        directory = local_root / "sessions"
+        directory.mkdir(parents=True)
+        directory.joinpath("rollout.jsonl").write_bytes(
+            _header() + _context() + _response("resp_before", 1) + _snapshot(1)
+            + _compacted(300) + _snapshot(1, FOLLOWUP, usage={"total_tokens": 42})
+            + _response("resp_after", 2, FOLLOWUP) + _snapshot(2, FOLLOWUP)
+        )
+        source = CodexSource("windows", str(local_root))
+        with patch("aha.codex_sessions.MAX_LINE_BYTES", 1024):
+            with (
+                patch("aha.codex_sessions.CURSOR_VERSION", 1),
+                patch("aha.codex_sessions._oversized_kind", return_value="unknown"),
+            ):
+                previous = self.store.sync_codex(source, "windows")
+            before = self.store.analyze("2026-11-24", "2026-11-24")["summary"]
+            fixed = self.store.sync_codex(source, "windows")
+            steady = self.store.sync_codex(source, "windows")
+        after = self.store.analyze("2026-11-24", "2026-11-24")["summary"]
+        self.assertEqual((previous["state"], previous["new_count"]), ("needs_review", 2))
+        self.assertEqual(previous["issues"], {"line_limit": 1, "invalid_cumulative_usage": 1})
+        self.assertEqual((fixed["state"], fixed["new_count"], fixed["unchanged_count"]),
+                         ("completed", 0, 2))
+        self.assertEqual(fixed["issues"], {})
+        self.assertEqual(steady["bytes_read"], 0)
+        self.assertEqual(after, before)
+        with self.store.read_connection() as database:
+            self.assertEqual(database.execute("SELECT COUNT(*) FROM usage_versions")
+                             .fetchone()[0], 2)
 
     def test_native_lower_level_evidence_survives_restore_and_positions_restart(self) -> None:
         event = usage("one")

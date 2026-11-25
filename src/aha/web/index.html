@@ -61,7 +61,6 @@
           <div class="filter-footer"><span id="filter-status" role="status">正在读取本地资料</span><button id="analyze" class="button small" type="button" disabled>更新预览</button></div>
         </section>
         <section id="empty-range-note" class="history-note" role="status" hidden><p id="empty-range-description"></p><button id="view-all-history" class="button small">查看全部历史</button></section>
-        <section id="time-coverage-note" class="warning time-coverage-note" role="status" aria-label="时间范围完整性" hidden></section>
         <div class="workbench-overview">
           <section class="usage-summary" aria-label="用量汇总">
             <div class="summary-cost"><div class="metric-label"><span id="metric-cost-label">可用参考成本</span><span class="currency-label">USD</span></div><strong id="metric-cost">—</strong></div>
@@ -94,10 +93,14 @@
         <section id="usage-preview" class="panel preview-panel" aria-labelledby="usage-preview-heading">
           <header class="panel-heading usage-preview-heading">
             <div><h2 id="usage-preview-heading" tabindex="-1">用量明细</h2><p id="preview-caption"></p></div>
-            <div class="tabs" role="tablist" aria-label="用量查看方式"><button type="button" class="tab active" data-tab="daily" role="tab" aria-selected="true">按日</button><button type="button" class="tab" data-tab="models" role="tab" aria-selected="false">按模型</button><button type="button" class="tab" data-tab="details" role="tab" aria-selected="false">逐条记录</button><button type="button" class="tab" data-tab="rollups" role="tab" aria-selected="false">历史日汇总</button></div>
+            <div class="tabs" role="tablist" aria-label="用量查看方式">
+              <button type="button" class="tab active" data-tab="daily" role="tab" aria-selected="true">按日</button>
+              <button type="button" class="tab" data-tab="models" role="tab" aria-selected="false">按模型</button>
+              <button type="button" class="tab" data-tab="details" role="tab" aria-selected="false">逐条记录</button>
+            </div>
           </header>
           <div id="daily-selection" class="daily-selection" hidden><span id="daily-selection-label" role="status"></span><button id="clear-daily-selection" type="button" class="text-button">清除日期</button></div>
-          <details id="usage-legacy-tools" class="legacy-tools"><summary>处理无目录记录</summary><p class="field-help">有工作目录的用量请到项目管理绑定。</p><div id="assignment-bar" class="assignment-bar" hidden><span id="selection-count">已选 0 条</span><label class="field inline-field"><span class="sr-only">分配项目</span><select id="assignment-project" data-searchable="true"><option value="">取消逐条人工例外</option></select></label><label id="session-scope-label" class="checkbox-label"><input type="checkbox" id="session-scope">整个会话（含后续新增明细）</label><button id="assign" class="button small">分配项目</button><button id="clear-selection" class="text-button">取消选择</button><p id="assignment-mode-description" class="field-help"></p></div></details>
+          <details id="usage-legacy-tools" class="legacy-tools"><summary>处理无目录记录</summary><p class="field-help">有工作目录的用量请到项目管理绑定。</p><div id="assignment-bar" class="assignment-bar" hidden><span id="selection-count">已选 0 条</span><label class="field inline-field"><span class="sr-only">分配项目</span><select id="assignment-project" data-searchable="true"><option value="">取消逐条人工例外</option></select></label><label class="checkbox-label"><input type="checkbox" id="session-scope">整个会话（含后续新增明细）</label><button id="assign" class="button small">分配项目</button><button id="clear-selection" class="text-button">取消选择</button><p id="assignment-mode-description" class="field-help"></p></div></details>
           <div id="preview-table" class="table-wrap" tabindex="0" role="region" aria-label="用量明细表"><div class="empty-state"><h3>等待读取用量</h3></div></div>
           <div id="pagination" class="pagination" hidden><span id="page-label"></span><div><button id="prev-page" class="button small">上一页</button><button id="next-page" class="button small">下一页</button></div></div>
         </section>
@@ -105,12 +108,11 @@
           <summary>数据说明</summary>
           <div class="data-notes-content">
             <p>新用量按模型参考价计算。历史用量沿用台账金额。缺价用量仍计入 Token。</p>
-            <p id="metric-count-note"></p>
             <p>待归属记录 <strong id="metric-unassigned">—</strong></p>
             <div id="token-strip" class="token-strip" hidden><span>输入 <strong id="token-input">0</strong></span><span>输出 <strong id="token-output">0</strong></span><span>缓存读取 <strong id="token-read">0</strong></span><span>缓存写入 <strong id="token-write">0</strong></span></div>
             <div id="coverage-note" class="coverage-note" hidden></div>
             <div id="analysis-warnings" class="analysis-warnings"></div>
-            <p>历史日汇总没有逐条调用记录。输入 Token 不含缓存。</p>
+            <p>输入 Token 不含缓存。</p>
             <button id="view-details" type="button" class="text-button">查看逐条记录</button>
           </div>
         </details>
@@ -268,8 +270,8 @@
     <form id="reconciliation-filter-form" class="reconciliation-filters">
       <label class="field">类型<select id="reconciliation-type">
         <option value="">全部类型</option><option value="identity">疑似重复消费</option><option value="revision">用量修订</option>
-        <option value="coverage">明细与日汇总</option><option value="source">来源变更</option><option value="directory">目录依据</option>
-        <option value="rollup_origin">历史汇总重叠</option><option value="native_overlap">原生明细与历史重叠</option><option value="native_uncertain">原生证据不足</option>
+        <option value="source">来源变更</option><option value="directory">目录依据</option>
+        <option value="native_overlap">原生明细与历史重叠</option><option value="native_uncertain">原生证据不足</option>
       </select></label>
       <label class="field">来源<select id="reconciliation-source"><option value="">全部来源</option></select></label>
       <label class="field">处理方式<select id="reconciliation-eligibility">

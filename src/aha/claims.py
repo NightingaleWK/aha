@@ -34,6 +34,40 @@ def scope_key(member: dict[str, Any]) -> str:
     )
 
 
+def archived_claim_matches(
+    claim_alias: str, day_expr: str, model_expr: str, pricing_expr: str,
+) -> str:
+    """Match an archived claim to a detail across the source format change."""
+    date = f"json_extract({claim_alias}.member_json,'$.date')"
+    model = f"json_extract({claim_alias}.member_json,'$.model')"
+    pricing = f"json_extract({claim_alias}.member_json,'$.pricing_model')"
+    return (
+        f"{claim_alias}.kind='rollup' AND {date}={day_expr} AND ({model}={model_expr} OR "
+        f"COALESCE(NULLIF({pricing},''),{model})=COALESCE(NULLIF({pricing_expr},''),{model_expr}))"
+    )
+
+
+def archived_claim_lookup(
+    day_expr: str, model_expr: str, pricing_expr: str, version_expr: str,
+    *, owner_filter: str = "",
+) -> str:
+    """Return all archived claims covering the detail day or its paired snapshot day."""
+    claim_table = "usage_claims c INDEXED BY usage_claim_archived_day"
+    direct = archived_claim_matches("c", day_expr, model_expr, pricing_expr)
+    # The parser stores paired clocks as UTC. Trim fractions before SQLite date
+    # conversion, which can otherwise round the last microseconds into the next day.
+    day = "date(substr(json_extract(e.evidence_json,'$.snapshot_timestamp'),1,19),'+8 hours')"
+    paired = archived_claim_matches("c", day, model_expr, pricing_expr)
+    owner = f" AND {owner_filter}" if owner_filter else ""
+    return (
+        f"SELECT c.batch_id,c.owner_version FROM {claim_table} WHERE {direct}{owner} "
+        "UNION ALL SELECT c.batch_id,c.owner_version FROM codex_event_evidence e "
+        f"JOIN {claim_table} ON {paired} WHERE e.version_id={version_expr} "
+        "AND EXISTS(SELECT 1 FROM usage_claims WHERE kind='rollup')"
+        f"{owner}"
+    )
+
+
 def semantic_key(member: dict[str, Any]) -> str | None:
     if member.get("kind") != "detail" or not member.get("session_id"):
         return None
@@ -90,6 +124,8 @@ def member_from_row(row: dict[str, Any], kind: str) -> dict[str, Any]:
     member["total_tokens"] = sum(member[key] for key in TOKEN_FIELDS[:-1])
     if kind == "detail":
         member.update(session_id=row.get("session_id"), created_at=integer_value(row["created_at"]))
+        if row.get("pricing_model"):
+            member["pricing_model"] = row["pricing_model"]
         member["semantic_key"] = semantic_key(member)
     else:
         member.update(
@@ -158,29 +194,6 @@ def validate_members(value: Any) -> list[dict[str, Any]]:
     return result
 
 
-def members_from_analysis(analysis: dict[str, Any]) -> list[dict[str, Any]]:
-    """Ensure the claimed members describe the actual rows being exported."""
-    try:
-        result = [
-            member_from_row(row, kind)
-            for kind, field in (("detail", "details"), ("rollup", "rollups"))
-            for row in analysis[field]
-        ]
-        result = validate_members(result)
-        declared = validate_members(analysis["members"])
-        by_key = {member["key"]: member for member in result}
-        if set(by_key) != {member["key"] for member in declared}:
-            raise ValueError
-        for member in declared:
-            expected = by_key[member["key"]]
-            for key in expected:
-                if member.get(key) != expected[key]:
-                    raise ValueError
-        return sorted(result, key=lambda member: (member["kind"], member["key"]))
-    except (KeyError, TypeError, ValueError, OverflowError, OSError) as exc:
-        raise AppError("invalid_analysis", "用量明细与预览不一致，请重新预览。") from exc
-
-
 def evaluate(
     members: list[dict[str, Any]],
     snapshot: dict[str, Any],
@@ -197,6 +210,7 @@ def evaluate(
 
     by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
     rollup_scopes: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    archived_days: dict[str, list[dict[str, Any]]] = defaultdict(list)
     detail_scopes: dict[str, list[dict[str, Any]]] = defaultdict(list)
     by_semantic: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for entry in snapshot.get("claims", []):
@@ -208,6 +222,8 @@ def evaluate(
         (rollup_scopes if saved["kind"] == "rollup" else detail_scopes)[scope_key(saved)].append(
             item
         )
+        if saved["kind"] == "rollup":
+            archived_days[saved["date"]].append(item)
         semantic = semantic_key(saved)
         if semantic:
             by_semantic[semantic].append(item)
@@ -221,9 +237,17 @@ def evaluate(
         related: list[tuple[str, dict[str, Any]]] = [
             ("identity", item) for item in by_key.get(member["key"], [])
         ]
-        related_scope = list(rollup_scopes.get(scope_key(member), []))
         if member["kind"] == "rollup":
+            related_scope = list(rollup_scopes.get(scope_key(member), []))
             related_scope.extend(detail_scopes.get(scope_key(member), []))
+        else:
+            pricing = member.get("pricing_model") or member["model"]
+            related_scope = [
+                entry for entry in archived_days.get(member["date"], [])
+                if member["model"] == entry["member"]["model"] or pricing == (
+                    entry["member"].get("pricing_model") or entry["member"]["model"]
+                )
+            ]
         for item in related_scope:
             other = item["member"]
             if member["key"] == other["key"]:
@@ -292,8 +316,8 @@ def indexed_exclusion(
     if member["kind"] == "detail":
         selections.append(
             (
-                "u.scope_key=? AND u.kind='rollup' AND u.record_key<>?",
-                (scope_key(member), member["key"]),
+                archived_claim_matches("u", "?", "?", "?"),
+                (member["date"], member["model"], member.get("pricing_model"), member["model"]),
                 "cross_grain",
             )
         )

@@ -71,7 +71,7 @@ def legacy_fixture(root: Path, *, missing: bool = False) -> dict:
                 "UPDATE usage_records SET project_id='legacy-project',"
                 "assignment_origin='directory_rule',cwd='/old/repo'"
             )
-        ledger.refresh_availability(connection)
+        ledger.refresh_daily(connection)
         connection.commit()
         return {
             "usage": [tuple(r) for r in connection.execute("SELECT * FROM usage_records")],
@@ -191,10 +191,13 @@ class AssignmentMigrationTests(unittest.TestCase):
                     DROP TABLE codex_event_evidence;
                     DROP TABLE codex_file_progress;
                     DROP INDEX sync_runs_source;
-                    DROP INDEX codex_history_rollup_day;
                     DROP INDEX codex_history_session_time;
+                    DROP INDEX usage_claim_archived_day;
+                    DROP TRIGGER usage_records_detail_insert;
+                    DROP TRIGGER usage_records_detail_update;
                     PRAGMA user_version=4;
                 """)
+                migrations.initialize_source_observations(connection)
                 migrations.validate_structure(connection, 4)
             old_backup = base / "v4.aha-backup"
             self.assertEqual(backup.create_backup(root, old_backup)["store_schema_version"], 4)

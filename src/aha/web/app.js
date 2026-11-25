@@ -210,7 +210,6 @@ function invalidate(message = "条件已更改，请更新预览") {
   invalidateRevision();
   timeRange.markPending();
   $("reconciliation-note").hidden = true;
-  $("time-coverage-note").hidden = true;
   $("empty-range-note").hidden = true;
   $("assignment-coverage-note").hidden = true;
   ["metric-cost", "metric-count", "metric-tokens", "metric-unassigned"].forEach((id) => { $(id).textContent = "—"; });
@@ -247,16 +246,6 @@ async function applyRevisionTimeRange(intent) {
 }
 function rangeDescription(result) {
   return AhaTimeRange.describe(AhaTimeRange.fromAnalysis(result)) || `${result.start_date} 至 ${result.end_date}`;
-}
-function renderTimeCoverage(target, result, onWholeDays = null, frozen = false) {
-  target.replaceChildren();
-  const coverage = result.time_coverage;
-  target.hidden = coverage?.complete !== false;
-  if (target.hidden) return;
-  const days = (coverage.omitted_days || []).join("、");
-  target.append(node("strong", "", "统计不完整"), node("p", "", `${days ? `${days} 的` : ""}${counts(coverage.omitted_rollup_count)} 条历史日汇总只能按整天统计，未计入此时段。`),
-    node("p", "field-help", frozen ? "材料已记录此情况。" : "已确定的可用记录仍可保存。"));
-  if (onWholeDays) target.append(actionButton("改查整天", onWholeDays, "button small"));
 }
 function refreshRequest(requestKey, isCurrent) {
   const request = ++state[requestKey];
@@ -402,12 +391,12 @@ function renderSource() {
   modeLabel.dataset.kind = running ? "running" : failed ? "error" : partial || needsReview || bindingRequired ? "warning" : mode === "已同步" ? "success" : "";
   const period = coverage.start_date ? ` · ${coverage.start_date} 至 ${coverage.end_date}` : "";
   $("source-description").textContent = ledger
-    ? `${counts(amount.detail_count)} 条明细 · ${counts(amount.rollup_count)} 条历史日汇总${period} · ${last ? `上次成功同步 ${dateTime(last)}` : "尚无成功同步"}`
+    ? `${counts(amount.detail_count)} 条明细${period} · ${last ? `上次成功同步 ${dateTime(last)}` : "尚无成功同步"}`
     : "正在读取本地资料。";
   $("load-default").textContent = state.syncBusy ? "正在同步…" : bindingRequired ? "确认数据来源" : "立即同步";
   $("sync-error").hidden = !failed && (running || !partial);
   const reason = attempt?.result?.error_message || attempt?.message || unavailable?.message || "同步未完成，请稍后重试。";
-  const saved = last || amount.detail_count > 0 || amount.rollup_count > 0;
+  const saved = last || amount.detail_count > 0;
   $("sync-error").textContent = failed
     ? `${reason} ${saved ? "当前显示已保存的本地数据。" : ""}${last ? "" : "尚未成功同步，当前统计不代表实际用量。"}`
     : !running && partial ? "部分用量未同步。展开同步状态查看原因。" : "";
@@ -609,7 +598,7 @@ function renderProjects() {
     {title: "已归属用量", wrap: true, value: (project) => {
       const usage = usages.get(project.id);
       if (!usage) return "—";
-      const cell = node("span", "", `${counts(usage.detail_count)} 条明细 · ${counts(usage.rollup_count)} 行历史汇总`);
+      const cell = node("span", "", `${counts(usage.detail_count)} 条明细`);
       if (usage.start_date) cell.append(node("span", "subline", `${usage.start_date} 至 ${usage.end_date}（北京时间）`));
       if (usage.pending_count) cell.append(node("span", "subline", `${counts(usage.pending_count)} 条待核对`));
       return cell;
@@ -892,12 +881,13 @@ function renderAssociationOverview() {
   overview.replaceChildren();
   for (const [label, value, help] of [
     ["已归属明细", counts(summary.assigned_detail_count), "消费与项目关系已保存"],
-    ["待归属明细", counts(summary.unassigned_detail_count), `${counts(summary.unassigned_rollup_count)} 行历史日汇总也待分配`],
+    ["待归属明细", counts(summary.unassigned_detail_count)],
     ["待归属参考成本", `${money(summary.unassigned_cost_usd)} USD`, "已核实部分，按原消费金额"],
     ["历史依据可恢复", counts(summary.recoverable_detail_count), `${counts(summary.recoverable_sessions)} 个会话可重新关联项目${result.metadata_scan_truncated ? "（已检查部分）" : ""}`],
   ]) {
     const card = node("section", "association-metric");
-    card.append(node("span", "field-help", label), node("strong", "", value), node("p", "field-help", help));
+    card.append(node("span", "field-help", label), node("strong", "", value));
+    if (help) card.append(node("p", "field-help", help));
     overview.append(card);
   }
   const groups = $("association-groups"); groups.replaceChildren();
@@ -909,7 +899,7 @@ function renderAssociationOverview() {
     button.setAttribute("data-association-group", ""); button.disabled = state.busy;
     button.append(node("strong", "", associationReasons[group.reason] || "待归属"),
       node("span", "association-group-directory", group.directory || "没有可用的工作目录"),
-      node("span", "field-help", `${counts(group.detail_count)} 条明细 · ${counts(group.rollup_count)} 行汇总 · ${money(group.total_cost_usd)} USD`));
+      node("span", "field-help", `${counts(group.detail_count)} 条明细 · ${money(group.total_cost_usd)} USD`));
     button.addEventListener("click", () => { void run("正在查询待归属记录…", async () => {
       $("association-filter-project").value = "unassigned";
       $("association-filter-reason").value = group.reason;
@@ -973,7 +963,7 @@ function renderAssociationRecords(focus = null) {
     });
     if (focus?.page) focusTarget = select;
     selectCell.append(select); header.append(selectCell);
-    for (const label of ["日期 / 粒度", "当前项目", "目录 / 会话", "待处理原因", "参考成本 USD"]) header.append(node("th", "", label));
+    for (const label of ["日期 / 模型", "当前项目", "目录 / 会话", "待处理原因", "参考成本 USD"]) header.append(node("th", "", label));
     head.append(header); item.append(head); const body = node("tbody");
     for (const row of rows) {
       const selected = state.associationAllFiltered || state.associationSelected.has(row.record_key);
@@ -983,7 +973,7 @@ function renderAssociationRecords(focus = null) {
       const managed = row.assignment_origin === "directory_binding";
       check.setAttribute("data-directory-managed", String(managed));
       check.disabled = state.busy || state.associationAllFiltered || managed;
-      check.setAttribute("aria-label", `选择 ${row.date || ""} ${row.model || ""} ${row.kind === "rollup" ? "历史日汇总" : "消费明细"}`);
+      check.setAttribute("aria-label", `选择 ${row.date || ""} ${row.model || ""} 消费明细`);
       check.addEventListener("change", () => {
         if (managed) return;
         check.checked ? state.associationSelected.set(row.record_key, row) : state.associationSelected.delete(row.record_key);
@@ -992,7 +982,7 @@ function renderAssociationRecords(focus = null) {
       if (focus?.key === row.record_key) focusTarget = check;
       cell.append(check); line.append(cell);
       const date = node("td", "wrap", row.date || "—");
-      date.append(node("span", "subline", row.kind === "rollup" ? `历史日汇总 · 代表 ${counts(row.record_count)} 次消费` : `消费明细 · ${row.model || ""}`));
+      if (row.model) date.append(node("span", "subline", row.model));
       const project = node("td", "wrap"); project.append(projectCell(row));
       const basis = node("td", "wrap", row.cwd || "尚无目录依据");
       if (row.session_id) basis.append(node("span", "subline association-session", row.session_id));
@@ -1043,7 +1033,7 @@ async function previewAssociations(action) {
     : action === "reclassify" ? "将按当前目录规则追溯调整所选记录。请核对项目和费用影响后确认。"
       : "以下预览包含所选的全部记录，包含跨页选择；确认后保存到项目台账。";
   $("association-preview-summary").append(
-    node("p", "", `${counts(summary.selected_detail_count)} 条明细 · ${counts(summary.selected_rollup_count)} 行历史日汇总 · 参考成本 ${money(summary.total_cost_usd)} USD`),
+    node("p", "", `${counts(summary.selected_detail_count)} 条明细 · 参考成本 ${money(summary.total_cost_usd)} USD`),
     node("p", "", `预计调整 ${counts(summary.changed_count)} 条记录${summary.recovered_sessions ? `，恢复 ${counts(summary.recovered_sessions)} 个会话目录` : ""}。`));
   if (summary.directory_only_sessions) $("association-preview-summary").append(node("p", "field-help", `${counts(summary.directory_only_sessions)} 个会话仅能恢复目录，项目仍需分配。`));
   if (request.bind_sessions) $("association-preview-summary").append(node("p", "field-help", `已展开到所选 ${counts(summary.session_count)} 个会话的全部现存明细，包含当前筛选以外的成员；后续新增明细也沿用目标项目，已有逐条人工例外保持优先。`));
@@ -1103,7 +1093,7 @@ function renderAssignmentCoverage(result) {
   const coverage = result.assignment_coverage;
   $("assignment-coverage-note").hidden = !coverage || coverage.status !== "incomplete";
   if (coverage?.status !== "incomplete") return;
-  $("assignment-coverage-description").textContent = `同期 ${counts(coverage.unassigned_detail_count)} 条明细、${counts(coverage.unassigned_rollup_count)} 行历史日汇总待归属，参考成本 ${money(coverage.unassigned_cost_usd)} USD。`;
+  $("assignment-coverage-description").textContent = `同期有 ${counts(coverage.unassigned_detail_count)} 条明细待归属，参考成本 ${money(coverage.unassigned_cost_usd)} USD。`;
 }
 function reviewAction() {
   const button = actionButton("查看待核对", () => { void openReconciliations(button); }, "text-button");
@@ -1133,8 +1123,7 @@ function renderTrend(result, analysis) {
   const {grain, points} = result;
   $("trend-heading").textContent = {day: "每日费用趋势", month: "月度费用趋势", year: "年度费用趋势"}[grain] || "费用趋势";
   if (!points.some(hasUsage)) {
-    setTrendStatus(analysis.time_coverage?.complete === false
-      ? "当前时段没有可确定的用量。可改查整天。" : "当前筛选没有用量。");
+    setTrendStatus("当前筛选没有用量。");
     return;
   }
   const heights = trendHeights(points);
@@ -1241,7 +1230,6 @@ async function analyze() {
   if (result.time_range?.resolved_at) state.now = result.time_range.resolved_at;
   timeRange.setResolved(AhaTimeRange.fromAnalysis(result));
   renderAvailability(result);
-  renderTimeCoverage($("time-coverage-note"), result, () => { void applyTimeRange(AhaTimeRange.wholeDays(result)).catch(() => {}); });
   const summary = result.summary;
   renderEmptyRange(result);
   const availableOnly = result.availability_mode === "available";
@@ -1253,18 +1241,16 @@ async function analyze() {
   $("metric-cost-label").textContent = availableOnly ? "可用参考成本" : "已核实参考成本";
   $("metric-count-label").textContent = availableOnly ? "可用用量" : "用量记录数";
   $("metric-token-label").textContent = availableOnly ? "可用 Token" : "总 Token";
-  const omittedOnly = result.time_coverage?.complete === false && !hasUsage(summary);
-  $("metric-cost").textContent = omittedOnly ? "—" : money(summary.total_cost_usd);
-  $("metric-count").textContent = omittedOnly ? "—" : counts(summary.record_count);
-  $("metric-count-note").textContent = omittedOnly ? "当前时段缺少可确定的用量" : `${counts(summary.detail_count)} 条明细 · ${counts(summary.rollup_record_count)} 条历史记录`;
-  $("metric-tokens").textContent = omittedOnly ? "—" : counts(summary.total_tokens);
+  $("metric-cost").textContent = money(summary.total_cost_usd);
+  $("metric-count").textContent = counts(summary.record_count);
+  $("metric-tokens").textContent = counts(summary.total_tokens);
   $("metric-unassigned").textContent = counts(result.unassigned_count);
   renderAssignmentCoverage(result);
   $("token-input").textContent = counts(summary.fresh_input_tokens);
   $("token-output").textContent = counts(summary.output_tokens);
   $("token-read").textContent = counts(summary.cache_read_tokens);
   $("token-write").textContent = counts(summary.cache_creation_tokens);
-  $("token-strip").hidden = omittedOnly;
+  $("token-strip").hidden = false;
   const coverage = result.metadata_coverage || state.ledger.metadata_coverage || {matched_sessions: 0, total_sessions: 0};
   $("coverage-note").textContent = `已识别 ${counts(coverage.matched_sessions)} / ${counts(coverage.total_sessions)} 个会话的工作目录。项目按已确认的工作目录整体关联。`;
   $("coverage-note").hidden = false;
@@ -1347,20 +1333,18 @@ function aggregateColumns(kind) {
     {title: "日期", value: (row) => row.date}, {title: "项目", value: (row) => row.project_name, wrap: true},
   ] : [];
   return [...result, {title: "模型", value: (row) => row.model},
-    {title: "明细 / 历史记录", numeric: true, value: (row) => `${counts(row.detail_count)} / ${counts(row.rollup_record_count)}`},
+    {title: "明细数", numeric: true, value: (row) => counts(row.detail_count)},
     {title: "输入", numeric: true, value: (row) => counts(row.fresh_input_tokens)},
     {title: "输出", numeric: true, value: (row) => counts(row.output_tokens)},
     {title: "总 Token", numeric: true, value: (row) => counts(row.total_tokens)},
     {title: "参考成本 USD", numeric: true, value: costCell}];
 }
 function renderRowTable() {
-  const rollup = state.tab === "rollups";
   const columns = [
-    {title: rollup ? "来源日期" : "北京时间", value: (row) => rollup ? row.date : row.time?.replace("T", " ").replace("+08:00", ""), wrap: false},
+    {title: "北京时间", value: (row) => row.time?.replace("T", " ").replace("+08:00", ""), wrap: false},
     {title: "项目", value: projectCell, wrap: true},
     ...(state.analysis?.availability_mode === "all" ? [{title: "使用状态", value: usageCell, wrap: true}] : []),
-    rollup ? {title: "模型", value: (row) => row.model} : {title: "模型与来源", value: detailModelCell, wrap: true},
-    ...(rollup ? [{title: "代表记录数", numeric: true, value: (row) => counts(row.request_count)}] : []),
+    {title: "模型与来源", value: detailModelCell, wrap: true},
     {title: "输入", numeric: true, value: (row) => counts(row.fresh_input_tokens)},
     {title: "输出", numeric: true, value: (row) => counts(row.output_tokens)},
     {title: "缓存读取", numeric: true, value: (row) => counts(row.cache_read_tokens)},
@@ -1370,9 +1354,8 @@ function renderRowTable() {
   $("preview-table").replaceChildren(table(columns, state.rows, $("usage-legacy-tools").open));
 }
 function renderSelection() {
-  $("assignment-bar").hidden = !$("usage-legacy-tools").open || !state.selected.size;
-  $("selection-count").textContent = `已选 ${counts(state.selected.size)} 条${state.tab === "rollups" ? "完整日汇总" : "明细"}`;
-  $("session-scope-label").hidden = state.tab !== "details";
+  $("assignment-bar").hidden = state.tab !== "details" || !$("usage-legacy-tools").open || !state.selected.size;
+  $("selection-count").textContent = `已选 ${counts(state.selected.size)} 条明细`;
   renderAssignmentMode();
   syncActions();
 }
@@ -1390,7 +1373,7 @@ function renderAssignmentMode() {
 async function renderPreview() {
   $("assignment-bar").hidden = true; $("pagination").hidden = true;
   if (!state.analysis) return;
-  const kind = {details: "detail", rollups: "rollup", daily: "daily", models: "models"}[state.tab];
+  const kind = state.tab === "details" ? "detail" : state.tab;
   const params = new URLSearchParams({kind, size: "50"});
   if (state.cursor) params.set("cursor", state.cursor);
   const day = kind === "daily" ? state.dailyDate : "";
@@ -1415,24 +1398,21 @@ async function renderPreview() {
   }
   if (!isCurrent()) return;
   state.rows = result.rows; state.total = result.total; state.nextCursor = result.next_cursor || null;
-  if (!state.rows.length) empty($("preview-table"), day ? `${day} 没有可显示的用量`
-    : state.analysis.time_coverage?.complete === false ? "当前时段没有可确定的用量" : "当前筛选没有用量",
-    day ? "清除日期筛选可查看整个预览。"
-      : state.analysis.time_coverage?.complete === false ? "历史日汇总只能按整天统计。可在上方改查整天。" : "可调整项目或时间。");
+  if (!state.rows.length) empty($("preview-table"), day ? `${day} 没有可显示的用量` : "当前筛选没有用量",
+    day ? "清除日期筛选可查看整个预览。" : "可调整项目或时间。");
   else if (["daily", "models"].includes(state.tab)) $("preview-table").replaceChildren(table(aggregateColumns(state.tab), state.rows));
   else renderRowTable();
   $("page-label").textContent = result.total === null || result.total === undefined
     ? `本页 ${counts(state.rows.length)} 行 · 第 ${state.page} 页`
     : `共 ${counts(result.total)} 行 · 第 ${state.page} 页`;
   $("pagination").hidden = !state.rows.length;
-  if (["details", "rollups"].includes(state.tab)) renderSelection();
+  if (state.tab === "details") renderSelection();
   syncActions();
 }
 async function applyAssignment() {
   const selected = [...state.selected.values()];
   const sessionScope = state.tab === "details" && $("session-scope").checked;
-  const body = {kind: state.tab === "rollups" ? "rollup" : "detail",
-    project_id: $("assignment-project").value || null};
+  const body = {project_id: $("assignment-project").value || null};
   if (sessionScope) body.session_ids = [...new Set(selected.map((row) => row.session_id))];
   else body.keys = selected.map((row) => row.record_key);
   await api("/api/assignments", body);
@@ -1545,12 +1525,8 @@ function renderAvailability(result) {
   if (pending && !readOnly) summary.append(reviewAction());
   for (const group of availability.excluded_groups || []) {
     const item = node("div", "availability-group");
-    const quantities = [];
-    if (group.detail_count) quantities.push(`${counts(group.detail_count)} 条明细`);
-    const rollupRows = group.row_count - group.detail_count;
-    if (rollupRows > 0) quantities.push(`${counts(rollupRows)} 条历史汇总（代表 ${counts(group.rollup_record_count)} 条记录）`);
     const reason = {reconciliation: "待核对", identity: "已占用"}[group.reason] || group.message || "已排除";
-    item.append(node("p", "", [group.date, group.model, `${quantities.join("、") || `${counts(group.record_count)} 条用量`} ${reason}`].filter(Boolean).join(" · ")));
+    item.append(node("p", "", [group.date, group.model, `${counts(group.record_count)} 条明细 ${reason}`].filter(Boolean).join(" · ")));
     const owners = node("div", "availability-owners");
     for (const owner of group.owners || []) {
       owners.append(ownerLink(owner), node("span", `status ${owner.status}`, labels[owner.status] || owner.status));
@@ -1726,9 +1702,7 @@ function renderBatchDetail() {
       node("span", "", `参考成本 ${money(result.summary.total_cost_usd)} USD`),
       node("span", "", value.amount === null || value.amount === "" ? "申请金额未填写" : `申请 ${money(value.amount)} ${value.currency}`));
     item.append(title, meta);
-    const coverage = node("div", "warning time-coverage-note"); renderTimeCoverage(coverage, result, null, true);
-    if (!coverage.hidden) item.append(coverage);
-    if (result.summary_complete == null && result.time_coverage == null) item.append(node("p", "field-help frozen-note", "沿用旧记录的冻结用量与说明，未重新判断历史资料完整性。"));
+    if (result.summary_complete == null) item.append(node("p", "field-help frozen-note", "沿用旧记录的冻结用量与说明，未重新判断历史资料完整性。"));
     if (value.purpose) item.append(node("p", "revision-purpose", value.purpose));
     if (value.amount_note) item.append(node("p", "revision-purpose", `金额依据：${value.amount_note}`));
     const actions = node("div", "revision-actions");
@@ -1782,16 +1756,12 @@ function openRevision(batch, revision) {
 }
 function renderRevisionPreview(result, frozen = false) {
   const summary = result.summary;
-  const omittedOnly = result.time_coverage?.complete === false && !hasUsage(summary);
   $("revision-preview").replaceChildren(
-    node("strong", "", omittedOnly ? "当前时段没有可确定的用量" : `${counts(summary.record_count)} 条用量 · 参考成本 ${money(summary.total_cost_usd)} USD`),
+    node("strong", "", !frozen && !hasUsage(summary) ? "当前范围没有可用记录。" : `${counts(summary.record_count)} 条用量 · 参考成本 ${money(summary.total_cost_usd)} USD`),
     node("p", "field-help", `${result.project_name || "当前项目"} · ${rangeDescription(result)}（北京时间）`),
   );
-  if (frozen) $("revision-preview").append(node("p", "field-help", result.summary_complete == null && result.time_coverage == null
+  if (frozen) $("revision-preview").append(node("p", "field-help", result.summary_complete == null
     ? "沿用旧记录的冻结用量与说明，未重新判断历史资料完整性。" : "保留原记录的时间范围与冻结用量；保存时不会延长范围。"));
-  const coverage = node("div", "warning time-coverage-note");
-  renderTimeCoverage(coverage, result, frozen ? null : () => { void applyRevisionTimeRange(AhaTimeRange.wholeDays(result)).catch(() => {}); }, frozen);
-  if (!coverage.hidden) $("revision-preview").append(coverage);
   if (result.pending_count) $("revision-preview").append(node("p", "field-help", `有 ${counts(result.pending_count)} 项用量待核对，合计仅含已核实部分。`));
   const excluded = result.availability?.excluded_summary?.record_count;
   if (excluded) $("revision-preview").append(node("p", "field-help", `已排除其他记录占用或待核对的 ${counts(excluded)} 条用量。`));
@@ -1831,7 +1801,7 @@ function openLifecycle(action, batch, revision = null) {
   if (state.busy) return;
   clearFeedback();
   const settings = {
-    withdraw: {title: "撤回为草稿", reason: "撤回原因", confirm: "确认撤回", description: "撤回后可修改，用量仍由此记录占用。"},
+    withdraw: {title: "撤回为草稿", reason: "撤回原因", confirm: "确认撤回", description: "撤回后成为草稿，用量仍由此记录占用。"},
     void: {title: "作废记录", reason: "作废原因", confirm: "确认作废", description: "作废后用量可供其他报销记录使用，历史记录和材料仍保留。"},
   }[action];
   state.lifecycle = {action, batchId: batch.id || batch.batch_id, generation: batch.generation, signature: null, key: null};
@@ -1858,13 +1828,13 @@ async function saveLifecycle() {
   invalidate("记录已更新，请更新预览");
   await refreshBatches();
   if (state.ledger) await analyze();
-  notify({withdraw: "已撤回为草稿，可以修改。", void: "已作废，用量已释放。"}[operation.action]);
+  notify({withdraw: "已撤回为草稿。", void: "已作废，用量已释放。"}[operation.action]);
 }
 function renderEmptyRange(result) {
   const coverage = state.ledger?.coverage;
-  const show = !hasUsage(result.summary) && result.time_coverage?.complete !== false && coverage?.start_date;
+  const show = !hasUsage(result.summary) && coverage?.start_date;
   $("empty-range-note").hidden = !show;
-  if (show) $("empty-range-description").textContent = `当前筛选没有可计入的用量。历史数据仍保留，覆盖 ${coverage.start_date} 至 ${coverage.end_date}。`;
+  if (show) $("empty-range-description").textContent = `当前筛选没有可计入的用量。本地明细覆盖 ${coverage.start_date} 至 ${coverage.end_date}。`;
 }
 async function viewAllHistory() {
   $("project-select").value = "all";
@@ -2431,7 +2401,7 @@ function renderReconciliationPage(view) {
 }
 function renderReconciliationDetail(view, target, entry) {
   target.replaceChildren();
-  const choiceLabels = {detail: "采用已存明细", rollup: "采用完整日汇总", current: "保留当前值", candidate: "采用候选修订", same: "确认为同一消费", independent: "确认为独立消费"};
+  const choiceLabels = {current: "保留当前值", candidate: "采用候选修订", same: "确认为同一消费", independent: "确认为独立消费"};
   const facts = node("div", "reconciliation-facts");
   if (entry.type === "directory") {
     facts.append(node("p", "", `已保存目录：${entry.current_cwd || "未提供"}`),
@@ -2439,12 +2409,11 @@ function renderReconciliationDetail(view, target, entry) {
   }
   if (entry.current_cost_usd != null) facts.append(node("p", "", `当前参考成本：${money(entry.current_cost_usd)} USD`));
   if (entry.candidate_cost_usd != null) facts.append(node("p", "", `候选参考成本：${money(entry.candidate_cost_usd)} USD`));
-  if (entry.detail_count !== undefined) facts.append(node("p", "", `已存明细 ${counts(entry.detail_count)} 条；来源日汇总 ${counts(entry.rollup_count)} 条，代表 ${counts(entry.rollup_record_count)} 条记录。`));
   if (entry.type === "native_uncertain" && entry.pending_reason) {
     facts.append(node("p", "", sourceIssueLabels[entry.pending_reason] || "该条用量的依据还无法核实。"));
   }
   for (const [key, label] of [["previous", "此前来源"], ["observed", "本次来源"]]) {
-    if (entry[key]) facts.append(node("p", "", `${label}：${counts(entry[key].detail ?? entry[key].detail_count)} 条明细，${counts(entry[key].rollup ?? entry[key].rollup_count)} 条汇总。`));
+    if (entry[key]) facts.append(node("p", "", `${label} ${counts(entry[key].detail ?? entry[key].detail_count)} 条明细`));
   }
   for (const [key, label] of [["current", "当前依据"], ["candidate", "候选依据"]]) {
     const value = entry[key] || entry[`${key}_summary`];
@@ -2465,7 +2434,6 @@ function renderReconciliationDetail(view, target, entry) {
   for (const choice of entry.choices || []) {
     const value = typeof choice === "string" ? choice : choice.value;
     const label = entry.type === "source" && value === "current" ? "确认此来源，保留本地历史"
-      : entry.type === "rollup_origin" && value === "current" ? "确认重叠，保留历史汇总"
       : entry.type === "directory" ? (value === "candidate" ? "采用当前电脑目录" : "保留已保存目录")
       : entry.type === "native_overlap" ? (value === "independent" ? "确认为新用量" : "沿用已入账历史")
       : entry.type === "native_uncertain" ? "确认排除候选"
@@ -2802,7 +2770,7 @@ $("project-dialog").addEventListener("close", () => {
 });
 $("usage-legacy-tools").addEventListener("toggle", () => {
   state.selected.clear();
-  if (["details", "rollups"].includes(state.tab) && state.rows.length) renderRowTable();
+  if (state.tab === "details" && state.rows.length) renderRowTable();
   renderSelection();
 });
 $("refresh-associations").addEventListener("click", () => run("正在读取项目费用与归属…", refreshAssociations));

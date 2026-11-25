@@ -1,0 +1,7 @@
+{
+  "id": "codex-compaction-sync",
+  "kind": "fix",
+  "title": "修复上下文压缩引发的同步误报",
+  "description": "识别超长的 Codex 上下文压缩记录并重读受影响的文件，修复由此产生的「单条日志过长」和「累计用量无法核实」提示。两端完整覆盖时显示「已同步」。",
+  "highlight": true
+}

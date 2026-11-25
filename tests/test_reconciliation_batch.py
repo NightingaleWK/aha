@@ -500,7 +500,7 @@ class ReconciliationBatchTests(unittest.TestCase):
         self.assertEqual(self.store.download(frozen["id"], frozen["version"])[0].read_bytes(),
                          original_bytes)
 
-    def test_paired_amount_diff_becomes_manual_with_a_late_day_rollup(self) -> None:
+    def test_legacy_projection_rollup_does_not_block_confirming_paired_details(self) -> None:
         historic_cost = "0.335501"
         page = self.seed_paired(cost_usd=historic_cost)
         request, _ = self.request_batch(page, {})
@@ -512,10 +512,8 @@ class ReconciliationBatchTests(unittest.TestCase):
             date="2026-11-24", model=MODEL, pricing_model=MODEL, request_model="other-model",
         )]))
         current = self.store.reconciliation_page({})
-        self.assertEqual((current["total"], current["eligible_count"]), (1, 0))
-        with self.assertRaises(AppError) as stale:
-            self.store.apply_reconciliation_batch(request)
-        self.assertEqual(stale.exception.code, "stale_reconciliation_batch")
+        self.assertEqual((current["total"], current["eligible_count"]), (1, 1))
+        self.store.apply_reconciliation_batch(request)
 
     def test_adopted_fact_detects_detached_snapshot_and_late_native_revision(self) -> None:
         page = self.seed_paired(cost_usd="0.62344")

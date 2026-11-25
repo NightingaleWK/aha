@@ -656,10 +656,6 @@ td .subline { display: block; font-size: var(--text-meta); color: var(--muted); 
 .time-range-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding-top: 16px; margin-top: 18px; border-top: 1px solid var(--line); }
 .time-range-actions { display: flex; gap: 8px; margin-left: auto; }
 .time-follow { width: auto; }
-.time-coverage-note { margin-bottom: 18px; }
-.time-coverage-note > p { color: inherit; margin-top: 6px; }
-.time-coverage-note > .button { margin-top: 12px; background: #fffdf7; border-color: #d6bb8f; color: var(--amber); }
-.revision-preview .time-coverage-note, .revision-card .time-coverage-note { margin: 14px 0 0; }
 .frozen-note { margin-top: 12px; }
 .revision-filters > .field { margin-bottom: 16px; }
 .revision-filters > .button { margin-top: 14px; }

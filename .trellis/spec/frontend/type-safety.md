@@ -10,13 +10,13 @@ purpose/amount_note 最多4000字符，金额输入最长40字符，币种 CNY/U
 
 ## 记录、版本与游标
 
-版本/generation 是整数，拒绝 bool。kind 为 detail/rollup/daily/models，size1–200；cursor 是服务端签发的不透明字符串，绑定筛选与 revision，不从行号构造。total 可以 null，不据此显示0条或禁下一页。
+版本和 generation 为整数，拒绝 bool。kind 为 detail、daily 或 models，size 为 1 至 200。cursor 是服务端签发的不透明字符串，绑定筛选与 revision；total 可为 null。
 
 选中行使用稳定 record_key；分配发送 keys 或 session_ids，不发送 capture_id，不用显示名、页号或原始来源路径定义身份。服务端处理别名与内容修订。analysis 响应不附全量 details/members；聚合与明细按游标读取。
 
-归属新接口中 keys/session_ids 都空表示全部符合filters的记录，互斥且有服务端上限；不要把空数组误当“无选择”或只发送当前页。bind_sessions=true会展开所选会话的全部现存明细并建立未来默认，预览数量可能超出当前筛选；rollup无会话不能混作整会话处理。预览/apply身份是服务器opaque值，不能在前端推算。
+归属接口的 keys 和 session_ids 互斥，都为空时选择全部符合 filters 的记录。bind_sessions=true 展开所选会话现有逐笔明细并建立默认归属。预览及 apply 身份由服务端签发。
 
-assignment_coverage与summary_complete分开：前者描述期间未归属，detail/rollup是物理行数，record_count是代表请求量，金额仍为十进制字符串。旧冻结coverage可能null，不得用零/complete补未知；分享包仅允许覆盖状态/计数，页面不要自行裁剪并重新求和材料数据。
+assignment_coverage 说明同期未归属的逐笔明细，summary_complete 表示统计完整性。金额为十进制字符串。旧冻结覆盖信息缺失时显示未知，材料金额由服务端实际成员计算。
 
 ## 验证
 

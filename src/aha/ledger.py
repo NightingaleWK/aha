@@ -26,16 +26,10 @@ METRICS = (
 
 
 def record_projection(row: dict[str, Any], kind: str) -> dict[str, Any]:
-    day = (
-        row["date"]
-        if kind == "rollup"
-        else datetime.fromtimestamp(row["created_at"], BEIJING).date().isoformat()
-    )
-    event_time = (
-        int(datetime.fromisoformat(day).replace(tzinfo=BEIJING).timestamp())
-        if kind == "rollup"
-        else int(row["created_at"])
-    )
+    if kind != "detail":
+        raise AppError("invalid_grain", "只接收逐笔用量。")
+    event_time = int(row["created_at"])
+    day = datetime.fromtimestamp(event_time, BEIJING).date().isoformat()
     enriched = {**row, "date": day}
     member = claims.member_from_row(enriched, kind)
     fresh = fresh_input(row)
@@ -44,8 +38,7 @@ def record_projection(row: dict[str, Any], kind: str) -> dict[str, Any]:
         row.get("request_model") or "", row.get("pricing_model") or "",
     ]
     if row.get("data_source") == "codex_native":
-        # An old daily aggregate has no member identity. Native overlap is
-        # reconciled separately, leaving the historic aggregate's basis intact.
+        # Keep coverage and legacy detail identity namespaces independent.
         coverage.append("codex_native")
     return {
         "record_key": record_key(row, kind),
@@ -69,6 +62,40 @@ def record_projection(row: dict[str, Any], kind: str) -> dict[str, Any]:
         ),
         "total_cost_usd": row["total_cost_usd"],
     }
+
+
+def historical_detail_overlap(
+    connection: sqlite3.Connection,
+    payload: dict[str, Any],
+    projection: dict[str, Any],
+    paired_seconds: Iterable[int] = (),
+) -> tuple[list[str], bool]:
+    """Check existing history at the response and its verified paired snapshot clocks."""
+    legacy = {**payload, "data_source": "codex_session"}
+    keys = {
+        key
+        for second in {projection["event_time"], *paired_seconds}
+        if (key := record_projection({**legacy, "created_at": second}, "detail")["semantic_key"])
+        is not None
+    }
+    records = [
+        str(row[0])
+        for row in connection.execute("""
+            SELECT record_key FROM usage_records
+            WHERE semantic_key IN (SELECT value FROM json_each(?)) AND suppressed=0
+            ORDER BY record_key LIMIT 2
+        """, (_encode(sorted(keys)),))
+    ]
+    if records:
+        return records, False
+    # A known legacy session and model can contain earlier native events with
+    # a different timestamp or provider representation.
+    same_session = connection.execute("""
+        SELECT 1 FROM usage_records WHERE kind='detail' AND semantic_key IS NOT NULL
+        AND session_id=? AND day=? AND model=? AND event_time>=? AND suppressed=0 LIMIT 1
+    """, (projection["session_id"], projection["day"], projection["model"],
+          projection["event_time"])).fetchone()
+    return records, same_session is not None
 
 
 def canonical_record_key(connection: sqlite3.Connection, key: str) -> str:
@@ -178,74 +205,6 @@ def _encode(value: Any) -> str:
     return canonical_bytes(value).decode()
 
 
-def update_coverage(connection: sqlite3.Connection, groups: Iterable[str]) -> set[str]:
-    scopes: set[str] = set()
-    for group_id in groups:
-        group = connection.execute(
-            "SELECT * FROM coverage_groups WHERE id=?", (group_id,)
-        ).fetchone()
-        if group is None:
-            continue
-        scopes.add(group["scope_key"])
-        counts = {
-            row["kind"]: row["n"]
-            for row in connection.execute(
-                (
-                    "SELECT kind,COUNT(*) AS n FROM usage_records WHERE coverage_key="
-                    "? AND record_key NOT IN (SELECT alias_key FROM record_aliases) G"
-                    "ROUP BY kind"
-                ),
-                (group_id,),
-            )
-        }
-        if counts.get("detail") and counts.get("rollup"):
-            connection.execute(
-                "UPDATE coverage_groups SET basis='unknown',generation=generation+1 WHERE id=?",
-                (group_id,),
-            )
-            connection.execute(
-                (
-                    "UPDATE usage_records SET suppressed=0 WHERE coverage_key=? AND r"
-                    "ecord_key NOT IN (SELECT alias_key FROM record_aliases)"
-                ),
-                (group_id,),
-            )
-            amounts = {
-                row["kind"]: row["amount"]
-                for row in connection.execute(
-                    (
-                        "SELECT kind,decimal_sum(total_cost_usd) AS amount FROM usage_rec"
-                        "ords WHERE coverage_key=? GROUP BY kind"
-                    ),
-                    (group_id,),
-                )
-            }
-            represented = connection.execute(
-                (
-                    "SELECT integer_sum(request_count) FROM usage_records WHERE cover"
-                    "age_key=? AND kind='rollup'"
-                ),
-                (group_id,),
-            ).fetchone()[0]
-            create_case(
-                connection,
-                "coverage",
-                "明细与来源日汇总的成员覆盖尚未确认，两份依据不可相加。",
-                {
-                    "date": group["day"],
-                    "model": group["model"],
-                    "detail_count": counts["detail"],
-                    "rollup_count": counts["rollup"],
-                    "rollup_record_count": int(represented or 0),
-                    "detail_cost_usd": amounts.get("detail", "0"),
-                    "rollup_cost_usd": amounts.get("rollup", "0"),
-                },
-                coverage_key=group_id,
-                reopen=True,
-            )
-    return scopes
-
-
 def reclassify(connection: sqlite3.Connection, scopes: set[str] | None = None) -> None:
     from .project_links import (
         bind_session,
@@ -338,14 +297,11 @@ def refresh_availability(connection: sqlite3.Connection, scopes: set[str] | None
           (SELECT source_id FROM reconciliation_cases WHERE type='source' AND state='open'))
         )"""
     identity = "EXISTS(SELECT 1 FROM usage_claims c WHERE c.record_key=r.record_key)"
-    # Require the owned scope index for these fixed ranges: ANALYZE on an all-detail
-    # scope can misestimate the absent rollup kind and choose a pairwise table scan.
-    overlap = """(
-        EXISTS(SELECT 1 FROM usage_claims c INDEXED BY usage_claim_scope
-          WHERE c.scope_key=r.scope_key
-          AND c.kind='rollup' AND c.record_key!=r.record_key) OR
-        (r.kind='rollup' AND EXISTS(SELECT 1 FROM usage_claims c INDEXED BY usage_claim_scope
-          WHERE c.scope_key=r.scope_key AND c.record_key!=r.record_key)) OR
+    archived_claim = claims.archived_claim_lookup(
+        "r.day", "r.model", "r.pricing_model", "r.version_id"
+    )
+    overlap = f"""(
+        EXISTS({archived_claim}) OR
         (r.semantic_key IS NOT NULL AND EXISTS(SELECT 1 FROM usage_claims c
           WHERE c.semantic_key=r.semantic_key AND c.record_key!=r.record_key))
         )"""
@@ -454,9 +410,7 @@ def _reconciliation_details(
 ) -> dict[str, Any]:
     info = store._decode(row["info_json"])
     choices = (
-        ["detail", "rollup"]
-        if row["type"] == "coverage"
-        else ["current", "candidate"]
+        ["current", "candidate"]
         if row["type"] in {"revision", "directory"} and (
             row["type"] != "directory" or info.get("candidate_cwd")
         )
@@ -700,45 +654,13 @@ def resolve_reconciliation(
             raise AppError("stale_case", "核对事项已变化，请刷新。", 409)
         info = store._decode(case["info_json"])
         scopes: set[str] = set()
-        if case["type"] == "coverage":
-            if choice not in {"detail", "rollup"}:
-                raise AppError("invalid_choice", "请选择合法的核算基准。")
-            group = connection.execute(
-                "SELECT * FROM coverage_groups WHERE id=?", (case["coverage_key"],)
-            ).fetchone()
-            scope = group["scope_key"]
-            conflict = connection.execute(
-                "SELECT 1 FROM usage_claims WHERE scope_key=? AND kind!=? LIMIT 1", (scope, choice)
-            ).fetchone()
-            if conflict:
-                raise AppError(
-                    "usage_claimed", "该核对与已有报销占用冲突，请先按正常流程纠错。", 409
-                )
-            connection.execute(
-                "UPDATE coverage_groups SET basis=?,generation=generation+1 WHERE id=?",
-                (choice, case["coverage_key"]),
-            )
-            connection.execute(
-                (
-                    "UPDATE usage_records SET suppressed=CASE WHEN record_key IN (SEL"
-                    "ECT alias_key FROM record_aliases) THEN 1 WHEN kind=? THEN 0 ELS"
-                    "E 1 END WHERE coverage_key=?"
-                ),
-                (choice, case["coverage_key"]),
-            )
-            scopes.add(scope)
-        elif case["type"] == "revision":
+        if case["type"] == "revision":
             if choice not in {"current", "candidate"}:
                 raise AppError("invalid_choice", "请选择合法的事实候选。")
             if choice == "candidate":
                 new_scope, old_scope = set_current(
                     connection, int(info["candidate_version_id"]), logical_key=case["record_key"]
                 )
-                updated = connection.execute(
-                    "SELECT coverage_key FROM usage_records WHERE record_key=?",
-                    (case["record_key"],),
-                ).fetchone()
-                scopes |= update_coverage(connection, [updated[0]])
                 scopes.add(new_scope)
                 if old_scope:
                     scopes.add(old_scope)
@@ -816,14 +738,6 @@ def resolve_reconciliation(
                     (info["session_id"],),
                 )
             )
-        elif case["type"] == "rollup_origin":
-            if choice != "current":
-                raise AppError("invalid_choice", "请确认来源重叠后保留既有日汇总。")
-            current = connection.execute(
-                "SELECT scope_key FROM usage_records WHERE record_key=?", (case["record_key"],)
-            ).fetchone()
-            if current:
-                scopes.add(current[0])
         elif case["type"] == "source":
             if choice != "current":
                 raise AppError("invalid_choice", "请选择保留本地事实并确认该来源。")

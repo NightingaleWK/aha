@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from test_storage_helpers import claim, detail, metadata, rollup, source_data
+from test_storage_helpers import claim, detail, metadata, source_data
 
 from aha.domain import AppError, content_hash, record_key
 from aha.storage import Store
@@ -459,25 +459,26 @@ class AssociationTests(unittest.TestCase):
             self.store._db.execute("SELECT COUNT(*) FROM session_project_bindings").fetchone()[0], 0
         )
 
-    def test_rollups_remain_whole_and_project_totals_plus_unassigned_conserve_cost(self) -> None:
+    def test_assigned_and_unassigned_details_conserve_cost(self) -> None:
         project = self.project("项目")
-        self.store.sync_data(source_data([detail()], [rollup()]), metadata(), trust="live")
+        other = detail("missing", session_id=None, total_cost_usd="1.00000001")
+        self.store.sync_data(source_data([detail(), other]), metadata(), trust="live")
         missing = self.store.association_records({"reason": "missing"})["rows"]
         self.assertEqual(len(missing), 1)
-        self.assertEqual(missing[0]["kind"], "rollup")
-        self.assertEqual(missing[0]["record_count"], 7)
+        self.assertEqual(missing[0]["kind"], "detail")
+        self.assertEqual(missing[0]["record_count"], 1)
         preview = self.store.preview_associations(
             {
                 "action": "assign",
                 "project_id": project,
-                "filters": {"start_date": "2026-10-24", "end_date": "2026-10-24"},
+                "keys": [missing[0]["record_key"]],
             }
         )
-        self.assertEqual(preview["summary"]["selected_rollup_count"], 1)
-        self.assertEqual(preview["summary"]["selected_record_count"], 7)
+        self.assertEqual(preview["summary"]["selected_detail_count"], 1)
+        self.assertEqual(preview["summary"]["selected_record_count"], 1)
         self.apply(preview)
         status = self.store.association_status()
-        self.assertEqual(status["projects"][0]["record_count"], 7)
+        self.assertEqual(status["projects"][0]["record_count"], 1)
         self.assertEqual(status["projects"][0]["total_cost_usd"], "1.00000001")
         self.assertEqual(status["summary"]["unassigned_cost_usd"], "0.1234567")
         self.assertEqual(self.query()["summary"]["total_cost_usd"], "1.12345671")
