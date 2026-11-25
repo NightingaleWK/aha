@@ -1,0 +1,7 @@
+{
+  "id": "workbench-ui-refresh",
+  "kind": "feature",
+  "title": "用量首页增加费用趋势",
+  "description": "首页默认查看近 14 天，费用趋势与可用成本并排显示。点日柱查看对应日期，生成报销材料时可在侧栏先核对本次范围和参考成本。项目管理和报销记录使用紧凑表格。",
+  "highlight": true
+}

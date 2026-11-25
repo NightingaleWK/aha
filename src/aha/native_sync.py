@@ -10,7 +10,7 @@ from datetime import datetime, time
 from time import monotonic, perf_counter
 from typing import TYPE_CHECKING, Any
 
-from . import ledger
+from . import claims, ledger
 from .codex_sessions import CodexSource, NativeUsage, _timestamp, scan_source
 from .domain import (
     BEIJING,
@@ -174,41 +174,23 @@ class NativeBatch:
                 {**info, "pending_reason": observed[0]}, key=key, source_id=self.source_id,
             )
             return True
-        legacy = ledger.record_projection({**payload, "data_source": "codex_session"}, "detail")
-        alternate = legacy
+        paired_seconds: tuple[int, ...] = ()
         if observed:
             evidence = self.store._decode(observed[1])
             snapshot = _timestamp(evidence.get("snapshot_timestamp"))
             if evidence.get("kind") == "response" and snapshot is not None:
                 # The paired token_count can straddle a second or local midnight.
-                alternate = ledger.record_projection(
-                    {**payload, "data_source": "codex_session", "created_at": snapshot[0]}, "detail"
-                )
-        details = db.execute("""
-            SELECT record_key FROM usage_records WHERE semantic_key IN (?,?) AND suppressed=0
-            ORDER BY record_key LIMIT 2
-        """, (legacy["semantic_key"], alternate["semantic_key"])).fetchall()
-        rollup = db.execute("""
-            SELECT 1 FROM usage_records WHERE day IN (?,?) AND kind='rollup' AND suppressed=0
-            AND (model=? OR pricing_model=?) LIMIT 1
-        """, (legacy["day"], alternate["day"], projection["model"],
-              projection["pricing_model"])).fetchone()
-        # A known legacy session and model can cover earlier events of this day
-        # with a different timestamp or provider representation.
-        session = db.execute("""
-            SELECT 1 FROM usage_records WHERE kind='detail' AND semantic_key IS NOT NULL
-            AND session_id=? AND day=? AND model=? AND event_time>=? AND suppressed=0 LIMIT 1
-        """, (projection["session_id"], projection["day"], projection["model"],
-              projection["event_time"])).fetchone()
-        if len(details) == 1 and rollup is None:
+                paired_seconds = (snapshot[0],)
+        details, session = ledger.historical_detail_overlap(db, payload, projection, paired_seconds)
+        if len(details) == 1:
             ledger.create_case(
                 db, "identity", "原生明细可能与已入账历史重复，请核对消费身份。",
-                {**info, "other_record_key": details[0][0]}, key=key, source_id=self.source_id,
+                {**info, "other_record_key": details[0]}, key=key, source_id=self.source_id,
             )
-        elif details or rollup or session:
+        elif details or session:
             ledger.create_case(
                 db, "native_overlap", "原生明细可能属于已入账历史，确认独立消费后才会计入合计。",
-                {**info, "pending_reason": "historical_rollup" if rollup else "historical_session"},
+                {**info, "pending_reason": "historical_session"},
                 key=key, source_id=self.source_id,
             )
         else:
@@ -272,17 +254,22 @@ class NativeBatch:
     def publish(self, stager: _Stager, scopes: set[str], counts: dict[str, int]) -> bool:
         db = self.store._db
         has_aliases = db.execute("SELECT 1 FROM record_aliases LIMIT 1").fetchone() is not None
+        has_archived_claims = db.execute(
+            "SELECT 1 FROM usage_claims INDEXED BY usage_claim_archived_day "
+            "WHERE kind='rollup' LIMIT 1"
+        ).fetchone() is not None
+        archived_claim = claims.archived_claim_lookup("?1", "?2", "?3", "?4")
         changed_cases = False
         for row in self.spool.execute("""
             SELECT * FROM observed ORDER BY record_key,pending_reason IS NOT NULL,rowid
         """):
             stager.check()
             version = _record_observation(self.store, stager.run_id, self.source_id, row)
-            db.execute(
+            added_evidence = db.execute(
                 "INSERT INTO codex_event_evidence VALUES(?,?,?,?,?,?,?) ON CONFLICT DO NOTHING",
                 (version, self.source_id, row["evidence_hash"], row["event_id"],
                  stager.run_id, row["pricing_basis"], row["evidence_json"]),
-            )
+            ).rowcount
             raw_key = row["record_key"]
             key = ledger.canonical_record_key(db, raw_key) if has_aliases else raw_key
             # A suppressed alias participates in native revision checks only when
@@ -310,6 +297,19 @@ class NativeBatch:
                 changed_cases = True
                 continue
             if accepted["content_hash"] == row["content_hash"]:
+                # A newly paired snapshot can expose a frozen claim covering
+                # another day even when the amount and event identity did not change.
+                if (
+                    added_evidence and has_archived_claims
+                    and accepted["availability_state"] == "available"
+                    and db.execute(
+                        f"SELECT 1 WHERE EXISTS({archived_claim})",
+                        (accepted["day"], accepted["model"], accepted["pricing_model"],
+                         accepted["version_id"]),
+                    ).fetchone()
+                ):
+                    scopes.add(accepted["scope_key"])
+                    changed_cases = True
                 if self.check_snapshot_pair(row, accepted, stager.run_id):
                     counts["pending_count"] += 1
                     changed_cases = True

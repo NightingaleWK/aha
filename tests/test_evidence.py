@@ -54,7 +54,7 @@ class EvidenceTests(unittest.TestCase):
                 {"使用明细.csv", "每日汇总.csv", "费用说明.html", "导出信息.json"},
             )
             manifest = json.loads(package.read("导出信息.json"))
-            self.assertEqual(manifest["manifest_version"], 4)
+            self.assertEqual(manifest["manifest_version"], 5)
             self.assertEqual(manifest["source_schema_version"], 23)
             self.assertEqual(manifest["usage_projection_schema_version"], 23)
             self.assertEqual(
@@ -62,10 +62,11 @@ class EvidenceTests(unittest.TestCase):
             )
             self.assertNotIn("source_schema_versions", manifest)
             self.assertNotIn("capture_id", manifest)
-            self.assertEqual(len(manifest["members"]), 3)
-            self.assertEqual(manifest["summary"]["record_count"], 9)
-            self.assertEqual(manifest["summary"]["rollup_count"], 1)
-            self.assertEqual(manifest["summary"]["total_cost_usd"], "1.12345674")
+            self.assertEqual(len(manifest["members"]), 2)
+            self.assertEqual(manifest["summary"]["record_count"], 2)
+            self.assertNotIn("rollup_count", manifest["summary"])
+            self.assertNotIn("rollup_timezone_assumption", manifest)
+            self.assertEqual(manifest["summary"]["total_cost_usd"], "0.12345673")
             self.assertEqual(manifest["claim"]["amount"], "0")
             self.assertEqual(manifest["selection"]["utc_offset"], "+08:00")
             for filename, expected in manifest["files"].items():
@@ -86,13 +87,15 @@ class EvidenceTests(unittest.TestCase):
                 sum(Decimal(row["total_cost_usd"]) for row in details), Decimal("0.12345673")
             )
             self.assertEqual(
-                sum(Decimal(row["total_cost_usd"]) for row in daily), Decimal("1.12345674")
+                sum(Decimal(row["total_cost_usd"]) for row in daily), Decimal("0.12345673")
             )
+            self.assertNotIn("rollup_record_count", daily[0])
             self.assertEqual(details[0]["fresh_input_tokens"], "15")
             first = next(row for row in details if row["request_id"] == "r1")
             self.assertEqual(first["time"], "2026-10-26T01:00:00+08:00")
             report = package.read("费用说明.html").decode()
-            self.assertIn("1.12345674 USD", report)
+            self.assertIn("0.12345673 USD", report)
+            self.assertNotIn("历史日汇总", report)
             self.assertIn("0 CNY", report)
             self.assertIn("北京时间", report)
             self.assertTrue(manifest["effective_basis"]["effective_when_saved"])
@@ -151,7 +154,7 @@ class EvidenceTests(unittest.TestCase):
 
     def test_full_selection_export_is_independent_of_visible_page_and_uses_streams(self) -> None:
         rows = [detail(f"r{i}", created_at=detail()["created_at"] + i) for i in range(1201)]
-        result = seed_analysis(self.store, source_data(rows, [rollup()]))
+        result = seed_analysis(self.store, source_data(rows))
         self.assertEqual(len(self.store.analysis_details(result)["rows"]), 50)
         with patch.object(
             Path, "read_bytes", side_effect=AssertionError("whole-file read is forbidden")
@@ -165,8 +168,8 @@ class EvidenceTests(unittest.TestCase):
                 {row["request_id"] for row in exported}, {f"r{i}" for i in range(1201)}
             )
             manifest = json.loads(package.read("导出信息.json"))
-            self.assertEqual(len(manifest["members"]), 1202)
-            self.assertEqual(manifest["summary"]["rollup_record_count"], 7)
+            self.assertEqual(len(manifest["members"]), 1201)
+            self.assertEqual(manifest["summary"]["record_count"], 1201)
 
     def test_available_export_freezes_exclusions_but_not_private_context(self) -> None:
         first = seed_analysis(self.store)

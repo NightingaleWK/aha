@@ -1,0 +1,10 @@
+{
+  "id": "retire-legacy-rollups",
+  "kind": "breaking",
+  "title": "用量台账只保留逐笔明细",
+  "description": "移除旧 CC Switch 历史日汇总及其用量入口。趋势、按日查看和新报销材料统一从逐笔明细计算，已保存的报销材料可继续下载原包。",
+  "highlight": true,
+  "upgrade_notes": [
+    "首次打开旧台账会先创建完整回退备份，再移除旧历史汇总。旧汇总曾计入全部用量时，历史参考费用会相应减少。"
+  ]
+}

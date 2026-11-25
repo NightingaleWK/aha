@@ -22,7 +22,7 @@
 | `GET /api/projects` | 项目配置与分类 revision |
 | `POST /api/projects/preview`、`/api/projects/apply` | 目录草稿→整体影响→一次确认，原子保存配置和历史，见[目录整体合同](../backend/project-association-contract.md#8-已确认目录的整体归属合同) |
 | `POST /api/projects`、`/api/projects/{id}` | 旧兼容路径，目录变更须先预览确认；仅允许不改目录的元信息更新 |
-| `POST /api/assignments` | `project_id` 加 keys 或 session_ids；rollup 按整条记录处理 |
+| POST /api/assignments | project_id 和 keys 或 session_ids，目标是逐笔用量 |
 | `GET /api/project-associations`、`/records` | 项目费用/待归属分组及修订绑定的keyset记录清单 |
 | `POST /api/project-associations/preview`、`/apply` | 全筛选/逐条/整会话的归属影响预览与原子幂等应用；协议见[项目归属合同](../backend/project-association-contract.md) |
 | `GET /api/reconciliations/summary` | `{total}`，台账中待处理的核对事项数 |
@@ -33,7 +33,8 @@
 | `GET /api/reconciliations` | 兼容入口，返回 `{cases}` |
 | `POST /api/reconciliations/{id}` | `choice/reason/expected_generation/idempotency_key`，按实际候选确认 |
 | `POST /api/analysis` | project、time_range意图或旧起止日期（二者互斥）、`availability_mode=available|all`；只查本地库 |
-| `GET /api/analysis/{id}/details` | `kind=detail|rollup|daily|models`、cursor、size1–200 |
+| GET /api/analysis/{id}/details | kind 为 detail、daily 或 models。支持 cursor 和 size 1 至 200。daily 可带 day |
+| `GET /api/analysis/{id}/trend` | 首页分析的有界费用趋势，返回 `grain` 和 `points` |
 | `POST /api/batches/{id}/analysis` | base_version、expected_generation 与当前筛选，绑定目标修订主体 |
 | `POST /api/batches/preview` | analysis 或有效冻结版本加 claim，返回阻断与占用信息 |
 | `POST /api/batches` | analysis/claim/idempotency_key，保存冻结草稿 |
@@ -62,7 +63,7 @@
 
 来源、目录规则、人工归属、筛选、占用或数据 revision 改变后清当前预览、选择和保存身份。服务端返回 analysis_expired/data_changed/classification_changed/availability_changed/usage_claimed 等权威失效时，也须清打开的 current 修订分析并禁保存。frozen 修订仍以原冻结依据为准。
 
-时间面板支持快捷范围、日历和分钟输入；取消保留原预览，确认直接更新。页面范围、报销列表/详情和材料展示服务端实际解析结果。部分日历史汇总单独提示“统计不完整”，不伪造小时排除费用，不等同“待核对”；提供“改查整天”，有合法确定成员仍可保存。旧冻结完整性缺失显示未知，不能标为完整。精确合同见 [时间范围](../backend/time-range-contract.md)。
+时间面板支持快捷范围、日历和分钟输入。取消保留当前预览，确认直接更新。筛选、报销和材料展示服务端实际范围，范围内逐笔明细按事件时间查询。 [时间范围](../backend/time-range-contract.md)
 
 ## 4. 保存、冻结与生命周期
 
@@ -78,7 +79,7 @@
 
 ## 5. 可读性与产品表达
 
-正文/输入16px，表格/按钮15px，标签/表头14px，次要至少13px；主要控件约44px。青绿、深色导航和卡片风格，标题“用量与费用/项目管理/报销记录”。筛选→指标→必要排除说明→申请表单→长预览；币种完整可见，容器滚动或换行，不缩字适配。
+正文和输入 16px，表格和按钮 15px，标签和表头 14px，次要文字至少 13px，主要控件约 44px。暖灰底、浅色左栏和松绿主色，标题为“用量与费用”“项目管理”“报销记录”。首页按筛选、趋势与费用摘要、明细排布，项目和报销使用紧凑表格。币种完整可见，长内容用容器滚动或换行。侧栏进场和状态反馈遵循系统减少动效。
 
 来源/协议细节放按需帮助；不向产品流程加入内部 epoch、迁移协议或助手旁白。成功提示短浮动，操作错误持续可见并进入当前弹窗。
 
@@ -87,6 +88,49 @@
 ## 6. 验证
 
 运行 [前端质量检查](./quality-guidelines.md)。真实浏览器覆盖启动去重、手动成功/失败/needs_review、游标、目录归属、候选核对、占用失效、current/frozen 修订、提交/撤回/报销/作废重用、原包下载与退出。验证1440/1366/1280/430/375布局、CSV Excel 打开和 A4 打印。Store 测试不能替代界面请求或 DOM 验证。
+
+## 7. 首页趋势与报销侧栏
+
+### 范围
+
+趋势、日柱和报销侧栏使用已成功的首页分析。首页默认近 14 天并随查询跟随当前时刻。项目和用量切换后更新预览，时间草稿沿用确认与取消规则。
+
+### 接口
+
+- `GET /api/analysis/{id}/trend` 返回 `{grain,points}`。点位包含 `start_date`、`end_date`、十进制字符串 `total_cost_usd`、`record_count` 和 `unpriced_count`。
+- `GET /api/analysis/{id}/details?kind=daily&day=YYYY-MM-DD` 只查询当前分析与该日相交的区间。游标绑定日期及原分析身份，切到其他标签或清除日期后回到完整表格。
+
+### 数据与状态
+
+- 每图最多 31 个有序点位，粒度为 `day`、`month` 或 `year`。按自然日、月或连续自然年分段，首尾用原选区的日期。后端用原统计投影、部分日事实和精确金额聚合，全部口径排除待核对用量。
+- 图表和表格局部浏览共用首页分析 id。日柱只改变表格日期，汇总、报销和材料取完整的成功分析。图表读取与明细翻页独立。迟到响应按分析身份和筛选代际处理。
+- 报销侧栏先展示项目、实际时间、记录数与参考成本。预览失效时显示原因并让用户核对新预览，保留已填表单。已保存与下载失败分别反馈，同一版本可从报销记录下载。
+
+### 错误场景
+
+| 条件 | 反馈或结果 |
+| --- | --- |
+| 当前趋势请求报告分析过期或用量变化 | 现有失效流程清理旧预览并禁用旧保存 |
+| 过时趋势请求失败 | 保留当前图和预览 |
+| 趋势读取连接失败 | 图表区域可重试，仍可使用当前有效预览 |
+| 非空 day 重复、格式有误或超出分析范围 | `invalid_date` |
+| 在其它表格视图传 day，或复用其他日期游标 | `invalid_grain` 或 `invalid_cursor` |
+
+### 使用示例
+
+查询近 14 天并点某日时，明细显示当天，摘要仍显示近 14 天。正常的零成本可以显示为零，只有时段外历史汇总或缺参考价时明确显示其实际原因。
+
+### 验证
+
+趋势精确金额与完整摘要覆盖跨日月年、部分自然日、占用及待核对、多页、缺价和失效。浏览器核对日柱局部筛选、切换标签、取消时间、报销侧栏焦点、陈旧预览和旧材料下载。
+
+### 实现示例
+
+```text
+查趋势及费用 → 同一次成功的分析
+点日柱 → 同一分析的日表查询
+保存材料 → 确认侧栏当前显示的原分析
+```
 
 ## 换机与完整恢复入口
 

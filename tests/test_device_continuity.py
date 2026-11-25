@@ -169,37 +169,13 @@ class DeviceContinuityTests(unittest.TestCase):
         self.assertEqual(self.store.revisions(), before)
         self.assertEqual(self.query()["summary"]["record_count"], 1)
 
-    def test_equal_historical_rollups_need_origin_review(self) -> None:
-        history = source_data([], [rollup()])
-        self.store.sync_data(history, source_id="old-rollup", trust="live")
-        result = self.store.sync_data(history, source_id="copied-rollup", trust="live")
-        self.assertEqual(result["new_count"], 0)
-        case = self.store.list_reconciliations()[0]
-        self.assertEqual(case["type"], "rollup_origin")
-        self.assertEqual(case["choices"], ["current"])
-        self.store.resolve_reconciliation(case["id"], "current", "确认是复制的同份历史汇总")
-        self.assertEqual(self.query()["summary"]["record_count"], 7)
-        self.store.sync_data(history, source_id="copied-rollup", trust="live")
-        self.assertEqual(self.store.list_reconciliations(), [])
-        self.assertEqual(self.query()["summary"]["record_count"], 7)
-
-    def test_smaller_historical_rollup_does_not_replace_old_day_on_repeat(self) -> None:
-        self.store.sync_data(
-            source_data([], [rollup(request_count=100)]), source_id="full-history", trust="live"
-        )
-        partial = source_data([], [rollup(request_count=10)])
-        for _ in range(2):
-            result = self.store.sync_data(partial, source_id="partial-history", trust="live")
-            self.assertEqual(result["revised_count"], 0)
-            with self.store.read_connection() as connection:
-                self.assertEqual(connection.execute(
-                    "SELECT request_count FROM usage_records WHERE kind='rollup'"
-                ).fetchone()[0], "100")
-        case = self.store.list_reconciliations()[0]
-        self.assertEqual(case["type"], "revision")
-        self.store.resolve_reconciliation(case["id"], "current", "保留旧设备已保存的完整日")
-        self.store.sync_data(partial, source_id="partial-history", trust="live")
-        self.assertEqual(self.query()["summary"]["record_count"], 100)
+    def test_old_aggregate_only_projections_do_not_create_active_usage_or_cases(self) -> None:
+        for src, count in (("old-rollup", 100), ("copied-rollup", 100), ("old-rollup", 10)):
+            result = self.store.sync_data(
+                source_data([], [rollup(request_count=count)]), source_id=src, trust="live"
+            )
+            self.assertEqual((result["state"], result["pending_count"]), ("completed", 0))
+        self.assertEqual(self.query()["summary"]["record_count"], 0)
         self.assertEqual(self.store.list_reconciliations(), [])
 
     def test_refresh_on_new_machine_keeps_old_cwd_project_and_metadata_version(self) -> None:

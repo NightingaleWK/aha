@@ -277,23 +277,14 @@ def _stats(connection: sqlite3.Connection) -> dict[str, Any]:
 
     summary: dict[str, Any] = {
         "detail_count": count(
-            "SELECT SUM(row_count) FROM monthly_usage_stats "
-            "WHERE kind='detail' AND state!='pending'"
-        ),
-        "rollup_count": count(
-            "SELECT SUM(row_count) FROM monthly_usage_stats "
-            "WHERE kind='rollup' AND state!='pending'"
+            "SELECT SUM(row_count) FROM monthly_usage_stats WHERE state!='pending'"
         ),
         "record_count": count(
             "SELECT integer_sum(record_count) FROM monthly_usage_stats WHERE state!='pending'"
         ),
         "unassigned_detail_count": count(
             "SELECT SUM(row_count) FROM monthly_usage_stats "
-            "WHERE project_id='' AND kind='detail' AND state!='pending'"
-        ),
-        "unassigned_rollup_count": count(
-            "SELECT SUM(row_count) FROM monthly_usage_stats "
-            "WHERE project_id='' AND kind='rollup' AND state!='pending'"
+            "WHERE project_id='' AND state!='pending'"
         ),
         "unassigned_record_count": count(
             "SELECT integer_sum(record_count) FROM monthly_usage_stats "
@@ -318,8 +309,7 @@ def _status(store: Store, connection: sqlite3.Connection) -> dict[str, Any]:
     project_rows = []
     for project in connection.execute("SELECT id,name FROM projects ORDER BY name,id"):
         aggregate = connection.execute(
-            """SELECT SUM(CASE WHEN kind='detail' AND state!='pending' THEN row_count ELSE 0 END),
-            SUM(CASE WHEN kind='rollup' AND state!='pending' THEN row_count ELSE 0 END),
+            """SELECT SUM(CASE WHEN state!='pending' THEN row_count ELSE 0 END),
             integer_sum(CASE WHEN state!='pending' THEN record_count ELSE '0' END),
             decimal_sum(CASE WHEN state!='pending' THEN total_cost_usd ELSE '0' END),
             decimal_sum(CASE WHEN state='available' THEN total_cost_usd ELSE '0' END),
@@ -336,12 +326,11 @@ def _status(store: Store, connection: sqlite3.Connection) -> dict[str, Any]:
                 "id": project["id"],
                 "name": project["name"],
                 "detail_count": int(aggregate[0] or 0),
-                "rollup_count": int(aggregate[1] or 0),
-                "record_count": int(aggregate[2] or 0),
-                "total_cost_usd": aggregate[3] or "0",
-                "available_cost_usd": aggregate[4] or "0",
-                "claimed_cost_usd": aggregate[5] or "0",
-                "pending_count": int(aggregate[6] or 0),
+                "record_count": int(aggregate[1] or 0),
+                "total_cost_usd": aggregate[2] or "0",
+                "available_cost_usd": aggregate[3] or "0",
+                "claimed_cost_usd": aggregate[4] or "0",
+                "pending_count": int(aggregate[5] or 0),
                 "start_date": bounds[0],
                 "end_date": bounds[1],
             }
@@ -349,11 +338,11 @@ def _status(store: Store, connection: sqlite3.Connection) -> dict[str, Any]:
     groups: dict[tuple[str, str | None], dict[str, Any]] = {}
     recoverable, directory_only, ambiguous = set(), set(), set()
     recoverable_rows = directory_rows = 0
-    query = """SELECT session_id,kind,COUNT(*) AS n,integer_sum(request_count) AS represented,
+    query = """SELECT session_id,COUNT(*) AS n,integer_sum(request_count) AS represented,
         decimal_sum(CASE WHEN availability_state!='pending'
             THEN total_cost_usd ELSE '0' END) AS cost,
         SUM(availability_state='pending') AS pending,MIN(day) AS first_day,MAX(day) AS last_day
-        FROM usage_records WHERE project_id='' AND suppressed=0 GROUP BY session_id,kind"""
+        FROM usage_records WHERE project_id='' AND suppressed=0 GROUP BY session_id"""
     with closing(connection.execute(query)) as cursor:
         for row in cursor:
             if truncated and row["session_id"] and row["session_id"] not in metadata:
@@ -368,7 +357,6 @@ def _status(store: Store, connection: sqlite3.Connection) -> dict[str, Any]:
                     "directory": cwd,
                     "session_count": 0,
                     "detail_count": 0,
-                    "rollup_count": 0,
                     "record_count": 0,
                     "total_cost_usd": DecimalSum(),
                     "pending_count": 0,
@@ -377,7 +365,7 @@ def _status(store: Store, connection: sqlite3.Connection) -> dict[str, Any]:
                 },
             )
             group["session_count"] += int(row["session_id"] is not None)
-            group["detail_count" if row["kind"] == "detail" else "rollup_count"] += row["n"]
+            group["detail_count"] += row["n"]
             group["record_count"] += int(row["represented"] or 0)
             group["total_cost_usd"].step(row["cost"])
             group["pending_count"] += int(row["pending"] or 0)
@@ -649,7 +637,6 @@ def _evaluate(
     rules = project_links.directory_rules(connection)
     summary: dict[str, Any] = {
         "selected_detail_count": 0,
-        "selected_rollup_count": 0,
         "selected_record_count": 0,
         "changed_count": 0,
         "session_count": 0,
@@ -675,9 +662,7 @@ def _evaluate(
         target = _target(row, request, metadata, rules)
         project_links.require_directory_target(connection, row["session_id"], target)
         entry = metadata.get(row["session_id"], {})
-        summary[
-            "selected_detail_count" if row["kind"] == "detail" else "selected_rollup_count"
-        ] += 1
+        summary["selected_detail_count"] += 1
         summary["selected_record_count"] += int(row["request_count"])
         summary["changed_count"] += int(target != (row["project_id"] or None))
         summary["manual_exceptions"] += int(
@@ -694,12 +679,11 @@ def _evaluate(
                 "id": target,
                 "name": project_names.get(key, "未归属"),
                 "detail_count": 0,
-                "rollup_count": 0,
                 "record_count": 0,
                 "total_cost_usd": DecimalSum(),
             },
         )
-        group["detail_count" if row["kind"] == "detail" else "rollup_count"] += 1
+        group["detail_count"] += 1
         group["record_count"] += int(row["request_count"])
         group["total_cost_usd"].step(row["total_cost_usd"])
         digest.update(
@@ -718,7 +702,7 @@ def _evaluate(
             connection.execute(
                 "INSERT INTO temp.association_selection VALUES(?)", (row["record_key"],)
             )
-    if not summary["selected_detail_count"] and not summary["selected_rollup_count"]:
+    if not summary["selected_detail_count"]:
         raise AppError(
             "empty_assignment", "当前筛选没有可处理记录，请调整筛选或查看待归属原因。", 409
         )

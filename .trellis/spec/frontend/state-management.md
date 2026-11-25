@@ -12,12 +12,12 @@
 | syncGeneration/syncPreviewPending | 同步请求代际身份、忙操作结束后补更新同步引起的失效预览 |
 | ledgerRequest/projectsRequest/reconciliationsRequest | 三类资料刷新各自的请求序号，拒绝旧成功与旧异常覆盖较新刷新 |
 | config | 项目与分类 revision |
-| analysis/tab/page/rows/total/cursor/nextCursor/cursors/selected | 分析、游标导航和跨页选择；page 仅为本地显示计数 |
+| analysis/tab/page/rows/total/cursor/nextCursor/cursors/dailyDate/selected | 分析、游标导航、日表局部日期和跨页选择。page 仅为本地显示计数 |
 | batches/batch | 报销列表和详情 |
-| pendingBatch | 保存 request、signature、batchId、previewed，用于同内容重试 |
+| claimAnalysis/pendingBatch | 报销侧栏展示的分析及保存 request、signature、batchId、previewed，用于同内容重试 |
 | revision/lifecycle | 弹窗的目标批次、版本、generation、分析及操作身份 |
 | busy/noticeTimer/stopped | 普通串行操作、成功提示与退出状态 |
-| filterGeneration/analysisRequest；revision.filterGeneration/request | 首页及修订的筛选与预览请求身份，阻止迟到响应改变新状态 |
+| filterGeneration/analysisRequest/previewRequest/trendRequest 和 revision.filterGeneration/request | 首页分析、明细、趋势及修订的请求身份，阻止迟到响应改变新状态 |
 | sources/sourceSettings/sourceSave/syncCancelling/dataDirectory | 逐端来源、当前设置弹窗、保存请求、取消等待和本机资料位置 |
 | backupBusy/backupGeneration/backupJob/backupUpload/backupController | 备份或还原任务、分块上传、取消与迟到响应保护 |
 | pendingBackupUploads | 状态恢复得到的遗留上传及显式清理入口 |
@@ -49,9 +49,13 @@ prepareBatch 对 `{payload,batchId}` 计算签名，内容未变沿用原幂等 
 
 异步详情请求必须在成功、409和断连错误三个路径都校验请求身份。`api(path,body,isCurrent)` 在执行权威失效的全局 invalidate 前检查谓词，renderPreview 的成功和 catch 路径也检查当前身份；仅在接收成功结果后丢弃旧响应不够。过时错误不能清掉较新预览；当前请求的权威失效仍须清首页/current修订/待保存身份。
 
+首页趋势独立加载，使用趋势请求序号、分析对象、筛选代际和停止状态。连接失败在图表区域提供重试。点日柱写入 `dailyDate` 并重置该表游标。明细请求身份包含日表日期、当前标签及游标。筛选变化、换标签或清除日期回到完整表，统计和保存使用完整分析。
+
 ## 保存与生命周期
 
 先保存、刷新记录，再下载指定版本；下载失败显示已保存。动作由 is_effective/lifecycle/generation/can_* 决定。撤回保留占用，作废释放，旧版本原包仍可下载。前端提示不能代替写事务权威重检。完整接口和浏览器场景见 [页面契约](./local-web-contract.md)。
+
+新建侧栏通过 `claimAnalysis` 绑定用户看到的项目、时间和费用。只有它与可用的 `state.analysis` 一致时才提交。失效和同步后保留输入，引导重新核对。采用最新预览后再启用保存。同一请求失败可按原幂等键重试，成功保存才清字段。
 
 ## 换机确认、完整备份与历史入口
 
@@ -84,4 +88,4 @@ projectEditor/projectGeneration持有项目草稿、请求序号、服务端预�
 
 更换草稿、目标、关闭或同步成功使旧预览失效；成功、409、断连及finally都检查当前编辑身份，旧响应不能覆盖新草稿。提交后的refreshProjects/refreshLedger/refreshAssociations都必须接收并继续传递调用方身份；调用方已过时时，不清新选择，也不再启动归属查询。提交未知结果使用原preview_id与幂等key重试；已提交但刷新失败改为“刷新已保存结果”，仅重查项目/ledger/归属结果，禁止再次创建同名项目。
 
-项目卡根据directory_managed显示管理目录或确认目录关联。普通流程不呈现记录复选框／整个会话开关；高级无目录资料不能给已确认目录写相反项目例外。旧项目元信息保存不自动采用整体模式，明确关联确认才改变历史。键盘、Escape、关闭焦点、禁用状态和AhaForms.sync按组件合同验证。
+项目表按 `directory_managed` 展示管理目录及适用的确认目录关联动作。无目录旧资料进入高级流程，已确认目录仍按原关联合同处理。旧项目元信息保存不自动采用整体模式，明确关联确认才改变历史。键盘、Escape、关闭焦点、禁用状态和 AhaForms.sync 按组件合同验证。

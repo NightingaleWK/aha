@@ -541,7 +541,7 @@ def _interrupt_restored_runs(path: Path, budget: _Budget) -> int:
     """Discard volatile staging and local file positions in the restored copy."""
     with _reader(path, budget) as connection:
         current_schema = connection.execute("PRAGMA user_version").fetchone()[0]
-        has_cursors = current_schema == migrations.SCHEMA_VERSION and connection.execute(
+        has_cursors = current_schema >= 5 and connection.execute(
             "SELECT 1 FROM codex_file_progress LIMIT 1"
         ).fetchone() is not None
         if not has_cursors and not connection.execute(
@@ -644,8 +644,11 @@ def restore_backup(
             # The immutable archive is the rollback copy. Upgrade only
             # the isolated restore staging, never the archive or running ledger.
             with closing(sqlite3.connect(staging / "aha.sqlite3", isolation_level=None)) as target:
+                from .decimal_sql import register
+
                 target.execute("PRAGMA foreign_keys=ON")
                 target.execute("PRAGMA trusted_schema=OFF")
+                register(target)
                 target.set_progress_handler(budget.progress, 5000)
                 try:
                     target.execute("BEGIN IMMEDIATE")
@@ -658,6 +661,7 @@ def restore_backup(
                     if target.in_transaction:
                         target.execute("ROLLBACK")
                     raise
+                counts = _validate_database(target, budget)
         restored_at = datetime.now(BEIJING).isoformat(timespec="seconds")
         marker = {
             "format_version": 1,

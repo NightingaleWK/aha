@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from time import monotonic
-from typing import Any
+from typing import Any, Literal
 
 import zstandard
 
@@ -35,15 +35,17 @@ from .domain import AppError, Row, content_hash, decimal_text
 from .projects import canonical_path
 from .session_meta import MAX_WINDOW_BYTES, _header_identity, _HeaderError
 
-CURSOR_VERSION = 1
+CURSOR_VERSION = 2
 SCAN_SECONDS = 45.0
 MAX_SOURCE_BYTES = 256 * 1024 * 1024
 MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
 MAX_EXPANDED_BYTES = 256 * 1024 * 1024
 MAX_LINE_BYTES = 1024 * 1024
+MAX_COMPACTED_LINE_BYTES = 4 * 1024 * 1024
 MAX_FILE_EVENTS = 15_000
 MAX_SOURCE_EVENTS = 100_000
 ANCHOR_BYTES = 2048
+_ROLLOUT_PREFIX_BYTES = 512
 _UTC_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 _MAX_TIMESTAMP = 253402271999 - 8 * 3600
 _IDENTIFIER = re.compile(r"[a-zA-Z0-9_.:/-]{1,256}\Z")
@@ -82,6 +84,8 @@ _LONG_PROMPT_THRESHOLD = 272_000
 _UNKNOWN_MODEL = "未知模型"
 
 Tokens = tuple[int, int, int, int, int, int]
+type _DiscardedLine = Literal["unknown", "unrelated"]
+type _OversizedLine = _DiscardedLine | Literal["compacted"]
 
 
 @dataclass(frozen=True)
@@ -454,6 +458,20 @@ class _Parser:
             self.issues[pending] += 1
         return self._event(event_id, stamp, usage, self.turn, pair, None, None, pending)
 
+    def _compact(self) -> None:
+        if not self.replaying:
+            self.reset_allowed = True
+
+    def read_oversized(self, kind: _OversizedLine, raw: bytes) -> None:
+        self.paired_snapshot = None
+        if kind == "compacted" and raw and _valid_compaction(raw):
+            self._compact()
+        elif kind != "unrelated":
+            self.issues["line_limit"] += 1
+            self.total = None
+            self.observed_usage = True
+            self.reset_allowed = False
+
     def read_line(self, raw: bytes) -> NativeUsage | None:
         self.paired_snapshot = None
         try:
@@ -482,7 +500,7 @@ class _Parser:
             kind == "event_msg"
             and payload.get("type") in ("context_compacted", "thread_rolled_back")
         ):
-            self.reset_allowed = True
+            self._compact()
             return None
         if kind == "event_msg" and payload.get("type") in ("task_started", "turn_started"):
             turn = _identifier(payload.get("turn_id"))
@@ -574,26 +592,50 @@ def _skip_prefix(chunks: Iterator[bytes], width: int) -> Iterator[bytes]:
 
 @dataclass
 class _Lines:
-    discarding: str | None = None
+    discarding: _DiscardedLine | None = None
     buffer: bytearray = field(default_factory=bytearray)
     size: int = 0
+    oversized: _OversizedLine | None = None
 
-    def read(self, chunks: Iterator[bytes]) -> Iterator[tuple[bytes, int, str | None]]:
+    def _retain(self, block: bytes, start: int, end: int) -> None:
+        if self.discarding is not None:
+            return
+        if self.oversized is None:
+            general_end = min(end, start + MAX_LINE_BYTES - len(self.buffer))
+            self.buffer.extend(block[start:general_end])
+            if self.size <= MAX_LINE_BYTES:
+                return
+            self.oversized = _oversized_kind(bytes(self.buffer[:_ROLLOUT_PREFIX_BYTES]))
+            start = general_end
+        if self.oversized == "compacted":
+            compaction_end = min(end, start + MAX_COMPACTED_LINE_BYTES - len(self.buffer))
+            self.buffer.extend(block[start:compaction_end])
+
+    def unfinished_discard(self) -> _DiscardedLine | None:
+        if self.oversized == "compacted":
+            # Reread a bounded candidate from the start of its line. The
+            # cursor never carries raw content or an unverified reset.
+            return "unknown" if self.size > MAX_COMPACTED_LINE_BYTES else None
+        return self.discarding or self.oversized
+
+    def read(self, chunks: Iterator[bytes]) -> Iterator[tuple[bytes, int, _OversizedLine | None]]:
         for block in chunks:
             start = 0
             while start < len(block):
                 newline = block.find(b"\n", start)
                 end = len(block) if newline < 0 else newline + 1
                 self.size += end - start
-                retain = min(end - start, MAX_LINE_BYTES - len(self.buffer))
-                if retain and self.discarding is None:
-                    self.buffer.extend(block[start:start + retain])
+                self._retain(block, start, end)
                 if newline >= 0:
-                    content = self.buffer if self.size <= MAX_LINE_BYTES else self.buffer[:512]
-                    yield bytes(content), self.size, self.discarding
+                    kind = self.discarding or self.oversized
+                    complete = kind is None or (
+                        kind == "compacted" and self.size <= MAX_COMPACTED_LINE_BYTES
+                    )
+                    yield bytes(self.buffer) if complete else b"", self.size, kind
                     self.buffer.clear()
                     self.size = 0
                     self.discarding = None
+                    self.oversized = None
                 start = end
 
 
@@ -604,13 +646,47 @@ def _anchor(file: SourceFile, offset: int, budget: _Budget) -> str:
     return hashlib.sha256(head + tail).hexdigest()
 
 
-def _unrelated_line(prefix: bytes) -> bool:
+def _oversized_kind(prefix: bytes) -> _OversizedLine:
     match = _ROLLOUT_PREFIX.match(prefix)
-    return bool(
-        match and (
-            match[1] in {b"response_item", b"world_state"}
-            or (match[1] == b"event_msg" and match[2] in _UNRELATED_EVENTS)
-        )
+    if match is None:
+        return "unknown"
+    if match[1] == b"compacted":
+        # The envelope only qualifies this line for bounded JSON validation.
+        return "compacted"
+    if (
+        match[1] in {b"response_item", b"world_state"}
+        or (match[1] == b"event_msg" and match[2] in _UNRELATED_EVENTS)
+    ):
+        return "unrelated"
+    return "unknown"
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"Invalid JSON constant: {value}")
+
+
+def _valid_compaction(raw: bytes) -> bool:
+    try:
+        value = json.loads(raw, parse_constant=_reject_json_constant)
+    except (ValueError, RecursionError):
+        return False
+    return (
+        isinstance(value, dict)
+        and value.get("type") == "compacted"
+        and isinstance(value.get("payload"), dict)
+    )
+
+
+def _compatible_cursor(saved: dict[str, Any]) -> bool:
+    version = saved.get("version")
+    if version == CURSOR_VERSION:
+        # Earlier cursors could already be inside an unvalidated compaction.
+        return saved.get("discarding") != "compacted"
+    issues = saved.get("durable_issues")
+    # Legacy scanners discarded long compactions as unknown. Replay only files
+    # that skipped a long line or are still inside an unclassified one.
+    return version == 1 and saved.get("discarding") != "unknown" and not (
+        isinstance(issues, dict) and issues.get("line_limit")
     )
 
 
@@ -673,14 +749,11 @@ def _scan_file(
     else:
         pieces = _chunks(file, offset, end, budget)
     limit = min(MAX_FILE_EVENTS, MAX_SOURCE_EVENTS - budget.events)
-    for line, size, carried in lines.read(pieces):
+    for line, size, oversized in lines.read(pieces):
         budget.check()
         offset += size
-        if carried is not None or size > MAX_LINE_BYTES:
-            if carried == "unknown" or (carried is None and not _unrelated_line(line)):
-                parser.issues["line_limit"] += 1
-                parser.total = None
-                parser.observed_usage = True
+        if oversized is not None:
+            parser.read_oversized(oversized, line)
             continue
         event = parser.read_line(line)
         if (
@@ -711,11 +784,10 @@ def _scan_file(
             finished = False
             break
     next_discarding = None
-    if not compressed and not cap_reached and (lines.discarding or lines.size > MAX_LINE_BYTES):
-        next_discarding = lines.discarding or (
-            "unrelated" if _unrelated_line(bytes(lines.buffer[:512])) else "unknown"
-        )
-        offset += lines.size
+    if not compressed and not cap_reached:
+        next_discarding = lines.unfinished_discard()
+        if next_discarding is not None:
+            offset += lines.size
     if not isinstance(previous_issues, dict):
         previous_issues = {}
     issues = Counter({
@@ -782,7 +854,7 @@ def scan_source(
                     raise _ScanLimit
                 count += 1
                 saved = load_cursor(listed.path) or {}
-                if saved.get("version") != CURSOR_VERSION:
+                if not _compatible_cursor(saved):
                     saved = {}
                 events: list[NativeUsage]
                 if saved.get("signature") == listed.signature and saved.get("finished") is True:

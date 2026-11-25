@@ -7,7 +7,7 @@ import re
 import sqlite3
 from typing import TYPE_CHECKING, Any
 
-from . import ledger
+from . import claims, ledger
 from .codex_sessions import _timestamp
 from .decimal_sql import DecimalSum
 from .domain import AppError, content_hash, parse_date
@@ -17,8 +17,7 @@ if TYPE_CHECKING:
 
 FILTER_FIELDS = {"type", "source_id", "start_date", "end_date", "eligibility"}
 _CASE_TYPES = {
-    "coverage", "revision", "directory", "identity", "native_overlap",
-    "native_uncertain", "rollup_origin", "source",
+    "revision", "directory", "identity", "native_overlap", "native_uncertain", "source",
 }
 _DATE = "COALESCE(NULLIF(json_extract(c.info_json,'$.date'),''),r.day)"
 _DIGEST = re.compile(r"[0-9a-f]{64}")
@@ -36,6 +35,9 @@ _SAME_COST = """(
 _MATCH_FIELDS = (
     "session_id", "model", "request_count", "fresh_input_tokens", "output_tokens",
     "cache_read_tokens", "cache_creation_tokens",
+)
+_ARCHIVED_NATIVE_OVERLAP = claims.archived_claim_lookup(
+    "n.day", "n.model", "n.pricing_model", "n.version_id"
 )
 
 
@@ -87,25 +89,12 @@ _MATCH_CASES = f"""
           h.availability_state='available'
           AND NOT EXISTS (SELECT 1 FROM usage_claims u WHERE u.record_key=h.record_key)
           AND NOT EXISTS (SELECT 1 FROM usage_claims u WHERE u.semantic_key=h.semantic_key)
-          AND NOT EXISTS (
-              SELECT 1 FROM usage_claims u INDEXED BY usage_claim_scope
-              WHERE u.scope_key IN (h.scope_key,n.scope_key) AND u.kind='rollup'
-          )
+          AND NOT EXISTS ({_ARCHIVED_NATIVE_OVERLAP})
           AND NOT EXISTS (
               SELECT 1 FROM reconciliation_cases other
               WHERE other.coverage_key IN (h.coverage_key,n.coverage_key) AND other.state='open'
           )
           AND nv.source_id NOT IN (SELECT source_id FROM blocking_sources)
-          AND NOT EXISTS (
-              SELECT 1 FROM usage_records rollup
-              WHERE rollup.coverage_key IN (h.coverage_key,n.coverage_key) AND rollup.kind='rollup'
-          )
-          AND NOT EXISTS (
-              SELECT 1 FROM usage_records rollup INDEXED BY codex_history_rollup_day
-              WHERE rollup.day IN (h.day,n.day) AND rollup.kind='rollup' AND rollup.suppressed=0
-                AND (rollup.model=n.model OR
-                     rollup.pricing_model IN (h.pricing_model,n.pricing_model))
-          )
       ))
       AND json_extract(nv.payload_json,'$.data_source')='codex_native'
       AND json_extract(hv.payload_json,'$.data_source')='codex_session'

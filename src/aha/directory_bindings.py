@@ -113,7 +113,7 @@ def _members(
         "LEFT JOIN overrides o ON o.record_key=r.record_key "
         "LEFT JOIN record_project_links l ON l.record_key=r.record_key "
         "LEFT JOIN session_project_bindings b ON b.session_id=r.session_id "
-        "WHERE r.kind='detail' AND r.suppressed=0 AND "
+        "WHERE r.suppressed=0 AND "
         + selection
         + " ORDER BY r.event_time,r.record_key LIMIT ?"
     )

@@ -7,16 +7,19 @@ import json
 import sqlite3
 from calendar import monthrange
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from . import time_ranges
+from .claims import archived_claim_lookup
 from .domain import (
     BEIJING,
     USAGE_PROJECTION_SCHEMA_VERSION,
     AppError,
     canonical_bytes,
     content_hash,
+    parse_date,
 )
 from .migrations import SCHEMA_VERSION
 
@@ -30,6 +33,7 @@ TOKENS = (
     "cache_creation_tokens",
     "total_tokens",
 )
+TREND_MAX_POINTS = 31
 
 
 def validate_analysis(
@@ -62,13 +66,6 @@ def _filters(
             raise AppError("invalid_date_range", "结束日期超出支持范围。")
         where = f"{alias}.event_time>=? AND {alias}.event_time<?"
         parameters: list[Any] = [interval.start_epoch, interval.end_exclusive_epoch]
-        if interval.partial_days():
-            full_days = interval.full_days()
-            if full_days is None:
-                where += f" AND {alias}.kind='detail'"
-            else:
-                where += f" AND ({alias}.kind='detail' OR ({alias}.day>=? AND {alias}.day<=?))"
-                parameters.extend(day.isoformat() for day in full_days)
     else:
         where = f"{alias}.{period_column}>=? AND {alias}.{period_column}<=?"
         parameters = [analysis["start_date"], analysis["end_date"]]
@@ -83,14 +80,14 @@ def _filters(
             if target:
                 # Keep detail probes off peer detail claims even when dense-scope
                 # ANALYZE estimates would prefer a full claim-table scan.
+                archived = archived_claim_lookup(
+                    f"{alias}.day", f"{alias}.model", f"{alias}.pricing_model",
+                    f"{alias}.version_id", owner_filter="c.batch_id IS NOT ?",
+                )
                 where += f""" AND {alias}.usage_reason!='reconciliation'
                     AND NOT EXISTS(SELECT 1 FROM usage_claims c
                       WHERE c.record_key={alias}.record_key AND c.batch_id!=?)
-                    AND NOT EXISTS(SELECT 1 FROM usage_claims c INDEXED BY usage_claim_scope
-                      WHERE c.scope_key={alias}.scope_key AND c.kind='rollup' AND c.batch_id!=?)
-                    AND ({alias}.kind!='rollup' OR NOT EXISTS(
-                      SELECT 1 FROM usage_claims c INDEXED BY usage_claim_scope
-                      WHERE c.scope_key={alias}.scope_key AND c.batch_id!=?))
+                    AND NOT EXISTS({archived})
                     AND ({alias}.semantic_key IS NULL OR NOT EXISTS(SELECT 1 FROM usage_claims c
                       WHERE c.semantic_key={alias}.semantic_key AND c.batch_id!=?))"""
                 parameters.extend([target] * 4)
@@ -111,12 +108,7 @@ def _summary(connection: sqlite3.Connection, analysis: dict[str, Any], mode: str
     token_columns = ",".join(f"integer_sum(s.{key}) AS {key}" for key in TOKENS)
     row = connection.execute(
         f"""SELECT integer_sum(record_count) AS record_count,
-        SUM(CASE WHEN kind='detail' THEN row_count ELSE 0 END) AS detail_count,
-        integer_sum(CASE WHEN kind='rollup' THEN record_count ELSE '0' END) AS rollup_record_count,
-        SUM(CASE WHEN kind='rollup' THEN row_count ELSE 0 END) AS rollup_count,
-        decimal_sum(total_cost_usd) AS total_cost_usd,
-        decimal_sum(CASE WHEN kind='detail' THEN total_cost_usd ELSE '0' END) AS detail_cost_usd,
-        decimal_sum(CASE WHEN kind='rollup' THEN total_cost_usd ELSE '0' END) AS rollup_cost_usd,
+        SUM(row_count) AS detail_count,decimal_sum(total_cost_usd) AS total_cost_usd,
         {token_columns} FROM {source} WHERE {where}""",
         parameters,
     ).fetchone()
@@ -179,7 +171,7 @@ def _statistics_ranges(
         pieces.append(f"SELECT {day},{columns} FROM {table} s WHERE {where}")
         parameters.extend(values)
     for first_second, end_second, _day in partials:
-        where = "r.event_time>=? AND r.event_time<? AND r.kind='detail' AND r.suppressed=0"
+        where = "r.event_time>=? AND r.event_time<? AND r.suppressed=0"
         values = [first_second, end_second]
         project = analysis.get("project_id", "all")
         if project != "all":
@@ -201,26 +193,80 @@ def _statistics_ranges(
 def _finish_summary(values: dict[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {
         key: int(values.get(key) or 0)
-        for key in ("record_count", "detail_count", "rollup_record_count", "rollup_count", *TOKENS)
+        for key in ("record_count", "detail_count", "unpriced_count", *TOKENS)
     }
-    result.update(
-        {
-            key: values.get(key) or "0"
-            for key in ("total_cost_usd", "detail_cost_usd", "rollup_cost_usd")
-        }
-    )
-    result["unpriced_count"] = int(values.get("unpriced_count") or 0)
-    detail, rollup = result["detail_count"] > 0, result["rollup_count"] > 0
-    result["source_grain"] = (
-        "mixed"
-        if detail and rollup
-        else "detail"
-        if detail
-        else "daily_rollup"
-        if rollup
-        else "empty"
-    )
+    result["total_cost_usd"] = values.get("total_cost_usd") or "0"
+    result["source_grain"] = "detail" if result["detail_count"] else "empty"
     return result
+
+
+def _trend_buckets(
+    start: date, end: date
+) -> tuple[str, str, list[int], list[tuple[str | int, date, date]]]:
+    days = (end - start).days + 1
+    if days <= TREND_MAX_POINTS:
+        dates = [start + timedelta(days=offset) for offset in range(days)]
+        return "day", "s.day", [], [(day.isoformat(), day, day) for day in dates]
+
+    first_month = start.year * 12 + start.month - 1
+    last_month = end.year * 12 + end.month - 1
+    months = last_month - first_month + 1
+    if months <= TREND_MAX_POINTS:
+        month_bounds: list[tuple[str | int, date, date]] = []
+        for position in range(first_month, last_month + 1):
+            year, month_index = divmod(position, 12)
+            month = month_index + 1
+            first = date(year, month, 1)
+            last = date(year, month, monthrange(year, month)[1])
+            month_bounds.append((first.isoformat()[:7], max(start, first), min(end, last)))
+        return "month", "substr(s.day,1,7)", [], month_bounds
+
+    years = end.year - start.year + 1
+    years_per_point = (years + TREND_MAX_POINTS - 1) // TREND_MAX_POINTS
+    year_bounds: list[tuple[str | int, date, date]] = [
+        (position, max(start, date(year, 1, 1)),
+         min(end, date(min(end.year, year + years_per_point - 1), 12, 31)))
+        for position, year in enumerate(range(start.year, end.year + 1, years_per_point))
+    ]
+    return (
+        "year", "(CAST(substr(s.day,1,4) AS INTEGER)-?)/?",
+        [start.year, years_per_point], year_bounds,
+    )
+
+
+def analysis_trend(store: Store, analysis: dict[str, Any]) -> dict[str, Any]:
+    if analysis.get("target_batch_id"):
+        raise AppError("analysis_target_mismatch", "请在用量首页查看费用趋势。", 409)
+    interval = time_ranges.from_analysis(analysis)
+    grain, period, period_parameters, bounds = _trend_buckets(
+        interval.start_date, interval.end_date
+    )
+    source, parameters = _statistics_source(analysis, daily=grain == "day")
+    where = "s.state='available'" if analysis["availability_mode"] == "available" else (
+        "s.state!='pending'"
+    )
+    with store.read_connection() as connection:
+        validate_analysis(store, analysis, connection)
+        totals = {
+            row["period"]: row for row in connection.execute(
+                f"""SELECT {period} AS period,decimal_sum(s.total_cost_usd) AS total_cost_usd,
+                  integer_sum(s.record_count) AS record_count,
+                  integer_sum(s.unpriced_count) AS unpriced_count
+                FROM {source} WHERE {where} GROUP BY period""",
+                [*period_parameters, *parameters],
+            )
+        }
+    points = []
+    for key, first, last in bounds:
+        row = totals.get(key)
+        points.append({
+            "start_date": first.isoformat(),
+            "end_date": last.isoformat(),
+            "total_cost_usd": row["total_cost_usd"] if row is not None else "0",
+            "record_count": int(row["record_count"]) if row is not None else 0,
+            "unpriced_count": int(row["unpriced_count"]) if row is not None else 0,
+        })
+    return {"grain": grain, "points": points}
 
 
 def _summary_groups(
@@ -239,32 +285,17 @@ def _combine_groups(groups: list[dict[str, Any]], states: set[str]) -> dict[str,
     from .decimal_sql import DecimalSum
 
     totals: dict[str, Any] = {
-        key: 0
-        for key in (
-            "record_count",
-            "detail_count",
-            "rollup_record_count",
-            "rollup_count",
-            "unpriced_count",
-            *TOKENS,
-        )
+        key: 0 for key in ("record_count", "detail_count", "unpriced_count", *TOKENS)
     }
-    costs = {key: DecimalSum() for key in ("total_cost_usd", "detail_cost_usd", "rollup_cost_usd")}
+    cost = DecimalSum()
     for row in groups:
         if row["state"] not in states:
             continue
         for key in ("record_count", "unpriced_count", *TOKENS):
             totals[key] += int(row[key] or 0)
-        if row["kind"] == "detail":
-            totals["detail_count"] += int(row["row_count"])
-        else:
-            totals["rollup_count"] += int(row["row_count"])
-            totals["rollup_record_count"] += int(row["record_count"] or 0)
-        costs["total_cost_usd"].step(row["total_cost_usd"])
-        costs["detail_cost_usd" if row["kind"] == "detail" else "rollup_cost_usd"].step(
-            row["total_cost_usd"]
-        )
-    totals.update({key: value.finalize() for key, value in costs.items()})
+        totals["detail_count"] += int(row["row_count"])
+        cost.step(row["total_cost_usd"])
+    totals["total_cost_usd"] = cost.finalize()
     return _finish_summary(totals)
 
 
@@ -275,14 +306,12 @@ def _combine_summaries(
 
     result: dict[str, Any] = {
         key: int(first[key]) + (-1 if subtract else 1) * int(second[key])
-        for key in ("record_count", "detail_count", "rollup_record_count", "rollup_count",
-                    "unpriced_count", *TOKENS)
+        for key in ("record_count", "detail_count", "unpriced_count", *TOKENS)
     }
-    for key in ("total_cost_usd", "detail_cost_usd", "rollup_cost_usd"):
-        cost = DecimalSum()
-        cost.step(first[key])
-        cost.step(("-" if subtract else "") + second[key])
-        result[key] = cost.finalize()
+    cost = DecimalSum()
+    cost.step(first["total_cost_usd"])
+    cost.step(("-" if subtract else "") + second["total_cost_usd"])
+    result["total_cost_usd"] = cost.finalize()
     return _finish_summary(result)
 
 
@@ -296,14 +325,9 @@ def _row_summary(
     token_columns = ",".join(f"integer_sum(r.{key}) AS {key}" for key in TOKENS)
     row = connection.execute(
         f"""SELECT integer_sum(request_count) AS record_count,
-        SUM(kind='detail') AS detail_count,
-        integer_sum(CASE WHEN kind='rollup' THEN request_count ELSE '0' END)
-          AS rollup_record_count,
-        SUM(kind='rollup') AS rollup_count,
+        COUNT(*) AS detail_count,
         integer_sum(CASE WHEN pricing_status='unpriced' THEN request_count ELSE '0' END)
           AS unpriced_count,decimal_sum(total_cost_usd) AS total_cost_usd,
-        decimal_sum(CASE WHEN kind='detail' THEN total_cost_usd ELSE '0' END) AS detail_cost_usd,
-        decimal_sum(CASE WHEN kind='rollup' THEN total_cost_usd ELSE '0' END) AS rollup_cost_usd,
         {token_columns} FROM usage_records r WHERE {where}""",
         parameters,
     ).fetchone()
@@ -329,10 +353,8 @@ def _assignment_coverage(
     return {
         "scope": "period",
         "availability_mode": mode,
-        "status": "incomplete" if summary["detail_count"] or summary["rollup_count"]
-        else "complete",
+        "status": "incomplete" if summary["detail_count"] else "complete",
         "unassigned_detail_count": summary["detail_count"],
-        "unassigned_rollup_count": summary["rollup_count"],
         "unassigned_record_count": summary["record_count"],
         "unassigned_cost_usd": summary["total_cost_usd"],
     }
@@ -362,7 +384,7 @@ def _excluded_groups(
                 ORDER BY day,model,state LIMIT 100)""")
             parameters.extend(values)
         for start, end, _day in interval.partial_days():
-            where = "r.event_time>=? AND r.event_time<? AND r.kind='detail' AND r.suppressed=0"
+            where = "r.event_time>=? AND r.event_time<? AND r.suppressed=0"
             values = [start, end]
             if analysis.get("project_id", "all") != "all":
                 where += " AND r.project_id=?"
@@ -392,7 +414,7 @@ def _excluded_groups(
         groups.append(
             {
                 "reason": "reconciliation" if row["state"] == "pending" else "identity",
-                "message": "这部分用量待核对，依据不可相加。"
+                "message": "这部分用量待核对。"
                 if row["state"] == "pending"
                 else "这部分用量已被报销记录占用。",
                 "date": row["day"],
@@ -403,28 +425,6 @@ def _excluded_groups(
             }
         )
     return groups
-
-
-def _time_coverage(connection: sqlite3.Connection, analysis: dict[str, Any]) -> dict[str, Any]:
-    omitted_days = []
-    omitted = 0
-    for _start, _end, day in time_ranges.from_analysis(analysis).partial_days():
-        where, parameters = _filters(
-            {**analysis, "start_date": day.isoformat(), "end_date": day.isoformat()},
-            "s", rows=False,
-        )
-        # The projection already omits suppressed alternatives, and is scoped
-        # to the same project as the analysis. Never attach whole-day amounts.
-        count = int(connection.execute(
-            f"SELECT COALESCE(SUM(row_count),0) FROM daily_usage_stats s "
-            f"WHERE {where} AND kind='rollup'", parameters,
-        ).fetchone()[0])
-        if count:
-            omitted += count
-            omitted_days.append(day.isoformat())
-    return {"complete": omitted == 0, "omitted_rollup_count": omitted,
-            "omitted_days": omitted_days,
-            "reason": "daily_rollup_has_no_event_time" if omitted else None}
 
 
 def analyze(
@@ -532,24 +532,18 @@ def _analyze(
         else _combine_groups(grouped, {"claimed"})
     )
     result["row_counts"] = {
-        kind: sum(
+        "detail": sum(
             int(row["row_count"])
             for row in grouped
-            if row["kind"] == kind
-            and (availability_mode == "all" or row["state"] == "available")
-        )
-        for kind in ("detail", "rollup")
+            if availability_mode == "all" or row["state"] == "available"
+        ),
     }
     result["summary"] = available if availability_mode == "available" else matched
     if target_batch_id and availability_mode == "available":
-        result["row_counts"] = {
-            "detail": available["detail_count"],
-            "rollup": available["rollup_count"],
-        }
+        result["row_counts"] = {"detail": available["detail_count"]}
     pending = sum(int(row["row_count"]) for row in grouped if row["state"] == "pending")
     result["pending_count"] = pending
-    result["time_coverage"] = _time_coverage(connection, result)
-    result["summary_complete"] = not pending and result["time_coverage"]["complete"]
+    result["summary_complete"] = not pending
     result["availability"] = {
         "mode": availability_mode,
         "claim_revision": result["claim_revision"],
@@ -563,12 +557,7 @@ def _analyze(
     result["unassigned_record_count"] = result["unassigned_count"]
     result["warnings"] = ["参考成本沿用来源保存金额，申请报销金额另填。"]
     if pending:
-        result["warnings"].append("部分用量待核对，合计仅含已核实部分；不同粒度依据不可相加。")
-    if not result["time_coverage"]["complete"]:
-        result["warnings"].append(
-            "统计不完整：部分日期的历史日汇总没有逐笔时间，未计入当前时间范围；"
-            "可主动改查整天。略过日期：" + "、".join(result["time_coverage"]["omitted_days"])
-        )
+        result["warnings"].append("部分用量待核对，合计仅含已核实部分。")
     if not result["summary"]["record_count"]:
         result["warnings"].append("当前条件没有可统计用量，无记录不能证明零消耗。")
     result["selection_hash"] = content_hash(
@@ -587,10 +576,7 @@ def _analyze(
             )},
         }
     )
-    result["counts"] = {
-        "detail_count": result["summary"]["detail_count"],
-        "rollup_count": result["summary"]["rollup_count"],
-    }
+    result["counts"] = {"detail_count": result["summary"]["detail_count"]}
     return result
 
 def _enrich_row(
@@ -630,16 +616,13 @@ def _enrich_row(
     if owners and row["availability_state"] != "available":
         # UNION ALL keeps every relationship on its exact range; the outer DISTINCT
         # retains the same bounded owner set without a dynamic-kind scope scan.
-        branches = ["SELECT batch_id,owner_version FROM usage_claims WHERE record_key=?"]
-        parameters = [row["record_key"], row["scope_key"]]
-        branches.append(
-            "SELECT batch_id,owner_version FROM usage_claims INDEXED BY usage_claim_scope "
-            "WHERE scope_key=?"
-            + ("" if row["kind"] == "rollup" else " AND kind='rollup'")
-        )
+        branches = ["SELECT batch_id,owner_version FROM usage_claims WHERE record_key=?1"]
+        parameters = [row["record_key"], row["day"], row["model"], row["pricing_model"],
+                      row["version_id"]]
+        branches.append(archived_claim_lookup("?2", "?3", "?4", "?5"))
         if row["semantic_key"] is not None:
             branches.append(
-                "SELECT batch_id,owner_version FROM usage_claims WHERE semantic_key=?"
+                "SELECT batch_id,owner_version FROM usage_claims WHERE semantic_key=?6"
             )
             parameters.append(row["semantic_key"])
         result["usage_owners"] = [
@@ -705,6 +688,25 @@ def _cursor_encode(analysis: dict[str, Any], kind: str, values: list[Any], direc
     ).decode()
 
 
+def _daily_view(analysis: dict[str, Any], day: str) -> dict[str, Any]:
+    selected = parse_date(day)
+    interval = time_ranges.from_analysis(analysis)
+    if not interval.start_date <= selected <= interval.end_date:
+        raise AppError("invalid_date", "所选日期不在当前预览内。")
+    view = {
+        **analysis, "start_date": day, "end_date": day,
+        "selection_hash": content_hash({"selection": analysis["selection_hash"], "day": day}),
+    }
+    if analysis.get("time_range") is not None:
+        midnight = time_ranges.midnight(selected)
+        view["time_range"] = replace(
+            interval,
+            start_epoch=max(interval.start_epoch, midnight),
+            end_exclusive_epoch=min(interval.end_exclusive_epoch, midnight + 86400),
+        ).as_dict()
+    return view
+
+
 def analysis_details(
     store: Store,
     analysis: dict[str, Any],
@@ -712,22 +714,25 @@ def analysis_details(
     cursor: str | None = None,
     size: int = 50,
     kind: str = "detail",
+    day: str | None = None,
 ) -> dict[str, Any]:
     if (
         isinstance(size, bool)
         or not isinstance(size, int)
         or not 1 <= size <= 200
-        or kind not in {"detail", "rollup", "daily", "models"}
+        or kind not in {"detail", "daily", "models"}
     ):
         raise AppError("invalid_page", "分页参数无效。")
+    if day is not None:
+        if kind != "daily":
+            raise AppError("invalid_grain", "按日期筛选只适用于每日汇总。")
+        analysis = _daily_view(analysis, day)
     state = _cursor_decode(cursor, analysis, kind)
     with store.read_connection() as connection:
         validate_analysis(store, analysis, connection)
         if kind in {"daily", "models"}:
             return _aggregate_page(store, connection, analysis, state, size, kind)
         where, parameters = _filters(analysis)
-        where += " AND r.kind=?"
-        parameters.append(kind)
         backwards = state.get("direction") == "previous"
         if state:
             values = state["values"]
@@ -820,14 +825,7 @@ def _aggregate_sql(
     unpriced = ("CASE WHEN pricing_status='unpriced' THEN request_count ELSE '0' END"
                 if raw else "unpriced_count")
     sql = f"""SELECT {fields},integer_sum({represented}) AS record_count,
-        SUM(CASE WHEN kind='detail' THEN {count} ELSE 0 END) AS detail_count,
-        integer_sum(CASE WHEN kind='rollup' THEN {represented} ELSE '0' END)
-          AS rollup_record_count,
-        SUM(CASE WHEN kind='rollup' THEN {count} ELSE 0 END) AS rollup_count,
-        decimal_sum(CASE WHEN kind='detail' THEN total_cost_usd ELSE '0' END)
-          AS detail_cost_usd,
-        decimal_sum(CASE WHEN kind='rollup' THEN total_cost_usd ELSE '0' END)
-          AS rollup_cost_usd,
+        SUM({count}) AS detail_count,
         decimal_sum(total_cost_usd) AS total_cost_usd,
         integer_sum({unpriced}) AS unpriced_count,{aggregates}
         FROM {source} WHERE {where} GROUP BY {fields} ORDER BY """
@@ -884,17 +882,13 @@ def iter_analysis_daily(store: Store, analysis: dict[str, Any],
 
 def ledger_status(store: Store) -> dict[str, Any]:
     with store.read_connection() as connection:
-        counts: dict[str, int] = {}
-        pending = total = 0
-        for row in connection.execute(
-            """SELECT kind,SUM(row_count) AS n,
+        counts = connection.execute(
+            """SELECT SUM(row_count) AS n,
             SUM(CASE WHEN state='pending' THEN row_count ELSE 0 END) AS pending,
             integer_sum(CASE WHEN state!='pending' THEN record_count ELSE '0' END) AS represented
-            FROM monthly_usage_stats GROUP BY kind"""
-        ):
-            counts[row["kind"]] = row["n"]
-            pending += row["pending"]
-            total += int(row["represented"] or 0)
+            FROM monthly_usage_stats"""
+        ).fetchone()
+        pending = counts["pending"] or 0
         first_day = connection.execute(
             "SELECT day FROM daily_usage_stats ORDER BY day LIMIT 1"
         ).fetchone()
@@ -937,9 +931,8 @@ def ledger_status(store: Store) -> dict[str, Any]:
         return {
             **store.revisions(connection),
             "counts": {
-                "detail_count": counts.get("detail", 0),
-                "rollup_count": counts.get("rollup", 0),
-                "record_count": int(total or 0),
+                "detail_count": counts["n"] or 0,
+                "record_count": int(counts["represented"] or 0),
                 "pending_count": pending,
             },
             "pending_count": pending,

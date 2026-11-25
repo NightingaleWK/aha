@@ -1,7 +1,8 @@
-"""Versioned local schemas and lossless project-association migration."""
+"""Versioned ledger schemas and upgrades of existing local data."""
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from functools import lru_cache
 from typing import TYPE_CHECKING
@@ -11,8 +12,8 @@ from .domain import AppError
 if TYPE_CHECKING:
     from .storage import Store
 
-SCHEMA_VERSION = 5
-SUPPORTED_BACKUP_SCHEMAS = (3, 4, SCHEMA_VERSION)
+SCHEMA_VERSION = 6
+SUPPORTED_BACKUP_SCHEMAS = (3, 4, 5, SCHEMA_VERSION)
 MONTHLY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS monthly_usage_stats(month TEXT NOT NULL,
  project_id TEXT NOT NULL,model TEXT NOT NULL,kind TEXT NOT NULL,state TEXT NOT NULL,
@@ -131,8 +132,6 @@ CREATE INDEX assignment_events_operation ON project_assignment_events(operation_
 SCHEMA_V4 = SCHEMA_V3 + ASSOCIATION_SCHEMA
 CODEX_SCHEMA = """
 CREATE INDEX sync_runs_source ON sync_runs(source_id);
-CREATE INDEX codex_history_rollup_day ON usage_records(day)
- WHERE kind='rollup' AND suppressed=0;
 CREATE INDEX codex_history_session_time ON usage_records(session_id,day,model,event_time)
  WHERE kind='detail' AND semantic_key IS NOT NULL AND suppressed=0;
 CREATE TABLE codex_file_progress(source_id TEXT NOT NULL REFERENCES source_profiles(id),
@@ -144,7 +143,20 @@ CREATE TABLE codex_event_evidence(version_id INTEGER NOT NULL REFERENCES usage_v
 CREATE INDEX codex_snapshot_identity ON codex_event_evidence(
  json_extract(evidence_json,'$.snapshot_id'),event_id);
 """
+LEGACY_ROLLUP_INDEX = """
+CREATE INDEX codex_history_rollup_day ON usage_records(day)
+ WHERE kind='rollup' AND suppressed=0;
+"""
+SCHEMA_V5 = SCHEMA_V4 + CODEX_SCHEMA + LEGACY_ROLLUP_INDEX
 SCHEMA = SCHEMA_V4 + CODEX_SCHEMA
+DETAIL_ONLY_GUARDS = (
+    """CREATE TRIGGER usage_records_detail_insert BEFORE INSERT ON usage_records
+    WHEN NEW.kind!='detail' BEGIN SELECT RAISE(ABORT,'aha_detail_required'); END""",
+    """CREATE TRIGGER usage_records_detail_update BEFORE UPDATE OF kind ON usage_records
+    WHEN NEW.kind!='detail' BEGIN SELECT RAISE(ABORT,'aha_detail_required'); END""",
+)
+ARCHIVED_CLAIM_INDEX = """CREATE INDEX usage_claim_archived_day
+    ON usage_claims(json_extract(member_json,'$.date')) WHERE kind='rollup'"""
 
 
 @lru_cache(maxsize=len(SUPPORTED_BACKUP_SCHEMAS))
@@ -156,13 +168,21 @@ def schema_definition(
         raise AppError("unsupported_backup_store", "这份 aha 资料版本不受支持。", 409)
     connection = sqlite3.connect(":memory:")
     try:
-        connection.executescript({3: SCHEMA_V3, 4: SCHEMA_V4, SCHEMA_VERSION: SCHEMA}[version])
+        connection.executescript(
+            {3: SCHEMA_V3, 4: SCHEMA_V4, 5: SCHEMA_V5, SCHEMA_VERSION: SCHEMA}[version]
+        )
         initialize_monthly(connection)
-        initialize_source_observations(connection)
+        if version <= 5:
+            initialize_source_observations(connection)
+        else:
+            for statement in DETAIL_ONLY_GUARDS:
+                connection.execute(statement)
         initialize_query_indexes(connection)
         from . import batches
 
         batches.initialize_schema(connection)
+        if version == SCHEMA_VERSION:
+            connection.execute(ARCHIVED_CLAIM_INDEX)
         tables = {
             str(row[0]): [tuple(column) for column in connection.execute(
                 f'PRAGMA table_info("{row[0]}")'
@@ -228,14 +248,148 @@ def upgrade_schema3(connection: sqlite3.Connection, now: str) -> None:
         raise AppError("storage_damaged", "资料关联校验失败，升级未完成。", 409)
 
 
+def _retire_rollup_only_cases(connection: sqlite3.Connection) -> None:
+    from . import ledger
+    from .codex_sessions import _timestamp
+
+    for case_id, version_id, raw_payload in connection.execute("""
+        SELECT c.id,v.id,v.payload_json FROM reconciliation_cases c
+        LEFT JOIN usage_records r ON r.record_key=c.record_key
+        LEFT JOIN usage_versions v ON v.id=r.version_id
+        WHERE c.type='native_overlap' AND c.state='open'
+          AND json_extract(c.info_json,'$.pending_reason')='historical_rollup'
+          AND c.id NOT IN (SELECT id FROM temp.retired_usage_cases)
+    """):
+        if raw_payload is not None:
+            payload = json.loads(raw_payload)
+            if payload.get("data_source") != "codex_native":
+                continue
+            pairs = (
+                stamp[0] for row in connection.execute("""
+                    SELECT json_extract(evidence_json,'$.snapshot_timestamp')
+                    FROM codex_event_evidence WHERE version_id=?
+                      AND json_extract(evidence_json,'$.kind')='response'
+                      AND json_extract(evidence_json,'$.pending_reason') IS NULL
+                """, (version_id,))
+                if (stamp := _timestamp(row[0])) is not None
+            )
+            detail, session = ledger.historical_detail_overlap(
+                connection, payload, ledger.record_projection(payload, "detail"), pairs
+            )
+            if detail or session:
+                continue
+        connection.execute("INSERT INTO temp.retired_usage_cases VALUES(?)", (case_id,))
+
+
+def _retire_rollups(connection: sqlite3.Connection) -> None:
+    """Delete retired facts while keeping versions referenced by frozen materials."""
+    from . import ledger
+
+    before = connection.total_changes
+    connection.execute(ARCHIVED_CLAIM_INDEX)
+    connection.execute("""CREATE TEMP TABLE retired_usage_keys AS
+        SELECT record_key FROM usage_records WHERE kind='rollup'
+        UNION SELECT record_key FROM usage_versions WHERE record_key GLOB 'rollup:*'""")
+    connection.execute(
+        "CREATE UNIQUE INDEX temp.retired_usage_key ON retired_usage_keys(record_key)"
+    )
+    connection.execute("""CREATE TEMP TABLE retired_usage_versions AS
+        SELECT v.id FROM usage_versions v
+        JOIN temp.retired_usage_keys k ON k.record_key=v.record_key
+        WHERE NOT EXISTS(SELECT 1 FROM revision_members m WHERE m.usage_version_id=v.id)""")
+    connection.execute("""CREATE TEMP TABLE retired_usage_cases AS
+        SELECT id FROM reconciliation_cases
+        WHERE type IN ('coverage','rollup_origin')
+          OR record_key IN (SELECT record_key FROM temp.retired_usage_keys)
+          OR json_extract(info_json,'$.other_record_key') IN
+             (SELECT record_key FROM temp.retired_usage_keys)
+          OR (type='source' AND json_type(info_json,'$.previous.detail')='integer'
+              AND json_type(info_json,'$.observed.detail')='integer'
+              AND json_extract(info_json,'$.observed.detail')*2 >=
+                  json_extract(info_json,'$.previous.detail')
+              AND json_type(info_json,'$.rollup_request_count_regressed') IS NOT NULL)""")
+
+    # The former aggregate-only decision had hidden these already stored details.
+    connection.execute("""UPDATE usage_records SET suppressed=0
+        WHERE kind='detail' AND suppressed=1
+          AND coverage_key IN (SELECT id FROM coverage_groups WHERE basis='rollup')
+          AND record_key NOT IN (SELECT alias_key FROM record_aliases)
+          AND NOT EXISTS(SELECT 1 FROM reconciliation_cases c
+            JOIN reconciliation_events e ON e.case_id=c.id AND e.choice='same'
+            WHERE c.record_key=usage_records.record_key
+              AND c.type='identity' AND c.state='resolved')""")
+    connection.execute("""UPDATE coverage_groups SET basis='detail',generation=generation+1
+        WHERE basis='rollup'""")
+    _retire_rollup_only_cases(connection)
+    connection.execute("""UPDATE reconciliation_cases
+        SET info_json=json_set(info_json,'$.pending_reason','historical_usage_unverified'),
+            generation=generation+1
+        WHERE type='native_overlap'
+          AND json_extract(info_json,'$.pending_reason')='historical_rollup'""")
+    connection.execute("""UPDATE reconciliation_cases
+        SET info_json=json_remove(
+            info_json,'$.observed.rollup','$.previous.rollup','$.rollup_request_count_regressed'
+        ) WHERE type='source'
+          AND json_type(info_json,'$.rollup_request_count_regressed') IS NOT NULL
+          AND id NOT IN (SELECT id FROM temp.retired_usage_cases)""")
+    connection.execute("""DELETE FROM reconciliation_events
+        WHERE case_id IN (SELECT id FROM temp.retired_usage_cases)""")
+    connection.execute("""DELETE FROM reconciliation_idempotency
+        WHERE json_extract(result_json,'$.id') IN (SELECT id FROM temp.retired_usage_cases)""")
+    connection.execute(
+        "DELETE FROM reconciliation_cases WHERE id IN (SELECT id FROM temp.retired_usage_cases)"
+    )
+    for table in ("record_project_links", "project_assignment_events", "overrides"):
+        connection.execute(
+            f"DELETE FROM {table} WHERE record_key IN "
+            "(SELECT record_key FROM temp.retired_usage_keys)"
+        )
+    connection.execute("""DELETE FROM record_aliases
+        WHERE alias_key IN (SELECT record_key FROM temp.retired_usage_keys)
+          OR canonical_key IN (SELECT record_key FROM temp.retired_usage_keys)""")
+    connection.execute("DELETE FROM usage_records WHERE kind='rollup'")
+    for table in ("record_evidence", "codex_event_evidence"):
+        connection.execute(
+            f"DELETE FROM {table} WHERE version_id IN (SELECT id FROM temp.retired_usage_versions)"
+        )
+    connection.execute(
+        "DELETE FROM usage_versions WHERE id IN (SELECT id FROM temp.retired_usage_versions)"
+    )
+    connection.execute("DELETE FROM sync_stage WHERE kind='rollup'")
+    connection.execute("""UPDATE sync_runs
+        SET result_json=json_remove(result_json,'$.observed.rollup')
+        WHERE json_type(result_json,'$.observed.rollup') IS NOT NULL""")
+    changed = connection.total_changes != before
+    if changed or connection.execute(
+        "SELECT 1 FROM usage_claims WHERE kind='rollup' LIMIT 1"
+    ).fetchone() is not None:
+        ledger.refresh_availability(connection)
+    if changed:
+        connection.execute("""UPDATE settings SET value=CAST(value AS INTEGER)+1
+            WHERE key IN ('revision','data_revision')""")
+    else:
+        connection.execute("DELETE FROM daily_usage_stats WHERE kind='rollup'")
+        connection.execute("DELETE FROM monthly_usage_stats WHERE kind='rollup'")
+
+    for table in ("retired_usage_keys", "retired_usage_versions", "retired_usage_cases"):
+        connection.execute(f"DROP TABLE temp.{table}")
+    connection.execute("DROP TABLE source_rollup_observations")
+    connection.execute("DROP INDEX codex_history_rollup_day")
+    for statement in DETAIL_ONLY_GUARDS:
+        connection.execute(statement)
+
+
 def upgrade(connection: sqlite3.Connection, version: int, now: str) -> None:
     """Upgrade an isolated restore or a live ledger with a verified rollback backup."""
     if version == 3:
         upgrade_schema3(connection, now)
-    validate_structure(connection, 4)
-    for statement in CODEX_SCHEMA.split(";"):
-        if statement.strip():
-            connection.execute(statement)
+    if version <= 4:
+        validate_structure(connection, 4)
+        for statement in (CODEX_SCHEMA + LEGACY_ROLLUP_INDEX).split(";"):
+            if statement.strip():
+                connection.execute(statement)
+    validate_structure(connection, 5)
+    _retire_rollups(connection)
     connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     validate_structure(connection, SCHEMA_VERSION)
     if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
@@ -261,11 +415,13 @@ def initialize(store: Store, base_schema: str = "") -> None:
         if statement.strip():
             connection.execute(statement)
     initialize_monthly(connection)
-    initialize_source_observations(connection)
     initialize_query_indexes(connection)
+    for statement in DETAIL_ONLY_GUARDS:
+        connection.execute(statement)
     from . import batches
 
     batches.initialize_schema(connection)
+    connection.execute(ARCHIVED_CLAIM_INDEX)
     connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:
         raise AppError("storage_damaged", "资料结构校验失败。", 500)

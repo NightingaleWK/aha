@@ -175,7 +175,7 @@ class _Stager:
         self.store, self.run_id, self.cancel = store, run_id, cancel
         self.rows: list[tuple[str, str, str, str, str]] = []
         self.prices: list[tuple[str, str, str]] = []
-        self.counts = {"detail": 0, "rollup": 0, "pricing": 0}
+        self.counts = {"detail": 0, "pricing": 0}
         self.timings: dict[str, float] = {}
         self.processing_deadline: float | None = None
 
@@ -188,11 +188,7 @@ class _Stager:
     def add(self, kind: str, row: dict[str, Any]) -> None:
         self.check()
         if kind != "pricing":
-            if (
-                row.get("app_type") != "codex"
-                or (kind == "detail" and row.get("data_source") != "codex_session")
-                or (kind == "rollup" and row.get("provider_id") != "_codex_session")
-            ):
+            if row.get("app_type") != "codex" or row.get("data_source") != "codex_session":
                 return
             self.add_usage(kind, row)
         else:
@@ -203,6 +199,8 @@ class _Stager:
 
     def add_usage(self, kind: str, row: dict[str, Any]) -> None:
         self.check()
+        if kind != "detail":
+            raise AppError("invalid_grain", "只接收逐笔用量。")
         normalized = normalize_row(row, kind)
         self.rows.append(
             (
@@ -439,7 +437,6 @@ def _publish(
         connection = store._db
         stager.check()
         scopes: set[str] = set()
-        groups: set[str] = set()
         cases_changed = False
         pricing_changed = False
         active_run = connection.execute(
@@ -454,34 +451,14 @@ def _publish(
             (source_id,),
         ).fetchone()
         prior = store._decode(previous[0]).get("observed", {}) if previous else {}
-        detail_shrinking = bool(
-            prior
-            and stager.counts["detail"] * 2 < prior.get("detail", 0)
-            and stager.counts["rollup"] <= prior.get("rollup", 0)
-        )
-        rollup_shrinking = bool(prior and stager.counts["rollup"] < prior.get("rollup", 0))
-        represented_shrinking = connection.execute(
-            """SELECT 1 FROM sync_stage t
-            LEFT JOIN source_rollup_observations b ON b.source_id=? AND b.record_key=t.record_key
-            LEFT JOIN usage_records r ON r.record_key=t.record_key
-            LEFT JOIN usage_versions v ON v.id=r.version_id
-            WHERE t.run_id=? AND t.kind='rollup' AND
-            CAST(json_extract(t.payload_json,'$.request_count') AS INTEGER)<
-            CAST(COALESCE(b.request_count,CASE WHEN v.source_id=? THEN r.request_count END)
-            AS INTEGER) LIMIT 1""",
-            (source_id, run_id, source_id),
-        ).fetchone() is not None
-        shrinking = native is None and (
-            detail_shrinking or rollup_shrinking or represented_shrinking
-        )
+        shrinking = native is None and stager.counts["detail"] * 2 < prior.get("detail", 0)
         if shrinking:
             before_cases = connection.total_changes
             ledger.create_case(
                 connection,
                 "source",
                 "来源可能正在分批重建或已被替换；本地历史保留，请核对来源。",
-                {"observed": stager.counts, "previous": prior,
-                 "rollup_request_count_regressed": represented_shrinking},
+                {"observed": stager.counts, "previous": prior},
                 source_id=source_id,
                 reopen=True,
             )
@@ -551,23 +528,6 @@ def _publish(
                         "INSERT INTO record_evidence VALUES(?,?,?) ON CONFLICT DO NOTHING",
                         (current["version_id"], source_id, run_id),
                     )
-                    if row["kind"] == "rollup" and current["current_source"] != source_id:
-                        before_cases = connection.total_changes
-                        case_id = ledger.create_case(
-                            connection, "rollup_origin",
-                            "不同来源提供了相同日汇总，但成员重叠尚未确认；未重复相加。",
-                            {"candidate_hash": row["content_hash"], "date": current["day"],
-                             "model": current["model"], "request_count": current["request_count"]},
-                            key=logical_key, source_id=source_id,
-                        )
-                        open_case = connection.execute(
-                            "SELECT state FROM reconciliation_cases WHERE id=?", (case_id,)
-                        ).fetchone()[0] == "open"
-                        if open_case:
-                            counts["pending_count"] += 1
-                        if connection.total_changes != before_cases:
-                            cases_changed = True
-                            scopes.add(current["scope_key"])
                     counts["unchanged_count"] += 1
                     continue
                 if native is not None and current:
@@ -666,7 +626,6 @@ def _publish(
                 scopes.add(new_scope)
                 if old_scope:
                     scopes.add(old_scope)
-                    groups.add(current["coverage_key"])
                 payload = json.loads(row["payload_json"])
                 if payload.get("session_id"):
                     missing = {"cwd": None, "status": "missing", "parent_id": None}
@@ -678,7 +637,6 @@ def _publish(
                         (payload["session_id"], content_hash(missing)),
                     )
                 projection = ledger.record_projection(payload, row["kind"])
-                groups.add(projection["coverage_key"])
                 counts["revised_count" if current else "new_count"] += 1
                 connection.execute(
                     (
@@ -728,7 +686,6 @@ def _publish(
                         cases_changed |= connection.total_changes != before_cases
         compared_at = perf_counter()
         stager.timings["compare_current_versions_ms"] = (compared_at - publishing_started) * 1000
-        scopes |= ledger.update_coverage(connection, groups)
         if native is not None:
             cases_changed |= native.publish(stager, scopes, counts)
         sessions = native.sessions() if native is not None else metadata.get("sessions", {}).items()
@@ -796,14 +753,6 @@ def _publish(
                     (source_id,),
                 ).fetchone() is not None
             )
-        connection.execute(
-            """INSERT INTO source_rollup_observations(source_id,record_key,request_count)
-            SELECT ?,record_key,CAST(json_extract(payload_json,'$.request_count') AS TEXT)
-            FROM sync_stage WHERE run_id=? AND kind='rollup'
-            ON CONFLICT(source_id,record_key) DO UPDATE SET request_count=excluded.request_count
-            WHERE source_rollup_observations.request_count!=excluded.request_count""",
-            (source_id, run_id),
-        )
         connection.execute(
             """UPDATE sync_runs SET state=?,completed_at=?,heartbeat_at=?,
             result_json=?,data_revision=? WHERE id=? AND state='running'""",
@@ -882,11 +831,7 @@ def sync_data(
     source = {"kind": "history", "name": "历史用量", **data.get("source", {})}
 
     def read(stager: _Stager) -> dict[str, Any]:
-        for key, kind in (
-            ("details", "detail"),
-            ("rollups", "rollup"),
-            ("pricing", "pricing"),
-        ):
+        for key, kind in (("details", "detail"), ("pricing", "pricing")):
             for row in data.get(key, []):
                 stager.add(kind, row)
         return source

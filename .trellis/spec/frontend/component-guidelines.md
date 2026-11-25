@@ -28,6 +28,8 @@ if (text !== undefined && text !== null) item.textContent = String(text);
 
 保留 label、按钮可访问名称、aria-current/aria-selected、notice 的 status/live region、弹窗错误的 alert 和 focus-visible。隐藏元素用现有 hidden 规则，表格的选择和分页应保留可操作提示。
 
+台账设置打开后，选择菜单项、点击外部、焦点移出或按 Escape 都可收起。来源、数据核对和备份弹窗从菜单进入时，关闭后可继续从「台账设置」操作。
+
 ## 共享表单和时间面板
 
 `AhaForms.mount(root)` 增强原生 select；原 select 的 value/options/disabled 仍是业务唯一来源，不能另建隐藏的项目状态。`data-searchable="true"` 提供项目搜索，`data-control="segmented"` 提供可用/全部并排选择。业务代码直接回填 value 后调用 `AhaForms.sync(root)`；动态 option 变更同样同步。移除动态核对卡片前调用 `AhaForms.destroy(root)`，终止事件和观察器。

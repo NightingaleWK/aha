@@ -5,9 +5,9 @@ const state = {
   csrf: "", today: "", now: "", ledger: null, sync: null, syncBusy: false, syncGeneration: 0, syncPreviewPending: false,
   ledgerRequest: 0, projectsRequest: 0, reconciliationsRequest: 0, reconciliationView: null,
   config: {revision: 0, projects: []}, analysis: null, tab: "daily", page: 1,
-  rows: [], total: 0, cursor: null, nextCursor: null, cursors: [null], selected: new Map(), batches: [], batch: null,
-  busy: false, pendingBatch: null, revision: null, lifecycle: null, noticeTimer: null, stopped: false,
-  filterGeneration: 0, analysisRequest: 0,
+  rows: [], total: 0, cursor: null, nextCursor: null, cursors: [null], dailyDate: "", selected: new Map(), batches: [], batch: null,
+  busy: false, pendingBatch: null, claimAnalysis: null, revision: null, lifecycle: null, noticeTimer: null, stopped: false,
+  filterGeneration: 0, analysisRequest: 0, previewRequest: 0, trendRequest: 0,
   sources: [], sourceSettings: null, sourceSave: null, syncCancelling: false, dataDirectory: "",
   backupBusy: false, backupGeneration: 0, backupJob: null, backupUpload: null, backupController: null,
   pendingBackupUploads: [],
@@ -28,6 +28,7 @@ const timeContext = () => ({now: state.now, coverage: state.ledger?.coverage});
 const timeRange = AhaTimeRange.create($("time-range-control"), {
   id: "usage-range", context: timeContext, onApply: applyTimeRange,
 });
+timeRange.setIntent({kind: "preset", preset: "last_14d", follow_now: true});
 const revisionTimeRange = AhaTimeRange.create($("revision-range-control"), {
   id: "revision-range", label: "修订时间范围", context: timeContext, onApply: applyRevisionTimeRange,
 });
@@ -67,11 +68,13 @@ function clearFeedback() {
 function notify(message, kind = "success") {
   clearFeedback();
   if (kind === "error") {
-    const dialog = document.querySelector("dialog[open]");
+    const dialog = document.activeElement?.closest?.("dialog[open]")
+      || ["overlap-dialog", "claim-dialog"].map($).find((item) => item.open)
+      || document.querySelector("dialog[open]");
     if (dialog) {
       const alert = node("p", "dialog-message", message); alert.setAttribute("role", "alert");
       const heading = dialog.querySelector(".dialog-heading");
-      heading.after(alert);
+      heading?.after(alert);
     }
   }
   const notice = $("notice");
@@ -149,12 +152,13 @@ function syncActions() {
   syncSourceSettings();
   $("analyze").disabled = state.busy || !state.ledger;
   $("view-details").disabled = state.busy || !state.analysis;
-  $("create-batch").disabled = state.busy || !state.analysis || state.analysis.availability_mode !== "available" || Boolean(state.analysis.target_batch_id) || !hasUsage(state.analysis.summary);
+  syncClaimActions();
   $("refresh-availability").disabled = state.busy || !state.ledger;
   $("save-revision").disabled = state.busy || !state.revision || ($("revision-basis").value === "current" && (!state.revision.analysis || !hasUsage(state.revision.analysis.summary)));
   $("assign").disabled = state.busy || state.selected.size === 0;
   $("prev-page").disabled = state.busy || state.page <= 1;
   $("next-page").disabled = state.busy || !state.nextCursor;
+  $("clear-daily-selection").disabled = state.busy || !state.analysis || !state.dailyDate;
   $("revision-analyze").disabled = state.busy || !state.revision || !state.ledger;
   $("view-all-history").disabled = state.busy || !state.ledger?.coverage?.start_date;
   $("create-full-backup").disabled = state.busy || state.backupBusy;
@@ -193,18 +197,19 @@ function empty(target, title, description) {
 }
 function invalidate(message = "条件已更改，请更新预览") {
   state.filterGeneration += 1;
-  if (state.analysis && ["claim-purpose", "claim-amount", "claim-note"].some((id) => $(id).value.trim())) {
-    $("claim-explanation").textContent = "用量范围已变化，请核对用途和金额后保存。";
-  }
   state.analysis = null;
   state.pendingBatch = null;
   state.selected.clear();
   state.rows = [];
   state.page = 1; state.cursor = null; state.nextCursor = null; state.cursors = [null];
+  state.dailyDate = "";
+  $("trend-heading").textContent = "费用趋势";
+  $("trend-plot").replaceChildren();
+  setTrendStatus("更新预览后显示趋势。");
+  renderDailySelection();
   invalidateRevision();
   timeRange.markPending();
   $("reconciliation-note").hidden = true;
-  $("time-coverage-note").hidden = true;
   $("empty-range-note").hidden = true;
   $("assignment-coverage-note").hidden = true;
   ["metric-cost", "metric-count", "metric-tokens", "metric-unassigned"].forEach((id) => { $(id).textContent = "—"; });
@@ -214,8 +219,9 @@ function invalidate(message = "条件已更改，请更新预览") {
   $("analysis-warnings").replaceChildren();
   $("pagination").hidden = true;
   $("assignment-bar").hidden = true;
+  $("analyze").hidden = false;
   $("filter-status").textContent = message;
-  $("preview-caption").textContent = "选择条件后更新预览。";
+  $("preview-caption").textContent = "";
   empty($("preview-table"), state.ledger ? "请更新预览" : "正在读取本地资料",
     state.ledger ? "按所选项目和时间查看本地台账。" : "本地资料加载后即可查询。");
   syncActions();
@@ -240,16 +246,6 @@ async function applyRevisionTimeRange(intent) {
 }
 function rangeDescription(result) {
   return AhaTimeRange.describe(AhaTimeRange.fromAnalysis(result)) || `${result.start_date} 至 ${result.end_date}`;
-}
-function renderTimeCoverage(target, result, onWholeDays = null, frozen = false) {
-  target.replaceChildren();
-  const coverage = result.time_coverage;
-  target.hidden = coverage?.complete !== false;
-  if (target.hidden) return;
-  const days = (coverage.omitted_days || []).join("、");
-  target.append(node("strong", "", "统计不完整"), node("p", "", `${days ? `${days} 的` : "部分日期的"}${counts(coverage.omitted_rollup_count)} 条历史日汇总没有发生时间，无法按此时间范围拆分，未计入当前统计。`),
-    node("p", "field-help", frozen ? "此记录沿用已确定的冻结用量，材料保留此说明。" : "当前合计仅含已确定的用量；有可用用量时仍可保存，材料将保留此说明。"));
-  if (onWholeDays) target.append(actionButton("改查整天", onWholeDays, "button small"));
 }
 function refreshRequest(requestKey, isCurrent) {
   const request = ++state[requestKey];
@@ -390,16 +386,20 @@ function renderSource() {
   const mode = running ? "同步中" : status === "cancelled" ? "已取消" : failed ? "同步失败"
     : partial ? "部分完成" : needsReview ? "需要核对" : bindingRequired ? "待确认本机来源"
     : status === "completed" || succeeded.length === configured.length ? "已同步" : "本地资料";
-  if ($("source-mode").textContent !== mode) $("source-mode").textContent = mode;
+  const modeLabel = $("source-mode");
+  if (modeLabel.textContent !== mode) modeLabel.textContent = mode;
+  modeLabel.dataset.kind = running ? "running" : failed ? "error" : partial || needsReview || bindingRequired ? "warning" : mode === "已同步" ? "success" : "";
   const period = coverage.start_date ? ` · ${coverage.start_date} 至 ${coverage.end_date}` : "";
   $("source-description").textContent = ledger
-    ? `${counts(amount.detail_count)} 条明细 · ${counts(amount.rollup_count)} 条来源日汇总${period} · ${last ? `台账上次成功同步 ${dateTime(last)}` : "尚无成功同步"}`
+    ? `${counts(amount.detail_count)} 条明细${period} · ${last ? `上次成功同步 ${dateTime(last)}` : "尚无成功同步"}`
     : "正在读取本地资料。";
   $("load-default").textContent = state.syncBusy ? "正在同步…" : bindingRequired ? "确认数据来源" : "立即同步";
-  $("sync-error").hidden = !failed;
+  $("sync-error").hidden = !failed && (running || !partial);
   const reason = attempt?.result?.error_message || attempt?.message || unavailable?.message || "同步未完成，请稍后重试。";
-  const saved = last || amount.detail_count > 0 || amount.rollup_count > 0;
-  $("sync-error").textContent = failed ? `${reason} ${saved ? "当前显示已保存的本地数据。" : ""}${last ? "" : "尚未成功同步，当前统计不代表实际用量。"}` : "";
+  const saved = last || amount.detail_count > 0;
+  $("sync-error").textContent = failed
+    ? `${reason} ${saved ? "当前显示已保存的本地数据。" : ""}${last ? "" : "尚未成功同步，当前统计不代表实际用量。"}`
+    : !running && partial ? "部分用量未同步。展开同步状态查看原因。" : "";
   renderSourceEndpoints();
   renderDirectories(); syncActions();
 }
@@ -579,42 +579,51 @@ function renderProjects() {
     empty(target, "暂无项目", "新建项目并选择它的工作目录。");
     return;
   }
-  target.replaceChildren();
-  for (const project of state.config.projects) {
-    const card = node("article", "project-card");
-    const heading = node("div", "project-card-heading");
-    const edit = node("button", "button small", "管理目录");
-    edit.addEventListener("click", () => openProject(project));
-    heading.append(node("h2", "", project.name), edit);
-    card.append(heading, node("p", "", project.description || "未填写项目说明"));
-    const directoryStatus = node("p", "project-binding-status", project.directory_managed
-      ? "已按目录整体关联 · 新增用量随同步自动归入" : project.directories.length ? "目录尚未确认整体关联" : "添加工作目录后自动关联用量");
-    card.append(directoryStatus);
-    if (!project.directory_managed && project.directories.length) {
-      card.append(actionButton("确认目录关联", () => {
-        openProject(project); void run("正在检查目录关联影响…", saveProject);
-      }, "button small project-confirm-directories"));
-    }
-    const usage = state.associations?.projects?.find((item) => item.id === project.id);
-    const metrics = node("div", "project-usage");
-    if (usage) {
-      metrics.append(node("span", "field-help", "已核实台账参考成本"), node("strong", "", `${money(usage.total_cost_usd)} USD`),
-        node("p", "", `${counts(usage.detail_count)} 条明细 · ${counts(usage.rollup_count)} 行历史日汇总`),
-        node("p", "field-help", usage.start_date ? `${usage.start_date} 至 ${usage.end_date}（北京时间）` : "尚无已归属用量"));
-      if (usage.pending_count) metrics.append(node("p", "field-help", `另有 ${counts(usage.pending_count)} 条用量待核对，未计入上述成本。`));
-    } else metrics.append(node("p", "field-help", "读取项目费用后显示已归属记录与成本。"));
-    card.append(metrics, actionButton("查看项目全部费用", () => run("正在查询项目费用…", async () => {
-      $("project-select").value = project.id; $("availability-mode").value = "all";
-      timeRange.setIntent({kind: "preset", preset: "all", follow_now: false});
-      AhaForms.sync(); page("usage"); await analyze();
-    }), "button small"));
-    const dirs = node("ul");
-    for (const directory of project.directories) dirs.append(node("li", "", directory));
-    const details = node("details", "project-directories");
-    details.append(node("summary", "", `${counts(project.directories.length)} 个工作目录（包含子目录）`), dirs);
-    card.append(details);
-    target.append(card);
-  }
+  const usages = new Map((state.associations?.projects || []).map((usage) => [usage.id, usage]));
+  const list = table([
+    {title: "项目", wrap: true, value: (project) => {
+      const name = node("strong", "", project.name);
+      if (project.description) name.append(node("span", "subline", project.description));
+      return name;
+    }},
+    {title: "工作目录", wrap: true, value: (project) => {
+      if (!project.directories.length) return "未添加";
+      const directories = node("ul");
+      for (const directory of project.directories) directories.append(node("li", "", directory));
+      const details = node("details", "project-directories");
+      details.append(node("summary", "", `${counts(project.directories.length)} 个目录`), directories);
+      if (!project.directory_managed) details.append(node("p", "field-help", "待确认目录关联"));
+      return details;
+    }},
+    {title: "已归属用量", wrap: true, value: (project) => {
+      const usage = usages.get(project.id);
+      if (!usage) return "—";
+      const cell = node("span", "", `${counts(usage.detail_count)} 条明细`);
+      if (usage.start_date) cell.append(node("span", "subline", `${usage.start_date} 至 ${usage.end_date}（北京时间）`));
+      if (usage.pending_count) cell.append(node("span", "subline", `${counts(usage.pending_count)} 条待核对`));
+      return cell;
+    }},
+    {title: "参考成本 USD", numeric: true, value: (project) => {
+      const usage = usages.get(project.id);
+      return usage ? money(usage.total_cost_usd) : "—";
+    }},
+    {title: "操作", value: (project) => {
+      const actions = node("div", "table-actions");
+      actions.append(actionButton("查看费用", () => run("正在查询项目费用…", async () => {
+        $("project-select").value = project.id; $("availability-mode").value = "all";
+        timeRange.setIntent({kind: "preset", preset: "all", follow_now: false});
+        AhaForms.sync(); page("usage"); await analyze();
+      }), "text-button"), actionButton("管理目录", () => openProject(project), "text-button"));
+      if (!project.directory_managed && project.directories.length) {
+        actions.append(actionButton("确认目录关联", () => {
+          openProject(project); void run("正在检查目录关联影响…", saveProject);
+        }, "text-button project-confirm-directories"));
+      }
+      return actions;
+    }},
+  ], state.config.projects);
+  list.className = "compact-table";
+  target.replaceChildren(list);
 }
 function renderDirectories() {
   const directories = state.ledger?.directories || [];
@@ -872,12 +881,13 @@ function renderAssociationOverview() {
   overview.replaceChildren();
   for (const [label, value, help] of [
     ["已归属明细", counts(summary.assigned_detail_count), "消费与项目关系已保存"],
-    ["待归属明细", counts(summary.unassigned_detail_count), `${counts(summary.unassigned_rollup_count)} 行历史日汇总也待分配`],
+    ["待归属明细", counts(summary.unassigned_detail_count)],
     ["待归属参考成本", `${money(summary.unassigned_cost_usd)} USD`, "已核实部分，按原消费金额"],
     ["历史依据可恢复", counts(summary.recoverable_detail_count), `${counts(summary.recoverable_sessions)} 个会话可重新关联项目${result.metadata_scan_truncated ? "（已检查部分）" : ""}`],
   ]) {
     const card = node("section", "association-metric");
-    card.append(node("span", "field-help", label), node("strong", "", value), node("p", "field-help", help));
+    card.append(node("span", "field-help", label), node("strong", "", value));
+    if (help) card.append(node("p", "field-help", help));
     overview.append(card);
   }
   const groups = $("association-groups"); groups.replaceChildren();
@@ -889,7 +899,7 @@ function renderAssociationOverview() {
     button.setAttribute("data-association-group", ""); button.disabled = state.busy;
     button.append(node("strong", "", associationReasons[group.reason] || "待归属"),
       node("span", "association-group-directory", group.directory || "没有可用的工作目录"),
-      node("span", "field-help", `${counts(group.detail_count)} 条明细 · ${counts(group.rollup_count)} 行汇总 · ${money(group.total_cost_usd)} USD`));
+      node("span", "field-help", `${counts(group.detail_count)} 条明细 · ${money(group.total_cost_usd)} USD`));
     button.addEventListener("click", () => { void run("正在查询待归属记录…", async () => {
       $("association-filter-project").value = "unassigned";
       $("association-filter-reason").value = group.reason;
@@ -953,7 +963,7 @@ function renderAssociationRecords(focus = null) {
     });
     if (focus?.page) focusTarget = select;
     selectCell.append(select); header.append(selectCell);
-    for (const label of ["日期 / 粒度", "当前项目", "目录 / 会话", "待处理原因", "参考成本 USD"]) header.append(node("th", "", label));
+    for (const label of ["日期 / 模型", "当前项目", "目录 / 会话", "待处理原因", "参考成本 USD"]) header.append(node("th", "", label));
     head.append(header); item.append(head); const body = node("tbody");
     for (const row of rows) {
       const selected = state.associationAllFiltered || state.associationSelected.has(row.record_key);
@@ -963,7 +973,7 @@ function renderAssociationRecords(focus = null) {
       const managed = row.assignment_origin === "directory_binding";
       check.setAttribute("data-directory-managed", String(managed));
       check.disabled = state.busy || state.associationAllFiltered || managed;
-      check.setAttribute("aria-label", `选择 ${row.date || ""} ${row.model || ""} ${row.kind === "rollup" ? "历史日汇总" : "消费明细"}`);
+      check.setAttribute("aria-label", `选择 ${row.date || ""} ${row.model || ""} 消费明细`);
       check.addEventListener("change", () => {
         if (managed) return;
         check.checked ? state.associationSelected.set(row.record_key, row) : state.associationSelected.delete(row.record_key);
@@ -972,7 +982,7 @@ function renderAssociationRecords(focus = null) {
       if (focus?.key === row.record_key) focusTarget = check;
       cell.append(check); line.append(cell);
       const date = node("td", "wrap", row.date || "—");
-      date.append(node("span", "subline", row.kind === "rollup" ? `历史日汇总 · 代表 ${counts(row.record_count)} 次消费` : `消费明细 · ${row.model || ""}`));
+      if (row.model) date.append(node("span", "subline", row.model));
       const project = node("td", "wrap"); project.append(projectCell(row));
       const basis = node("td", "wrap", row.cwd || "尚无目录依据");
       if (row.session_id) basis.append(node("span", "subline association-session", row.session_id));
@@ -1023,7 +1033,7 @@ async function previewAssociations(action) {
     : action === "reclassify" ? "将按当前目录规则追溯调整所选记录。请核对项目和费用影响后确认。"
       : "以下预览包含所选的全部记录，包含跨页选择；确认后保存到项目台账。";
   $("association-preview-summary").append(
-    node("p", "", `${counts(summary.selected_detail_count)} 条明细 · ${counts(summary.selected_rollup_count)} 行历史日汇总 · 参考成本 ${money(summary.total_cost_usd)} USD`),
+    node("p", "", `${counts(summary.selected_detail_count)} 条明细 · 参考成本 ${money(summary.total_cost_usd)} USD`),
     node("p", "", `预计调整 ${counts(summary.changed_count)} 条记录${summary.recovered_sessions ? `，恢复 ${counts(summary.recovered_sessions)} 个会话目录` : ""}。`));
   if (summary.directory_only_sessions) $("association-preview-summary").append(node("p", "field-help", `${counts(summary.directory_only_sessions)} 个会话仅能恢复目录，项目仍需分配。`));
   if (request.bind_sessions) $("association-preview-summary").append(node("p", "field-help", `已展开到所选 ${counts(summary.session_count)} 个会话的全部现存明细，包含当前筛选以外的成员；后续新增明细也沿用目标项目，已有逐条人工例外保持优先。`));
@@ -1083,7 +1093,120 @@ function renderAssignmentCoverage(result) {
   const coverage = result.assignment_coverage;
   $("assignment-coverage-note").hidden = !coverage || coverage.status !== "incomplete";
   if (coverage?.status !== "incomplete") return;
-  $("assignment-coverage-description").textContent = `同期间还有 ${counts(coverage.unassigned_detail_count)} 条明细、${counts(coverage.unassigned_rollup_count)} 行历史日汇总待归属，已核实参考成本 ${money(coverage.unassigned_cost_usd)} USD。当前项目仅统计已确认归属的消费，可继续处理待归属记录。`;
+  $("assignment-coverage-description").textContent = `同期有 ${counts(coverage.unassigned_detail_count)} 条明细待归属，参考成本 ${money(coverage.unassigned_cost_usd)} USD。`;
+}
+function reviewAction() {
+  const button = actionButton("查看待核对", () => { void openReconciliations(button); }, "text-button");
+  return button;
+}
+function setTrendStatus(message = "", retry = false) {
+  $("trend-status").textContent = message;
+  $("trend-status").hidden = !message;
+  $("trend-retry").hidden = !retry;
+}
+function trendHeights(points) {
+  const parts = points.map((point) => String(point.total_cost_usd).split("."));
+  const precision = Math.max(...parts.map(([, fraction = ""]) => fraction.length));
+  const amounts = parts.map(([integer, fraction = ""]) => BigInt(integer + fraction.padEnd(precision, "0")));
+  const largest = amounts.reduce((max, amount) => amount > max ? amount : max, 0n);
+  // Only a dimensionless ratio passes through Number. Amounts stay exact.
+  return amounts.map((amount) => largest && amount > 0n ? Number(amount * 10000n / largest) / 100 : 0);
+}
+function renderDailySelection() {
+  $("daily-selection").hidden = !state.dailyDate;
+  $("daily-selection-label").textContent = state.dailyDate ? `仅看 ${state.dailyDate}` : "";
+  $("trend-plot").querySelectorAll(".trend-bar").forEach((button) => {
+    if (button.dataset.day) button.setAttribute("aria-pressed", String(button.dataset.day === state.dailyDate));
+  });
+}
+function renderTrend(result, analysis) {
+  const {grain, points} = result;
+  $("trend-heading").textContent = {day: "每日费用趋势", month: "月度费用趋势", year: "年度费用趋势"}[grain] || "费用趋势";
+  if (!points.some(hasUsage)) {
+    setTrendStatus("当前筛选没有用量。");
+    return;
+  }
+  const heights = trendHeights(points);
+  const bars = node("div", "trend-bars");
+  bars.setAttribute("role", "group");
+  bars.setAttribute("aria-label", "参考成本（美元）");
+  const last = points.length - 1;
+  const ticks = [0, Math.round(last / 3), Math.round(last * 2 / 3), last];
+  const buttons = points.map((point, index) => {
+    const period = point.start_date === point.end_date ? point.start_date : `${point.start_date} 至 ${point.end_date}`;
+    const usage = hasUsage(point);
+    const cost = `${money(point.total_cost_usd)} USD`;
+    const price = !usage ? "无用量" : point.unpriced_count > 0
+      ? (point.unpriced_count === point.record_count ? "缺参考价" : `${cost} · ${counts(point.unpriced_count)} 条缺价`)
+      : cost;
+    const bar = node("button", "trend-bar");
+    bar.type = "button";
+    bar.tabIndex = index === 0 ? 0 : -1;
+    if (money(point.total_cost_usd) !== "0") bar.classList.add("has-cost");
+    bar.style.setProperty("--bar-height", `${heights[index]}%`);
+    bar.setAttribute("aria-label", `${period}，${price}${grain === "day" ? "，查看当天用量" : ""}`);
+    if (grain === "day") {
+      bar.dataset.day = point.start_date;
+      bar.setAttribute("aria-controls", "usage-preview");
+    } else bar.setAttribute("aria-expanded", "false");
+    const fill = node("span", "trend-fill");
+    const tip = node("span", "trend-tip", `${period} · ${price}`);
+    fill.setAttribute("aria-hidden", "true");
+    tip.setAttribute("aria-hidden", "true");
+    bar.append(fill, tip);
+    if (points.length <= 4 || ticks.includes(index)) {
+      const label = grain === "day" ? point.start_date.slice(5).replace("-", "/")
+        : grain === "month" ? point.start_date.slice(0, 7) : point.start_date.slice(0, 4);
+      const tick = node("span", "trend-tick", label);
+      tick.setAttribute("aria-hidden", "true");
+      bar.append(tick);
+    }
+    bar.addEventListener("click", () => {
+      if (state.analysis !== analysis || state.busy || state.stopped) return;
+      if (grain === "day") {
+        void run("正在查看当天用量…", async () => {
+          await selectPreviewTab("daily", point.start_date);
+          if (state.analysis === analysis) {
+            $("usage-preview-heading").focus({preventScroll: true});
+            $("usage-preview").scrollIntoView?.({block: "nearest"});
+          }
+        });
+      } else {
+        const open = bar.getAttribute("aria-expanded") !== "true";
+        buttons.forEach((button) => button.setAttribute("aria-expanded", String(open && button === bar)));
+      }
+    });
+    return bar;
+  });
+  bars.addEventListener("keydown", (event) => {
+    const index = buttons.indexOf(event.target);
+    if (index < 0) return;
+    const move = {ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: last}[event.key];
+    if (move === undefined) return;
+    event.preventDefault();
+    buttons[Math.max(0, Math.min(last, move))].focus();
+  });
+  bars.addEventListener("focusin", (event) => {
+    if (!buttons.includes(event.target)) return;
+    buttons.forEach((button) => { button.tabIndex = button === event.target ? 0 : -1; });
+  });
+  bars.append(...buttons);
+  $("trend-plot").replaceChildren(bars);
+  renderDailySelection();
+  setTrendStatus(points.some((point) => point.unpriced_count > 0) ? "部分用量缺参考价。" : "");
+}
+async function loadTrend(analysis = state.analysis) {
+  if (!analysis || state.stopped) return;
+  const generation = state.filterGeneration;
+  const active = refreshRequest("trendRequest", () => state.analysis === analysis && generation === state.filterGeneration);
+  $("trend-plot").replaceChildren();
+  setTrendStatus("正在读取趋势…");
+  try {
+    const result = await api(`/api/analysis/${encodeURIComponent(analysis.analysis_id)}/trend`, undefined, active);
+    if (active()) renderTrend(result, analysis);
+  } catch (error) {
+    if (active()) setTrendStatus("趋势未加载。", true);
+  }
 }
 async function analyze() {
   if (!state.ledger) throw new Error("请先加载本地资料。");
@@ -1097,34 +1220,37 @@ async function analyze() {
       classification_revision: state.config.revision, time_range: timeRange.getIntent(),
       project_id: $("project-select").value, availability_mode: $("availability-mode").value,
     }, isCurrent);
-  } catch (error) { if (!isCurrent() && !error.invalidated) return; throw error; }
+  } catch (error) {
+    if (!isCurrent() && !error.invalidated) return;
+    if (isCurrent()) $("filter-status").textContent = "预览未更新。";
+    throw error;
+  }
   if (!isCurrent()) return;
   state.analysis = result; state.page = 1; state.cursor = null; state.nextCursor = null; state.cursors = [null]; state.selected.clear();
   if (result.time_range?.resolved_at) state.now = result.time_range.resolved_at;
   timeRange.setResolved(AhaTimeRange.fromAnalysis(result));
   renderAvailability(result);
-  renderTimeCoverage($("time-coverage-note"), result, () => { void applyTimeRange(AhaTimeRange.wholeDays(result)).catch(() => {}); });
   const summary = result.summary;
   renderEmptyRange(result);
   const availableOnly = result.availability_mode === "available";
   const pending = result.pending_count || 0;
-  $("reconciliation-note").hidden = !pending;
-  $("reconciliation-note").textContent = pending ? `有 ${counts(pending)} 项用量待核对，当前合计仅含已核实部分。可点击“数据核对”查看原始依据。` : "";
-  $("metric-cost-label").textContent = availableOnly ? "可用参考成本" : "期间参考成本";
+  const reconciliationNote = $("reconciliation-note");
+  reconciliationNote.hidden = !pending || (availableOnly && Boolean(result.availability));
+  reconciliationNote.replaceChildren();
+  if (!reconciliationNote.hidden) reconciliationNote.append(node("span", "", `${counts(pending)} 项待核对，未计入费用。`), reviewAction());
+  $("metric-cost-label").textContent = availableOnly ? "可用参考成本" : "已核实参考成本";
   $("metric-count-label").textContent = availableOnly ? "可用用量" : "用量记录数";
   $("metric-token-label").textContent = availableOnly ? "可用 Token" : "总 Token";
-  const omittedOnly = result.time_coverage?.complete === false && !hasUsage(summary);
-  $("metric-cost").textContent = omittedOnly ? "—" : money(summary.total_cost_usd);
-  $("metric-count").textContent = omittedOnly ? "—" : counts(summary.record_count);
-  $("metric-count-note").textContent = omittedOnly ? "所选时段缺少可确定的用量，请查看完整性说明" : `${counts(summary.detail_count)} 条明细 + ${counts(summary.rollup_record_count)} 条历史代表记录`;
-  $("metric-tokens").textContent = omittedOnly ? "—" : counts(summary.total_tokens);
+  $("metric-cost").textContent = money(summary.total_cost_usd);
+  $("metric-count").textContent = counts(summary.record_count);
+  $("metric-tokens").textContent = counts(summary.total_tokens);
   $("metric-unassigned").textContent = counts(result.unassigned_count);
   renderAssignmentCoverage(result);
   $("token-input").textContent = counts(summary.fresh_input_tokens);
   $("token-output").textContent = counts(summary.output_tokens);
   $("token-read").textContent = counts(summary.cache_read_tokens);
   $("token-write").textContent = counts(summary.cache_creation_tokens);
-  $("token-strip").hidden = omittedOnly;
+  $("token-strip").hidden = false;
   const coverage = result.metadata_coverage || state.ledger.metadata_coverage || {matched_sessions: 0, total_sessions: 0};
   $("coverage-note").textContent = `已识别 ${counts(coverage.matched_sessions)} / ${counts(coverage.total_sessions)} 个会话的工作目录。项目按已确认的工作目录整体关联。`;
   $("coverage-note").hidden = false;
@@ -1132,8 +1258,10 @@ async function analyze() {
   for (const warning of result.warnings || []) {
     $("analysis-warnings").append(node("div", "warning", typeof warning === "string" ? warning : warning.message || warning.code));
   }
-  $("filter-status").textContent = "预览已更新";
+  $("analyze").hidden = true;
+  $("filter-status").textContent = "";
   $("preview-caption").textContent = `${result.project_name} · ${rangeDescription(result)}（北京时间）`;
+  void loadTrend(result);
   await renderPreview(); syncActions();
 }
 function table(columns, rows, selectable = false) {
@@ -1152,7 +1280,11 @@ function table(columns, rows, selectable = false) {
     });
     cell.append(check); tr.append(cell);
   }
-  for (const column of columns) tr.append(node("th", column.numeric ? "numeric" : "", column.title));
+  for (const column of columns) {
+    const heading = node("th", column.numeric ? "numeric" : "", column.title);
+    heading.scope = "col";
+    tr.append(heading);
+  }
   head.append(tr); item.append(head); const body = node("tbody");
   for (const row of rows) {
     const line = node("tr", state.selected.has(row.record_key) ? "selected-row" : "");
@@ -1201,20 +1333,18 @@ function aggregateColumns(kind) {
     {title: "日期", value: (row) => row.date}, {title: "项目", value: (row) => row.project_name, wrap: true},
   ] : [];
   return [...result, {title: "模型", value: (row) => row.model},
-    {title: "明细 / 历史记录", numeric: true, value: (row) => `${counts(row.detail_count)} / ${counts(row.rollup_record_count)}`},
+    {title: "明细数", numeric: true, value: (row) => counts(row.detail_count)},
     {title: "输入", numeric: true, value: (row) => counts(row.fresh_input_tokens)},
     {title: "输出", numeric: true, value: (row) => counts(row.output_tokens)},
     {title: "总 Token", numeric: true, value: (row) => counts(row.total_tokens)},
     {title: "参考成本 USD", numeric: true, value: costCell}];
 }
 function renderRowTable() {
-  const rollup = state.tab === "rollups";
   const columns = [
-    {title: rollup ? "来源日期" : "北京时间", value: (row) => rollup ? row.date : row.time?.replace("T", " ").replace("+08:00", ""), wrap: false},
+    {title: "北京时间", value: (row) => row.time?.replace("T", " ").replace("+08:00", ""), wrap: false},
     {title: "项目", value: projectCell, wrap: true},
     ...(state.analysis?.availability_mode === "all" ? [{title: "使用状态", value: usageCell, wrap: true}] : []),
-    rollup ? {title: "模型", value: (row) => row.model} : {title: "模型与来源", value: detailModelCell, wrap: true},
-    ...(rollup ? [{title: "代表记录数", numeric: true, value: (row) => counts(row.request_count)}] : []),
+    {title: "模型与来源", value: detailModelCell, wrap: true},
     {title: "输入", numeric: true, value: (row) => counts(row.fresh_input_tokens)},
     {title: "输出", numeric: true, value: (row) => counts(row.output_tokens)},
     {title: "缓存读取", numeric: true, value: (row) => counts(row.cache_read_tokens)},
@@ -1224,9 +1354,8 @@ function renderRowTable() {
   $("preview-table").replaceChildren(table(columns, state.rows, $("usage-legacy-tools").open));
 }
 function renderSelection() {
-  $("assignment-bar").hidden = !$("usage-legacy-tools").open || !state.selected.size;
-  $("selection-count").textContent = `已选 ${counts(state.selected.size)} 条${state.tab === "rollups" ? "完整日汇总" : "明细"}`;
-  $("session-scope-label").hidden = state.tab !== "details";
+  $("assignment-bar").hidden = state.tab !== "details" || !$("usage-legacy-tools").open || !state.selected.size;
+  $("selection-count").textContent = `已选 ${counts(state.selected.size)} 条明细`;
   renderAssignmentMode();
   syncActions();
 }
@@ -1244,35 +1373,46 @@ function renderAssignmentMode() {
 async function renderPreview() {
   $("assignment-bar").hidden = true; $("pagination").hidden = true;
   if (!state.analysis) return;
-  const kind = {details: "detail", rollups: "rollup", daily: "daily", models: "models"}[state.tab];
+  const kind = state.tab === "details" ? "detail" : state.tab;
   const params = new URLSearchParams({kind, size: "50"});
   if (state.cursor) params.set("cursor", state.cursor);
+  const day = kind === "daily" ? state.dailyDate : "";
+  if (day) params.set("day", day);
   const currentId = state.analysis.analysis_id;
   const tab = state.tab; const cursor = state.cursor; const generation = state.filterGeneration;
+  const request = ++state.previewRequest;
   const isCurrent = () => state.analysis?.analysis_id === currentId && state.tab === tab
-    && state.cursor === cursor && state.filterGeneration === generation && !state.stopped;
+    && state.cursor === cursor && state.dailyDate === day && state.filterGeneration === generation
+    && state.previewRequest === request && !state.stopped;
+  $("preview-table").replaceChildren(node("p", "empty-state", "正在读取用量…"));
   let result;
   try {
     result = await api(`/api/analysis/${encodeURIComponent(currentId)}/details?${params}`, undefined, isCurrent);
-  } catch (error) { if (!isCurrent() && !error.invalidated) return; throw error; }
+  } catch (error) {
+    if (isCurrent()) {
+      $("preview-table").replaceChildren(node("p", "empty-state", "明细未加载。请更新预览。"));
+      $("filter-status").textContent = "明细未加载。";
+      $("analyze").hidden = false;
+    } else if (!error.invalidated) return;
+    throw error;
+  }
   if (!isCurrent()) return;
   state.rows = result.rows; state.total = result.total; state.nextCursor = result.next_cursor || null;
-  if (!state.rows.length) empty($("preview-table"), state.analysis.time_coverage?.complete === false ? "当前时段没有可确定的用量" : "当前筛选没有用量",
-    state.analysis.time_coverage?.complete === false ? "历史日汇总无法按此时段拆分，可在上方选择“改查整天”。" : "调整项目、时间或查看待核对依据。");
+  if (!state.rows.length) empty($("preview-table"), day ? `${day} 没有可显示的用量` : "当前筛选没有用量",
+    day ? "清除日期筛选可查看整个预览。" : "可调整项目或时间。");
   else if (["daily", "models"].includes(state.tab)) $("preview-table").replaceChildren(table(aggregateColumns(state.tab), state.rows));
   else renderRowTable();
   $("page-label").textContent = result.total === null || result.total === undefined
     ? `本页 ${counts(state.rows.length)} 行 · 第 ${state.page} 页`
     : `共 ${counts(result.total)} 行 · 第 ${state.page} 页`;
   $("pagination").hidden = !state.rows.length;
-  if (["details", "rollups"].includes(state.tab)) renderSelection();
+  if (state.tab === "details") renderSelection();
   syncActions();
 }
 async function applyAssignment() {
   const selected = [...state.selected.values()];
   const sessionScope = state.tab === "details" && $("session-scope").checked;
-  const body = {kind: state.tab === "rollups" ? "rollup" : "detail",
-    project_id: $("assignment-project").value || null};
+  const body = {project_id: $("assignment-project").value || null};
   if (sessionScope) body.session_ids = [...new Set(selected.map((row) => row.session_id))];
   else body.keys = selected.map((row) => row.record_key);
   await api("/api/assignments", body);
@@ -1284,17 +1424,86 @@ function claim(prefix = "claim") {
   return {purpose: $(`${prefix}-purpose`).value, amount: $(`${prefix}-amount`).value.trim(),
     currency: $(`${prefix}-currency`).value, amount_note: $(`${prefix}-note`).value};
 }
+function canCreateClaim(analysis) {
+  return analysis?.availability_mode === "available" && !analysis.target_batch_id && hasUsage(analysis.summary);
+}
+function syncClaimActions() {
+  const allowed = canCreateClaim(state.analysis);
+  const stale = $("claim-dialog").open && state.claimAnalysis !== state.analysis;
+  $("open-claim").disabled = state.busy || !allowed;
+  $("create-batch").disabled = state.busy || !allowed || !$("claim-dialog").open || stale;
+  const lock = $("claim-lock");
+  lock.hidden = !state.analysis || allowed;
+  lock.textContent = state.analysis?.availability_mode === "all" ? "切回可用用量可生成材料。" : "当前范围没有可用记录。";
+  const refresh = $("claim-refresh-preview");
+  refresh.hidden = !stale || Boolean(state.analysis && !allowed);
+  refresh.disabled = state.busy || !state.ledger;
+  refresh.textContent = state.analysis ? "采用最新预览" : "更新预览";
+  const explanation = $("claim-explanation");
+  explanation.hidden = !stale;
+  const message = !stale ? "" : refresh.hidden
+    ? "当前没有可报销用量。请调整筛选后再试。"
+    : "用量已变化。请核对最新预览再保存。";
+  if (explanation.textContent !== message) explanation.textContent = message;
+}
+function setClaimAnalysis(analysis) {
+  state.claimAnalysis = analysis;
+  $("claim-preview-project").textContent = analysis.project_name;
+  $("claim-preview-range").textContent = `${rangeDescription(analysis)}（北京时间）`;
+  $("claim-preview-count").textContent = `${counts(analysis.summary.record_count)} 条记录`;
+  $("claim-preview-cost").textContent = `${money(analysis.summary.total_cost_usd)} USD`;
+  syncClaimActions();
+}
+function openClaimDialog() {
+  if (state.busy || state.stopped || !canCreateClaim(state.analysis) || $("claim-dialog").open) return;
+  clearFeedback();
+  for (const id of ["claim-amount", "claim-note"]) $(id).removeAttribute("aria-invalid");
+  setClaimAnalysis(state.analysis);
+  $("claim-dialog").showModal();
+  syncClaimActions();
+  $("claim-purpose").focus({preventScroll: true});
+}
+async function refreshClaimPreview() {
+  if (state.busy || !$("claim-dialog").open) return;
+  await run("正在更新用量…", async () => {
+    if (!state.analysis) await analyze();
+    if ($("claim-dialog").open && canCreateClaim(state.analysis)) setClaimAnalysis(state.analysis);
+  });
+  if ($("claim-dialog").open && state.claimAnalysis === state.analysis) $("claim-purpose").focus({preventScroll: true});
+}
+function claimValidationError(value) {
+  if (!value.amount) return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(value.amount)) return {field: "amount", message: "请填写非负金额，最多两位小数。"};
+  if (!value.amount_note.trim()) return {field: "note", message: "请填写金额依据。"};
+  return null;
+}
 function validateClaim(value) {
-  if (value.amount.trim() && (!/^\d+(\.\d{1,2})?$/.test(value.amount.trim()) || !value.amount_note.trim())) {
-    throw new Error("请填写非负报销金额，最多保留两位小数，并说明金额依据。");
+  const error = claimValidationError(value);
+  if (error) throw new Error(error.message);
+}
+function submitClaim() {
+  if (state.busy || state.stopped || !$("claim-dialog").open) return;
+  const analysis = state.claimAnalysis;
+  if (analysis !== state.analysis || !canCreateClaim(analysis)) return;
+  const value = claim();
+  const error = claimValidationError(value);
+  for (const id of ["claim-amount", "claim-note"]) $(id).removeAttribute("aria-invalid");
+  if (error) {
+    notify(error.message, "error");
+    const input = $(`claim-${error.field}`);
+    input.setAttribute("aria-invalid", "true");
+    input.focus();
+    return;
   }
+  void run("正在保存报销记录…", () => prepareBatch({analysis_id: analysis.analysis_id, claim: value}));
 }
 function ownerLink(owner, closeDialog = null) {
   const link = node("button", "batch-link", `${owner.number || "报销记录"} · v${owner.version}`);
   link.addEventListener("click", () => run("正在加载报销记录…", async () => {
     if (closeDialog) $(closeDialog).close();
+    if (closeDialog === "overlap-dialog") $("claim-dialog").close();
     page("batches"); await showBatch(owner.batch_id);
-    $("batch-detail").scrollIntoView({behavior: "smooth", block: "start"});
+    $("batch-detail").scrollIntoView({block: "start"});
   }));
   return link;
 }
@@ -1302,19 +1511,22 @@ function renderAvailability(result) {
   const availability = result.availability;
   const target = $("availability-groups"); target.replaceChildren();
   if (!availability) { $("availability-panel").hidden = true; return; }
-  const matched = availability.matched_summary;
   const available = availability.available_summary;
   const excluded = availability.excluded_summary;
-  $("availability-title").textContent = availability.mode === "all" ? "全部用量，仅供查看" : "可用用量";
-  $("availability-summary").textContent = `${result.time_coverage?.complete === false ? "当前范围内已确定的" : "当前范围共"}${counts(matched.record_count)} 条用量，已排除 ${counts(excluded.record_count)} 条，剩余 ${counts(available.record_count)} 条可用。`;
+  const pending = result.pending_count || 0;
+  const readOnly = availability.mode === "all";
+  const reasons = [
+    excluded.record_count ? `${counts(excluded.record_count)} 条已占用` : "",
+    pending ? `${counts(pending)} 项待核对` : "",
+  ].filter(Boolean);
+  $("availability-title").textContent = readOnly ? "全部用量，仅供查看" : reasons.join(" · ");
+  const summary = $("availability-summary");
+  summary.replaceChildren(node("span", "", readOnly ? "切换到可用用量后可生成报销材料。" : `可用 ${counts(available.record_count)} 条。`));
+  if (pending && !readOnly) summary.append(reviewAction());
   for (const group of availability.excluded_groups || []) {
     const item = node("div", "availability-group");
-    const quantities = [];
-    if (group.detail_count) quantities.push(`${counts(group.detail_count)} 条明细`);
-    const rollupRows = group.row_count - group.detail_count;
-    if (rollupRows > 0) quantities.push(`${counts(rollupRows)} 条历史汇总（代表 ${counts(group.rollup_record_count)} 条记录）`);
-    const reason = String(group.message || "已排除").replace(/[。.!！：:]+$/u, "");
-    item.append(node("p", "", `${reason}：${quantities.join("，") || `${counts(group.record_count)} 条用量`}。`));
+    const reason = {reconciliation: "待核对", identity: "已占用"}[group.reason] || group.message || "已排除";
+    item.append(node("p", "", [group.date, group.model, `${counts(group.record_count)} 条明细 ${reason}`].filter(Boolean).join(" · ")));
     const owners = node("div", "availability-owners");
     for (const owner of group.owners || []) {
       owners.append(ownerLink(owner), node("span", `status ${owner.status}`, labels[owner.status] || owner.status));
@@ -1322,8 +1534,7 @@ function renderAvailability(result) {
     if (group.owners?.length) item.append(owners);
     target.append(item);
   }
-  if (availability.mode === "all") target.prepend(node("p", "field-help", "保存报销记录前，请切换到“可用用量”并更新预览。"));
-  $("availability-panel").hidden = availability.mode === "available" && !excluded.record_count;
+  $("availability-panel").hidden = !readOnly && !reasons.length;
 }
 function usageCell(row) {
   const stateLabel = {available: "可用", claimed: "已占用", ambiguous: "待核对", pending: "待核对"};
@@ -1346,9 +1557,14 @@ async function prepareBatch(payload, batchId = null) {
   if (pending.previewed) return saveBatch();
   const previewRequest = {...request};
   if (batchId) previewRequest.batch_id = batchId;
-  const result = await api("/api/batches/preview", previewRequest);
+  const active = () => state.pendingBatch === pending && !state.stopped;
+  let result;
+  try { result = await api("/api/batches/preview", previewRequest, active); }
+  catch (error) { if (!active() && !error.invalidated) return; throw error; }
+  if (!active()) return;
   if (result.blocking) {
     renderOverlaps(result.conflicts);
+    if (!batchId) invalidate("用量已变化，请更新预览");
     if ($("revision-dialog").open) $("revision-dialog").close();
     $("overlap-dialog").showModal();
     return;
@@ -1370,20 +1586,20 @@ async function saveBatch() {
   const pending = state.pendingBatch;
   if (!pending) throw new Error("请更新预览后重新保存。");
   const path = pending.batchId ? `/api/batches/${encodeURIComponent(pending.batchId)}/revisions` : "/api/batches";
-  const saved = await api(path, pending.request);
+  const saved = await api(path, pending.request, () => state.pendingBatch === pending && !state.stopped);
   state.pendingBatch = null;
   $("overlap-dialog").close(); $("revision-dialog").close();
   state.revision = null;
   if (!pending.batchId) {
+    $("claim-dialog").close();
     for (const id of ["claim-purpose", "claim-amount", "claim-note"]) $(id).value = "";
-    $("claim-explanation").textContent = "申请报销金额由你填写。";
   }
   invalidate("已保存，请更新预览");
   let refreshed = true;
   try { await refreshBatches(); if (state.ledger) await analyze(); }
   catch { refreshed = false; }
   try { await download(saved.batch_id || saved.id, saved.version); }
-  catch { throw new Error("记录已保存，下载失败。请在“报销记录”中下载材料。"); }
+  catch { throw new Error("已保存，下载失败。到报销记录重新下载。"); }
   const message = saved.lifecycle === "voided" ? "已下载已作废记录的历史材料。"
     : !saved.is_effective ? "已下载该历史版本的材料。"
     : refreshed ? "已保存报销记录，材料已下载。" : "已保存报销记录，材料已下载。请更新预览后继续。";
@@ -1413,21 +1629,31 @@ function renderBatches() {
   if (!state.batches.length) {
     empty($("batch-list"), "暂无报销记录", "在“用量与费用”选择项目和日期后保存。"); return;
   }
-  $("batch-list").replaceChildren(table([
-    {title: "记录编号", value: (row) => {
+  const list = table([
+    {title: "记录", value: (row) => {
+      const id = row.id || row.batch_id;
       const link = node("button", "batch-link", row.number);
-      link.addEventListener("click", () => run("正在加载报销记录…", () => showBatch(row.id || row.batch_id))); return link;
+      link.type = "button"; link.dataset.batchId = id;
+      link.addEventListener("click", () => run("正在读取报销记录…", async () => {
+        await showBatch(id);
+        $("batch-detail-heading").focus({preventScroll: true});
+        $("batch-detail").scrollIntoView({block: "start"});
+      }));
+      const record = node("span"); record.append(link);
+      if (row.active_version) record.append(node("span", "subline", `v${row.active_version}`));
+      return record;
     }},
     {title: "项目 / 期间", wrap: true, value: (row) => {
       const text = node("span", "", row.project_name);
       text.append(node("span", "subline", `${rangeDescription(row)}（北京时间）`)); return text;
     }},
-    {title: "当前版本", value: (row) => row.active_version ? `v${row.active_version}` : "—"},
+    {title: "状态", value: (row) => node("span", `status ${batchStatus(row)}`, labels[batchStatus(row)])},
     {title: "参考成本 USD", numeric: true, value: (row) => money(row.total_cost_usd)},
-    {title: "申请金额", numeric: true, value: (row) => row.claim.amount === null ? "未填写" : `${money(row.claim.amount)} ${row.claim.currency}`},
-    {title: "报销状态", value: (row) => node("span", `status ${batchStatus(row)}`, labels[batchStatus(row)])},
+    {title: "申请金额", numeric: true, value: (row) => row.claim.amount == null || row.claim.amount === "" ? "未填写" : `${money(row.claim.amount)} ${row.claim.currency}`},
     {title: "创建时间", value: (row) => dateTime(row.created_at)},
-  ], state.batches));
+  ], state.batches);
+  list.className = "compact-table";
+  $("batch-list").replaceChildren(list);
 }
 async function showBatch(id) {
   state.batch = await api(`/api/batches/${encodeURIComponent(id)}`);
@@ -1435,6 +1661,7 @@ async function showBatch(id) {
 }
 function actionButton(label, action, className = "button small") {
   const button = node("button", className, label);
+  button.type = "button";
   button.addEventListener("click", action);
   return button;
 }
@@ -1451,11 +1678,17 @@ function renderBatchDetail() {
   const batch = state.batch; const target = $("batch-detail"); target.replaceChildren();
   if (!batch) return;
   const panel = node("section", "panel"); const header = node("div", "batch-detail-header");
-  const heading = node("div"); heading.append(node("h2", "", `${batch.number} · 修改历史`));
+  const title = node("h2", "", `${batch.number} · 修改历史`);
+  title.id = "batch-detail-heading"; title.tabIndex = -1;
+  const heading = node("div"); heading.append(title);
   if (batch.lifecycle === "voided") heading.append(node("p", "", "此记录已作废，历史材料可继续下载。"));
   if (batch.current_difference_count) heading.append(node("p", "warning", `${counts(batch.current_difference_count)} 条用量的当前来源值与保存依据不同，历史材料保持原值。`));
   const headerActions = node("div", "revision-actions");
-  headerActions.append(actionButton("收起", () => { state.batch = null; target.replaceChildren(); }));
+  headerActions.append(actionButton("收起", () => {
+    const button = [...$("batch-list").querySelectorAll("[data-batch-id]")].find((item) => item.dataset.batchId === (batch.id || batch.batch_id));
+    state.batch = null; target.replaceChildren();
+    (button || $("refresh-batches")).focus();
+  }));
   header.append(heading, headerActions); panel.append(header);
   for (const revision of [...batch.revisions].sort((a, b) => b.version - a.version)) {
     const result = revision.analysis; const value = revision.claim;
@@ -1469,9 +1702,7 @@ function renderBatchDetail() {
       node("span", "", `参考成本 ${money(result.summary.total_cost_usd)} USD`),
       node("span", "", value.amount === null || value.amount === "" ? "申请金额未填写" : `申请 ${money(value.amount)} ${value.currency}`));
     item.append(title, meta);
-    const coverage = node("div", "warning time-coverage-note"); renderTimeCoverage(coverage, result, null, true);
-    if (!coverage.hidden) item.append(coverage);
-    if (result.summary_complete == null && result.time_coverage == null) item.append(node("p", "field-help frozen-note", "沿用旧记录的冻结用量与说明，未重新判断历史资料完整性。"));
+    if (result.summary_complete == null) item.append(node("p", "field-help frozen-note", "沿用旧记录的冻结用量与说明，未重新判断历史资料完整性。"));
     if (value.purpose) item.append(node("p", "revision-purpose", value.purpose));
     if (value.amount_note) item.append(node("p", "revision-purpose", `金额依据：${value.amount_note}`));
     const actions = node("div", "revision-actions");
@@ -1525,16 +1756,12 @@ function openRevision(batch, revision) {
 }
 function renderRevisionPreview(result, frozen = false) {
   const summary = result.summary;
-  const omittedOnly = result.time_coverage?.complete === false && !hasUsage(summary);
   $("revision-preview").replaceChildren(
-    node("strong", "", omittedOnly ? "当前时段没有可确定的用量" : `${counts(summary.record_count)} 条用量 · 参考成本 ${money(summary.total_cost_usd)} USD`),
+    node("strong", "", !frozen && !hasUsage(summary) ? "当前范围没有可用记录。" : `${counts(summary.record_count)} 条用量 · 参考成本 ${money(summary.total_cost_usd)} USD`),
     node("p", "field-help", `${result.project_name || "当前项目"} · ${rangeDescription(result)}（北京时间）`),
   );
-  if (frozen) $("revision-preview").append(node("p", "field-help", result.summary_complete == null && result.time_coverage == null
+  if (frozen) $("revision-preview").append(node("p", "field-help", result.summary_complete == null
     ? "沿用旧记录的冻结用量与说明，未重新判断历史资料完整性。" : "保留原记录的时间范围与冻结用量；保存时不会延长范围。"));
-  const coverage = node("div", "warning time-coverage-note");
-  renderTimeCoverage(coverage, result, frozen ? null : () => { void applyRevisionTimeRange(AhaTimeRange.wholeDays(result)).catch(() => {}); }, frozen);
-  if (!coverage.hidden) $("revision-preview").append(coverage);
   if (result.pending_count) $("revision-preview").append(node("p", "field-help", `有 ${counts(result.pending_count)} 项用量待核对，合计仅含已核实部分。`));
   const excluded = result.availability?.excluded_summary?.record_count;
   if (excluded) $("revision-preview").append(node("p", "field-help", `已排除其他记录占用或待核对的 ${counts(excluded)} 条用量。`));
@@ -1574,7 +1801,7 @@ function openLifecycle(action, batch, revision = null) {
   if (state.busy) return;
   clearFeedback();
   const settings = {
-    withdraw: {title: "撤回为草稿", reason: "撤回原因", confirm: "确认撤回", description: "撤回后可修改，用量仍由此记录占用。"},
+    withdraw: {title: "撤回为草稿", reason: "撤回原因", confirm: "确认撤回", description: "撤回后成为草稿，用量仍由此记录占用。"},
     void: {title: "作废记录", reason: "作废原因", confirm: "确认作废", description: "作废后用量可供其他报销记录使用，历史记录和材料仍保留。"},
   }[action];
   state.lifecycle = {action, batchId: batch.id || batch.batch_id, generation: batch.generation, signature: null, key: null};
@@ -1601,13 +1828,13 @@ async function saveLifecycle() {
   invalidate("记录已更新，请更新预览");
   await refreshBatches();
   if (state.ledger) await analyze();
-  notify({withdraw: "已撤回为草稿，可以修改。", void: "已作废，用量已释放。"}[operation.action]);
+  notify({withdraw: "已撤回为草稿。", void: "已作废，用量已释放。"}[operation.action]);
 }
 function renderEmptyRange(result) {
   const coverage = state.ledger?.coverage;
-  const show = !hasUsage(result.summary) && result.time_coverage?.complete !== false && coverage?.start_date;
+  const show = !hasUsage(result.summary) && coverage?.start_date;
   $("empty-range-note").hidden = !show;
-  if (show) $("empty-range-description").textContent = `当前筛选没有可计入的用量。历史数据仍保留，覆盖 ${coverage.start_date} 至 ${coverage.end_date}；同步失败也不会清空这些历史。`;
+  if (show) $("empty-range-description").textContent = `当前筛选没有可计入的用量。本地明细覆盖 ${coverage.start_date} 至 ${coverage.end_date}。`;
 }
 async function viewAllHistory() {
   $("project-select").value = "all";
@@ -2083,12 +2310,12 @@ async function reloadReconciliations(view, message) {
   if (loaded && currentReconciliation(view) && request === view.pageRequest) reconciliationFeedback("error", message);
   return loaded;
 }
-async function openReconciliations() {
+async function openReconciliations(trigger = $("review-data")) {
   const dialog = $("reconciliation-dialog");
   if (dialog.open || state.stopped) return;
   Object.entries(reconciliationFilters).forEach(([field, id]) => { $(id).value = field === "eligibility" ? "all" : ""; });
   const view = {
-    filters: readReconciliationFilters(), page: null, pageIndex: 0, cursors: [null], controls: [], pageRequest: 0,
+    trigger, filters: readReconciliationFilters(), page: null, pageIndex: 0, cursors: [null], controls: [], pageRequest: 0,
     loading: false, dirty: false, selected: new Set(), allFiltered: false, preview: null, previewRequest: 0, previewing: false, saving: false,
   };
   state.reconciliationView = view;
@@ -2174,7 +2401,7 @@ function renderReconciliationPage(view) {
 }
 function renderReconciliationDetail(view, target, entry) {
   target.replaceChildren();
-  const choiceLabels = {detail: "采用已存明细", rollup: "采用完整日汇总", current: "保留当前值", candidate: "采用候选修订", same: "确认为同一消费", independent: "确认为独立消费"};
+  const choiceLabels = {current: "保留当前值", candidate: "采用候选修订", same: "确认为同一消费", independent: "确认为独立消费"};
   const facts = node("div", "reconciliation-facts");
   if (entry.type === "directory") {
     facts.append(node("p", "", `已保存目录：${entry.current_cwd || "未提供"}`),
@@ -2182,12 +2409,11 @@ function renderReconciliationDetail(view, target, entry) {
   }
   if (entry.current_cost_usd != null) facts.append(node("p", "", `当前参考成本：${money(entry.current_cost_usd)} USD`));
   if (entry.candidate_cost_usd != null) facts.append(node("p", "", `候选参考成本：${money(entry.candidate_cost_usd)} USD`));
-  if (entry.detail_count !== undefined) facts.append(node("p", "", `已存明细 ${counts(entry.detail_count)} 条；来源日汇总 ${counts(entry.rollup_count)} 条，代表 ${counts(entry.rollup_record_count)} 条记录。`));
   if (entry.type === "native_uncertain" && entry.pending_reason) {
     facts.append(node("p", "", sourceIssueLabels[entry.pending_reason] || "该条用量的依据还无法核实。"));
   }
   for (const [key, label] of [["previous", "此前来源"], ["observed", "本次来源"]]) {
-    if (entry[key]) facts.append(node("p", "", `${label}：${counts(entry[key].detail ?? entry[key].detail_count)} 条明细，${counts(entry[key].rollup ?? entry[key].rollup_count)} 条汇总。`));
+    if (entry[key]) facts.append(node("p", "", `${label} ${counts(entry[key].detail ?? entry[key].detail_count)} 条明细`));
   }
   for (const [key, label] of [["current", "当前依据"], ["candidate", "候选依据"]]) {
     const value = entry[key] || entry[`${key}_summary`];
@@ -2208,7 +2434,6 @@ function renderReconciliationDetail(view, target, entry) {
   for (const choice of entry.choices || []) {
     const value = typeof choice === "string" ? choice : choice.value;
     const label = entry.type === "source" && value === "current" ? "确认此来源，保留本地历史"
-      : entry.type === "rollup_origin" && value === "current" ? "确认重叠，保留历史汇总"
       : entry.type === "directory" ? (value === "candidate" ? "采用当前电脑目录" : "保留已保存目录")
       : entry.type === "native_overlap" ? (value === "independent" ? "确认为新用量" : "沿用已入账历史")
       : entry.type === "native_uncertain" ? "确认排除候选"
@@ -2361,9 +2586,37 @@ document.querySelectorAll("[data-page]").forEach((button) => button.addEventList
   if (button.dataset.page === "projects") void run("正在读取项目费用与归属…", refreshAssociations);
 }));
 document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => $(button.dataset.close).close()));
-for (const id of ["project-select", "availability-mode"]) $(id).addEventListener("change", () => invalidate());
-$("source-options").addEventListener("click", () => { void openSourceSettings($("source-options")); });
-$("backup-options").addEventListener("click", openBackupDialog);
+for (const id of ["project-select", "availability-mode"]) $(id).addEventListener("change", async () => {
+  // Let the segmented control finish moving focus before run locks inputs.
+  await Promise.resolve();
+  if (state.stopped) return;
+  if (!state.ledger || state.busy) invalidate();
+  else await run("正在更新预览…", analyze);
+});
+const ledgerSettings = $("ledger-settings");
+function closeLedgerSettings(restoreFocus = false) {
+  ledgerSettings.open = false;
+  if (!restoreFocus) return;
+  const trigger = ledgerSettings.querySelector("summary");
+  trigger?.focus({preventScroll: true});
+  return trigger;
+}
+ledgerSettings.addEventListener("focusout", (event) => {
+  if (ledgerSettings.open && !ledgerSettings.contains(event.relatedTarget)) closeLedgerSettings();
+});
+ledgerSettings.addEventListener("keydown", (event) => {
+  if (!ledgerSettings.open || event.key !== "Escape") return;
+  event.preventDefault();
+  closeLedgerSettings(true);
+});
+document.body.addEventListener("click", (event) => {
+  if (ledgerSettings.open && !ledgerSettings.contains(event.target)) closeLedgerSettings();
+});
+$("source-options").addEventListener("click", () => { void openSourceSettings(closeLedgerSettings(true)); });
+$("backup-options").addEventListener("click", () => {
+  closeLedgerSettings(true);
+  void openBackupDialog();
+});
 $("create-full-backup").addEventListener("click", () => { void createFullBackup(); });
 $("restore-form").addEventListener("submit", (event) => { event.preventDefault(); void restoreFullBackup(); });
 $("cancel-backup").addEventListener("click", () => { void cancelBackupOperation(); });
@@ -2374,8 +2627,9 @@ $("source-dialog").addEventListener("close", () => {
   const trigger = state.sourceSettings?.trigger;
   state.sourceSettings = null;
   syncSourceSettings();
+  if (state.stopped) return;
   if (trigger?.isConnected && !trigger.disabled) trigger.focus({preventScroll: true});
-  else if (!$("source-options").disabled) $("source-options").focus({preventScroll: true});
+  else ledgerSettings.querySelector("summary")?.focus({preventScroll: true});
 });
 for (const kind of Object.keys(sourceNames)) {
   $(`${kind}-source-all-history`).addEventListener("click", () => {
@@ -2397,7 +2651,7 @@ $("wsl-distribution").addEventListener("change", () => {
 $("view-all-history").addEventListener("click", () => run("正在查询全部历史…", viewAllHistory));
 $("load-default").addEventListener("click", () => { void loadSource(); });
 $("cancel-sync").addEventListener("click", () => { void cancelSync(); });
-$("review-data").addEventListener("click", () => { void openReconciliations(); });
+$("review-data").addEventListener("click", () => { void openReconciliations(closeLedgerSettings(true)); });
 $("reconciliation-dialog").addEventListener("cancel", (event) => {
   const view = state.reconciliationView;
   if (!currentReconciliation(view)) return;
@@ -2411,13 +2665,18 @@ $("reconciliation-dialog").addEventListener("cancel", (event) => {
 });
 $("reconciliation-dialog").addEventListener("close", () => {
   if ($("reconciliation-dialog").open) return;
+  const trigger = state.reconciliationView?.trigger;
   state.reconciliationView = null;
   const list = $("reconciliation-list");
   AhaForms.destroy(list);
   list.replaceChildren();
   $("reconciliation-batch-form").hidden = true;
   $("reconciliation-batch-reason").value = "";
-  if (!state.stopped && !$("review-data").disabled) $("review-data").focus({preventScroll: true});
+  if (!state.stopped) {
+    const focus = trigger?.isConnected && !trigger.disabled && trigger.getClientRects().length
+      ? trigger : $("main");
+    focus.focus({preventScroll: true});
+  }
 });
 for (const id of Object.values(reconciliationFilters)) {
   $(id).addEventListener("change", () => {
@@ -2511,7 +2770,7 @@ $("project-dialog").addEventListener("close", () => {
 });
 $("usage-legacy-tools").addEventListener("toggle", () => {
   state.selected.clear();
-  if (["details", "rollups"].includes(state.tab) && state.rows.length) renderRowTable();
+  if (state.tab === "details" && state.rows.length) renderRowTable();
   renderSelection();
 });
 $("refresh-associations").addEventListener("click", () => run("正在读取项目费用与归属…", refreshAssociations));
@@ -2554,15 +2813,36 @@ $("manage-unassigned").addEventListener("click", () => run("正在查询待归�
   $("association-panel").scrollIntoView?.({behavior: "smooth", block: "start"});
 }));
 
-async function selectPreviewTab(name) {
+async function selectPreviewTab(name, day = "") {
   state.tab = name; state.page = 1; state.cursor = null; state.nextCursor = null; state.cursors = [null]; state.selected.clear();
+  state.dailyDate = name === "daily" ? day : "";
+  renderDailySelection();
   document.querySelectorAll("[data-tab]").forEach((tab) => {
     const selected = tab.dataset.tab === name;
     tab.classList.toggle("active", selected); tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
   });
   await renderPreview();
 }
-document.querySelectorAll("[data-tab]").forEach((button) => button.addEventListener("click", () => run("正在切换预览…", () => selectPreviewTab(button.dataset.tab))));
+const previewTabs = [...document.querySelectorAll("[data-tab]")];
+previewTabs.forEach((button, index) => {
+  button.tabIndex = button.dataset.tab === state.tab ? 0 : -1;
+  button.addEventListener("click", () => run("正在切换预览…", () => selectPreviewTab(button.dataset.tab)));
+  button.addEventListener("keydown", async (event) => {
+    const move = {ArrowLeft: index - 1, ArrowRight: index + 1, Home: 0, End: previewTabs.length - 1}[event.key];
+    if (move === undefined || state.busy || state.stopped) return;
+    event.preventDefault();
+    const next = previewTabs[(move + previewTabs.length) % previewTabs.length];
+    await run("正在切换预览…", () => selectPreviewTab(next.dataset.tab));
+    next.focus();
+  });
+});
+$("trend-retry").addEventListener("click", () => { void loadTrend(); });
+$("clear-daily-selection").addEventListener("click", async () => {
+  if (state.busy || !state.dailyDate) return;
+  await run("正在读取整段用量…", () => selectPreviewTab("daily"));
+  document.querySelector('[data-tab="daily"]')?.focus({preventScroll: true});
+});
 $("view-details").addEventListener("click", () => run("正在加载明细…", async () => {
   if (!state.analysis) throw new Error("请先更新预览。");
   await selectPreviewTab("details");
@@ -2574,7 +2854,26 @@ $("clear-selection").addEventListener("click", () => { state.selected.clear(); r
 $("session-scope").addEventListener("change", renderAssignmentMode);
 $("assignment-project").addEventListener("change", renderAssignmentMode);
 $("assign").addEventListener("click", () => run("正在分配项目…", applyAssignment));
-$("create-batch").addEventListener("click", () => run("正在保存报销记录…", () => prepareBatch({analysis_id: state.analysis.analysis_id, claim: claim()})));
+$("open-claim").addEventListener("click", openClaimDialog);
+$("claim-refresh-preview").addEventListener("click", () => { void refreshClaimPreview(); });
+$("claim-dialog").addEventListener("cancel", (event) => {
+  if (state.busy) event.preventDefault();
+});
+$("claim-dialog").addEventListener("close", () => {
+  if ($("claim-dialog").open) return;
+  state.claimAnalysis = null;
+  syncClaimActions();
+  if (state.stopped || state.activePage !== "usage") return;
+  const focused = document.activeElement;
+  const trigger = $("open-claim");
+  if (focused === document.body || focused === $("claim-dialog") || (focused === trigger && trigger.disabled)) {
+    (trigger.disabled ? $("main") : trigger).focus({preventScroll: true});
+  }
+});
+$("claim-form").addEventListener("submit", (event) => { event.preventDefault(); submitClaim(); });
+for (const id of ["claim-amount", "claim-note"]) $(id).addEventListener("input", () => {
+  $(id).removeAttribute("aria-invalid");
+});
 $("confirm-batch").addEventListener("click", () => run("正在更新预览…", async () => {
   const batchId = state.pendingBatch?.batchId;
   $("overlap-dialog").close(); state.pendingBatch = null;
@@ -2608,7 +2907,7 @@ const shutdown = () => run("正在退出…", async () => {
   state.ledger = null; invalidate("程序正在退出");
   notify("正在退出程序，已保存资料会保留，可以关闭此页面。", "info");
 });
-$("shutdown").addEventListener("click", shutdown);
+$("shutdown").addEventListener("click", () => { closeLedgerSettings(true); void shutdown(); });
 $("shutdown-compact").addEventListener("click", shutdown);
 AhaForms.mount();
 run("正在加载…", initialize);

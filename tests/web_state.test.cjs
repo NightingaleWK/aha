@@ -16,12 +16,17 @@ function page() {
       this.listeners = new Map();
       this.attributes = new Map();
       this.classList = {toggle() {}, add() {}, remove() {}};
+      const style = new Map();
+      this.style = {setProperty(name, value) { style.set(name, value); }, getPropertyValue(name) { return style.get(name); }};
     }
     addEventListener(name, listener) {
       if (!this.listeners.has(name)) this.listeners.set(name, []);
       this.listeners.get(name).push(listener);
     }
-    emit(name) { for (const listener of this.listeners.get(name) || []) listener({target: this, preventDefault() {}}); }
+    emit(name, fields = {}) {
+      for (const listener of this.listeners.get(name) || []) listener({target: this, preventDefault() {}, ...fields});
+    }
+    contains(element) { return this === element || this.children.some((child) => child.contains(element)); }
     get options() { return this.children; }
     setAttribute(name, value) { this.attributes.set(name, value); }
     getAttribute(name) { return this.attributes.get(name) ?? null; }
@@ -30,11 +35,13 @@ function page() {
       const matches = [];
       function visit(element) {
         if (selector === "input:checked" && element.type === "checkbox" && element.checked) matches.push(element);
+        if (selector.startsWith(".") && element.className?.split(" ").includes(selector.slice(1))) matches.push(element);
         element.children.forEach(visit);
       }
       this.children.forEach(visit);
       return matches;
     }
+    querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
     append(...items) { this.children.push(...items); }
     replaceChildren(...items) { this.children = items; }
     close() { if (this.open) { this.open = false; this.emit("close"); } }
@@ -119,16 +126,82 @@ function page() {
   };
 }
 
+test("ledger settings dismisses when leaving and returns focus on Escape", () => {
+  const app = page();
+  const state = app.evaluate(`
+    const summary = document.createElement("summary");
+    const action = $("source-options");
+    ledgerSettings.append(summary, action);
+    ledgerSettings.querySelector = () => summary;
+    ledgerSettings.open = true;
+    ledgerSettings.emit("focusout", {relatedTarget: action});
+    const keptOpenInside = ledgerSettings.open;
+    ledgerSettings.emit("focusout", {relatedTarget: $("main")});
+    const closedOnFocusLeave = !ledgerSettings.open;
+    ledgerSettings.open = true;
+    document.body.emit("click", {target: action});
+    const keptOpenOnInnerClick = ledgerSettings.open;
+    document.body.emit("click", {target: $("main")});
+    const closedOnOuterClick = !ledgerSettings.open;
+    ledgerSettings.open = true;
+    let escaped = false;
+    ledgerSettings.emit("keydown", {key: "Escape", preventDefault() { escaped = true; }});
+    [keptOpenInside, closedOnFocusLeave, keptOpenOnInnerClick, closedOnOuterClick,
+      escaped && !ledgerSettings.open && summary.focused];
+  `);
+  assert.deepEqual([...state], [true, true, true, true, true]);
+});
+
+test("settings dialogs dismiss the menu and retain its visible summary as the focus origin", async () => {
+  const app = page();
+  const source = app.evaluate(`
+    const summary = document.createElement("summary");
+    summary.getClientRects = () => [{}];
+    ledgerSettings.querySelector = () => summary;
+    ledgerSettings.open = true;
+    $("source-options").emit("click");
+    const origin = !ledgerSettings.open && $("source-dialog").open && state.sourceSettings.trigger === summary;
+    summary.focused = false;
+    $("source-dialog").close();
+    [origin, summary.focused];
+  `);
+  assert.deepEqual([...source], [true, true]);
+  app.replyTo("/api/codex-sources", true, {sources: []});
+  assert.equal(app.evaluate(`
+    ledgerSettings.open = true;
+    $("review-data").emit("click");
+    const reviewOrigin = !ledgerSettings.open && state.reconciliationView.trigger === summary;
+    summary.focused = false;
+    $("reconciliation-dialog").close();
+    reviewOrigin && summary.focused;
+  `), true);
+  app.replyTo(app.pendingUrls()[0], true, {});
+  assert.equal(app.evaluate(`
+    let backupOrigin = false;
+    $("backup-dialog").showModal = function () {
+      backupOrigin = !ledgerSettings.open && summary.focused;
+      this.open = true;
+    };
+    ledgerSettings.open = true;
+    summary.focused = false;
+    $("backup-options").emit("click");
+    backupOrigin;
+  `), true);
+  app.statusReply({});
+  await new Promise((resolve) => setImmediate(resolve));
+});
+
 test("source card prioritizes failure, running, review and recovery with historical data", () => {
   const app = page();
   app.evaluate(`state.ledger = {
-    counts: {detail_count: 2, rollup_count: 1}, coverage: {start_date: "2026-10-01", end_date: "2026-10-02"},
+    counts: {detail_count: 2}, coverage: {start_date: "2026-10-01", end_date: "2026-10-02"},
     last_successful_sync_at: "2026-10-02T02:47:00Z"
   }; state.sync = {status: "failed", message: "来源读取超过时限。"}; renderSource();`);
   assert.equal(app.evaluate('$("source-mode").textContent'), "同步失败");
   assert.match(app.evaluate('$("sync-error").textContent'), /来源读取超过时限/);
   assert.match(app.evaluate('$("sync-error").textContent'), /当前显示已保存的本地数据/);
   assert.match(app.evaluate('$("source-description").textContent'), /上次成功/);
+  assert.match(app.evaluate('$("source-description").textContent'), /^2 条明细 · /);
   assert.match(app.evaluate('$("source-description").textContent'), /2026-10-01 至 2026-10-02/);
 
   app.evaluate('state.syncBusy = true; renderSource();');
@@ -348,7 +421,7 @@ test("reload ignores jobs for replaced source bindings and preserves matching re
       counts: {detail_count: 4}, coverage: {}, last_successful_sync_at: "2026-10-02T02:47:00Z",
     }, sources, sync: {id: "attempt", status: "failed", message: "旧来源失败。", sources: matching}});
     await new Promise((resolve) => setImmediate(resolve));
-    assert.match(app.evaluate('$("source-description").textContent'), /4 条明细.*台账上次成功/);
+    assert.match(app.evaluate('$("source-description").textContent'), /4 条明细.*上次成功同步/);
     assert.equal(app.evaluate("state.sync?.id"), sources === matching ? "attempt" : undefined);
     assert.equal(app.evaluate('$("sync-error").hidden'), sources !== matching);
     const mode = sources === matching ? "同步失败" : sources[1].configured ? "本地资料" : "已同步";
@@ -543,6 +616,160 @@ test("a current detail 409 still clears analysis, revision and save identity", a
   assert.equal(app.evaluate('$("save-revision").disabled'), true);
 });
 
+test("project and availability changes automatically use the home range and refresh all views", async () => {
+  const app = page();
+  app.evaluate('$("project-select").value = "p1"; $("availability-mode").value = "available"; $("project-select").emit("change");');
+  await new Promise((resolve) => setImmediate(resolve));
+  const request = app.pendingRequests().find((item) => item.url === "/api/analysis");
+  assert.deepEqual(JSON.parse(request.options.body), {
+    classification_revision: 0,
+    time_range: {kind: "preset", preset: "last_14d", follow_now: true},
+    project_id: "p1", availability_mode: "available",
+  });
+  assert.equal(app.evaluate("state.analysis"), null);
+  app.replyTo("/api/analysis", true, {analysis_id: "p1", project_name: "项目",
+    start_date: "2026-11-10", end_date: "2026-11-24", summary: {record_count: 0, total_cost_usd: "0"}, availability_mode: "available"});
+  await new Promise((resolve) => setImmediate(resolve));
+  app.replyTo("/api/analysis/p1/trend", true, {grain: "day", points: []});
+  app.replyTo("/api/analysis/p1/details?kind=daily&size=50", true, {rows: [], total: 0});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate("state.analysis.analysis_id"), "p1");
+  assert.equal(app.evaluate('$("analyze").hidden'), true);
+  app.evaluate('$("availability-mode").value = "all"; $("availability-mode").emit("change");');
+  await new Promise((resolve) => setImmediate(resolve));
+  const allRequest = app.pendingRequests().find((item) => item.url === "/api/analysis");
+  assert.equal(JSON.parse(allRequest.options.body).availability_mode, "all");
+  app.disconnectTo("/api/analysis");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate('$("analyze").hidden'), false);
+});
+
+test("late trends cannot replace current exact bars or invalidate their analysis", async () => {
+  const exact = "123456789123456789.000000000000019";
+  for (const obsolete of ["success", "expired", "disconnect"]) {
+    const app = page();
+    const prior = app.evaluate("loadTrend()");
+    replacePreview(app);
+    const latest = app.evaluate("loadTrend()");
+    app.replyTo("/api/analysis/new/trend", true, {grain: "day", points: [
+      {start_date: "2026-11-01", end_date: "2026-11-01", total_cost_usd: exact, record_count: 1, unpriced_count: 0},
+      {start_date: "2026-11-02", end_date: "2026-11-02", total_cost_usd: "0", record_count: 1, unpriced_count: 1},
+    ]});
+    await latest;
+    if (obsolete === "success") app.replyTo("/api/analysis/old/trend", true, {grain: "month", points: []});
+    else if (obsolete === "expired") app.replyTo("/api/analysis/old/trend", false, {code: "availability_changed"});
+    else app.disconnectTo("/api/analysis/old/trend");
+    await prior;
+    assertNewPreview(app);
+    assert.equal(app.evaluate('$("trend-heading").textContent'), "每日费用趋势");
+    const labels = app.evaluate('$("trend-plot").querySelectorAll(".trend-bar").map((bar) => bar.getAttribute("aria-label"))');
+    assert.ok(labels[0].includes(exact + " USD"));
+    assert.match(labels[1], /缺参考价/);
+    assert.doesNotMatch(labels[1], /0 USD/);
+    assert.equal(app.evaluate('$("trend-plot").querySelector(".trend-bar").style.getPropertyValue("--bar-height")'), "100%");
+    assert.equal(app.evaluate('$("trend-retry").hidden'), true);
+  }
+});
+
+test("a disconnected trend can retry locally and current expiry invalidates an open claim", async () => {
+  const app = page();
+  app.evaluate(`state.analysis = {analysis_id: "old", project_name: "项目", availability_mode: "available",
+    start_date: "2026-11-01", end_date: "2026-11-14", summary: {record_count: 2, total_cost_usd: "123.45001"}};
+    $("claim-purpose").value = "项目开发"; openClaimDialog();`);
+  assert.equal(app.evaluate('$("create-batch").disabled'), false);
+  const failed = app.evaluate("loadTrend()");
+  app.disconnectTo("/api/analysis/old/trend");
+  await failed;
+  assert.equal(app.evaluate('$("trend-retry").hidden'), false);
+  assert.equal(app.evaluate('$("create-batch").disabled'), false);
+  const retry = app.evaluate("loadTrend()");
+  app.replyTo("/api/analysis/old/trend", false, {code: "availability_changed", message: "当前用量已变化。"});
+  await retry;
+  assert.equal(app.evaluate("state.analysis"), null);
+  assert.equal(app.evaluate('$("create-batch").disabled'), true);
+  assert.equal(app.evaluate('$("claim-purpose").value'), "项目开发");
+  assert.equal(app.evaluate('$("claim-preview-cost").textContent'), "123.45001 USD");
+  assert.equal(app.evaluate('$("claim-refresh-preview").hidden'), false);
+  app.evaluate(`state.analysis = {analysis_id: "fresh", project_name: "项目", availability_mode: "available",
+    start_date: "2026-11-02", end_date: "2026-11-14", summary: {record_count: 1, total_cost_usd: "7.99"}}; syncActions();`);
+  assert.equal(app.evaluate('$("create-batch").disabled'), true);
+  await app.evaluate("refreshClaimPreview()");
+  assert.equal(app.evaluate('$("create-batch").disabled'), false);
+  assert.equal(app.evaluate('$("claim-preview-cost").textContent'), "7.99 USD");
+  assert.equal(app.evaluate('$("claim-purpose").value'), "项目开发");
+});
+
+test("daily scope belongs to its page requests and leaves the claim scope intact", async () => {
+  const app = page();
+  app.evaluate(`state.analysis = {analysis_id: "old", project_name: "项目", availability_mode: "available",
+    start_date: "2026-11-01", end_date: "2026-11-14", summary: {record_count: 2, total_cost_usd: "200"}};`);
+  const first = app.evaluate('selectPreviewTab("daily", "2026-11-01")');
+  const second = app.evaluate('selectPreviewTab("daily", "2026-11-02")');
+  app.replyTo("/api/analysis/old/details?kind=daily&size=50&day=2026-11-02", true, {
+    rows: [{date: "2026-11-02", total_cost_usd: "11"}], total: null, next_cursor: "day2-page2",
+  });
+  await second;
+  app.replyTo("/api/analysis/old/details?kind=daily&size=50&day=2026-11-01", false, {code: "analysis_expired"});
+  await first;
+  assert.equal(app.evaluate('$("daily-selection-label").textContent'), "仅看 2026-11-02");
+  assert.equal(app.evaluate("state.rows[0]?.date"), "2026-11-02");
+  assert.equal(app.evaluate("state.nextCursor"), "day2-page2");
+  app.evaluate("openClaimDialog()");
+  assert.equal(app.evaluate('$("claim-preview-range").textContent'), "2026-11-01 至 2026-11-14（北京时间）");
+  assert.equal(app.evaluate('$("claim-preview-cost").textContent'), "200 USD");
+  app.evaluate('$("claim-dialog").close()');
+  const models = app.evaluate('selectPreviewTab("models")');
+  app.replyTo("/api/analysis/old/details?kind=models&size=50", true, {rows: [], total: 0});
+  await models;
+  assert.equal(app.evaluate("state.dailyDate"), "");
+  assert.equal(app.evaluate('$("daily-selection").hidden'), true);
+});
+
+test("daily, model and individual views use detail-only records", async () => {
+  const html = fs.readFileSync(path.join(__dirname, "../src/aha/web/index.html"), "utf8");
+  assert.deepEqual([...html.matchAll(/data-tab="([^"]+)"/g)].map(([, tab]) => tab), ["daily", "models", "details"]);
+
+  const app = page();
+  const load = app.evaluate('selectPreviewTab("daily")');
+  app.replyTo("/api/analysis/old/details?kind=daily&size=50", true, {total: 1, rows: [{
+    date: "2026-11-02", project_name: "项目甲", model: "model-a", detail_count: 9, total_cost_usd: "3.25",
+  }]});
+  await load;
+  const [headers, values] = JSON.parse(app.evaluate(`(() => {
+    const [head, body] = $("preview-table").children[0].children;
+    return JSON.stringify([head, body].map((part) => part.children[0].children.map((cell) => cell.textContent)));
+  })()`));
+  assert.deepEqual(headers.slice(0, 4), ["日期", "项目", "模型", "明细数"]);
+  assert.deepEqual(values.slice(0, 4), ["2026-11-02", "项目甲", "model-a", "9"]);
+});
+
+test("zero claim amount needs an explanation and a lost save reply retries the same request", async () => {
+  const app = page();
+  app.evaluate(`state.analysis = {analysis_id: "claim-scope", project_name: "项目", availability_mode: "available",
+    start_date: "2026-11-01", end_date: "2026-11-14", summary: {record_count: 1, total_cost_usd: "1"}};
+    openClaimDialog(); $("claim-amount").value = "0"; $("claim-currency").value = "CNY"; $("claim-form").emit("submit");`);
+  assert.equal(app.pendingUrls().includes("/api/batches/preview"), false);
+  assert.equal(app.evaluate('$("claim-note").getAttribute("aria-invalid")'), "true");
+  assert.equal(app.evaluate('$("claim-note").focused'), true);
+  app.evaluate('$("claim-note").value = "公司已承担"; $("claim-form").emit("submit");');
+  const preview = JSON.parse(app.pendingRequests().find((item) => item.url === "/api/batches/preview").options.body);
+  assert.equal(preview.analysis_id, "claim-scope");
+  assert.equal(preview.claim.amount, "0");
+  app.replyTo("/api/batches/preview", true, {blocking: false});
+  await new Promise((resolve) => setImmediate(resolve));
+  const first = app.pendingRequests().find((item) => item.url === "/api/batches").options.body;
+  app.disconnectTo("/api/batches");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate('$("claim-dialog").open'), true);
+  app.evaluate('$("claim-form").emit("submit")');
+  assert.equal(app.pendingUrls().includes("/api/batches/preview"), false);
+  assert.equal(app.pendingRequests().find((item) => item.url === "/api/batches").options.body, first);
+  app.replyTo("/api/batches", false, {code: "usage_claimed", message: "用量已被占用"});
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(app.evaluate('$("create-batch").disabled'), true);
+  assert.equal(app.evaluate('$("claim-amount").value'), "0");
+});
+
 test("batch rows show precise saved ranges and retain legacy date precision", () => {
   const app = page();
   app.evaluate(`state.batches = [
@@ -563,35 +790,54 @@ test("batch rows show precise saved ranges and retain legacy date precision", ()
   assert.doesNotMatch(text, /2024-02-28 00:00/);
 });
 
-test("an omitted-only revision preview does not present unknown usage as zero cost", () => {
+test("an empty minute-range revision preview describes its scope and blocks saving", () => {
   const app = page();
-  app.evaluate(`const omitted = {
+  app.evaluate(`const emptyPreview = {
     project_name: "项目", start_date: "2026-10-26", end_date: "2026-10-26",
     time_range: {start_at: "2026-10-26T08:00:00+08:00",
       end_before: "2026-10-26T09:01:00+08:00", precision: "minute"},
-    summary: {record_count: 0, total_cost_usd: "0"},
-    time_coverage: {complete: false, omitted_rollup_count: 1, omitted_days: ["2026-10-26"]}
-  }; state.revision = {analysis: omitted}; $("revision-basis").value = "current";
-  renderRevisionPreview(omitted); syncActions();`);
+    summary: {record_count: 0, total_cost_usd: "0"}
+  }; state.revision = {analysis: emptyPreview}; $("revision-basis").value = "current";
+  renderRevisionPreview(emptyPreview); syncActions();`);
   const text = app.evaluate(`(function text(item) {
     return (item.textContent || "") + item.children.map(text).join(" ");
   })($("revision-preview"))`);
-  assert.match(text, /当前时段没有可确定的用量/);
-  assert.match(text, /统计不完整/);
+  assert.match(text, /当前范围没有可用记录/);
+  assert.match(text, /08:00 至 2026-10-26 09:00/);
   assert.doesNotMatch(text, /参考成本 0 USD/);
   assert.equal(app.evaluate('$("save-revision").disabled'), true);
+});
+
+test("archived revisions show saved costs and material actions without an edit action", () => {
+  const app = page();
+  app.evaluate(`state.batch = {id: "archived", number: "AHA-000001", revisions: [{
+    version: 1, is_effective: true, status: "submitted", created_at: "2024-01-30T00:00:00Z",
+    can_edit: false, can_reimburse: true,
+    claim: {amount: null, purpose: "归档用途"},
+    analysis: {project_name: "旧项目", start_date: "2024-01-29", end_date: "2024-01-29",
+      summary: {total_cost_usd: "1.25", rollup_count: 1},
+      summary_complete: false,
+      time_coverage: {complete: false, omitted_rollup_count: 1, omitted_days: ["2024-01-29"]}}
+  }]}; renderBatchDetail();`);
+  const text = app.evaluate(`(function text(item) {
+    return (item.textContent || "") + item.children.map(text).join(" ");
+  })($("batch-detail"))`);
+  assert.match(text, /参考成本 1\.25 USD/);
+  assert.match(text, /归档用途/);
+  assert.match(text, /下载材料.*标记已报销/);
+  assert.doesNotMatch(text, /修改报销记录|历史日汇总|统计不完整/);
 });
 
 test("empty current filters explain retained history without changing the chosen range", () => {
   const app = page();
   const before = app.evaluate("JSON.stringify(timeRange.getIntent())");
   app.evaluate(`state.ledger = {coverage: {start_date: "2026-06-17", end_date: "2026-11-10"}};
-    renderEmptyRange({summary: {record_count: "0"}, time_coverage: {complete: true}});`);
+    renderEmptyRange({summary: {record_count: "0"}});`);
   assert.equal(app.evaluate('$("empty-range-note").hidden'), false);
-  assert.match(app.evaluate('$("empty-range-description").textContent'), /历史数据仍保留/);
+  assert.match(app.evaluate('$("empty-range-description").textContent'), /本地明细覆盖/);
   assert.match(app.evaluate('$("empty-range-description").textContent'), /2026-06-17 至 2026-11-10/);
   assert.equal(app.evaluate("JSON.stringify(timeRange.getIntent())"), before);
-  app.evaluate('renderEmptyRange({summary: {record_count: "0"}, time_coverage: {complete: false}});');
+  app.evaluate('renderEmptyRange({summary: {record_count: "1"}});');
   assert.equal(app.evaluate('$("empty-range-note").hidden'), true);
 });
 
@@ -730,6 +976,35 @@ test("a resolved startup job shows Windows results and WSL failure separately wi
   assert.equal(app.evaluate('$("source-endpoints").children[1].children[0].children[1].textContent'), "暂不可用");
   assert.match(app.evaluate('$("source-endpoints").children[1].children[2].textContent'), /WSL 暂时无法读取/);
   assert.equal(app.pendingUrls().includes("/api/sync"), false);
+});
+
+test("a complete Windows and WSL retry clears both saved source coverage warnings", async () => {
+  const app = page();
+  const partialSources = [windowsSynced, wslReading].map((source) => ({...source, status: "partial",
+    result: {issues: {invalid_cumulative_usage: 1, line_limit: 1}}}));
+  app.evaluate(`state.sources = ${JSON.stringify(partialSources)};
+    state.sync = {status: "needs_review"}; renderSource();
+    refreshLedger = async () => { state.ledger.last_successful_sync_at = "2026-11-25T01:32:00Z"; };
+    refreshProjects = async () => {}; refreshReconciliations = async () => {};
+    run = async () => {};`);
+  assert.equal(app.evaluate('$("source-mode").textContent'), "部分完成");
+  assert.equal(app.evaluate('$("sync-error").hidden'), false);
+  assert.match(app.evaluate('$("source-endpoints").children[0].children.at(-1).textContent'), /累计用量无法核实/);
+  assert.match(app.evaluate('$("source-endpoints").children[1].children.at(-1).textContent'), /单条日志过长/);
+
+  const operation = app.evaluate("loadSource()");
+  app.replyTo("/api/sync", true, {id: "retry", status: "completed", sources: [
+    windowsSynced, {...wslReading, status: "no_change", result: {issues: {}}},
+  ]});
+  await operation;
+  assert.equal(app.evaluate('$("source-mode").textContent'), "已同步");
+  assert.equal(app.evaluate('$("sync-error").hidden'), true);
+  assert.match(app.evaluate('$("source-description").textContent'), /上次成功同步 2026\/11\/25/);
+  assert.equal(app.evaluate('$("source-endpoints").children[1].children[0].children[1].textContent'), "无新增");
+  const text = app.evaluate(`(function text(item) {
+    return (item.textContent || "") + item.children.map(text).join(" ");
+  })($("source-endpoints"))`);
+  assert.doesNotMatch(text, /部分覆盖|累计用量无法核实|单条日志过长/);
 });
 
 test("one committed source expires old saving even while the second source is running or cancelled", async () => {
@@ -1055,7 +1330,7 @@ test("directory and historical reconciliation display their real choices and nat
   const app = page();
   app.evaluate(`for (const entry of [
     {id: "directory", type: "directory", current_cwd: "C:/old-project", candidate_cwd: "D:/new-project", choices: ["current", "candidate"]},
-    {id: "rollup", type: "rollup_origin", choices: ["current"]},
+    {id: "source", type: "source", observed: {detail: 4}, previous: {detail: 10}, choices: ["current"]},
     {id: "native-overlap", type: "native_overlap", choices: ["current", "independent"]},
     {id: "native-uncertain", type: "native_uncertain", pending_reason: "cumulative_baseline_unconfirmed",
       candidate_summary: {input_tokens: 3, output_tokens: 2, cache_read_tokens: 5, cache_creation_tokens: 0}, choices: ["current"]}
@@ -1071,7 +1346,9 @@ test("directory and historical reconciliation display their real choices and nat
   assert.match(text, /D:\/new-project/);
   assert.match(text, /采用当前电脑目录/);
   assert.match(text, /保留已保存目录/);
-  assert.match(text, /确认重叠，保留历史汇总/);
+  assert.match(text, /此前来源 10 条明细/);
+  assert.match(text, /本次来源 4 条明细/);
+  assert.match(text, /确认此来源，保留本地历史/);
   assert.match(text, /沿用已入账历史/);
   assert.match(text, /确认为新用量/);
   assert.match(text, /累计用量的起点待确认/);
@@ -1527,16 +1804,18 @@ test("an old apply response cannot clear a newer preview after its dialog closes
   assert.equal(app.pendingUrls().includes("/api/project-associations"), false);
 });
 
-test("assignment coverage states physical grains and exact cost without blocking known project saving", () => {
+test("unassigned details show their exact cost without blocking known project saving", () => {
   const app = page();
   app.evaluate(`state.analysis = {analysis_id: "known-project", availability_mode: "available", summary: {record_count: 1}};
     renderAssignmentCoverage({assignment_coverage: {status: "incomplete", unassigned_detail_count: 2,
-      unassigned_rollup_count: 3, unassigned_record_count: 35500, unassigned_cost_usd: "0.000000000000000000000000123"}});
+      unassigned_record_count: 2, unassigned_cost_usd: "0.000000000000000000000000123"}});
     syncActions();`);
   assert.equal(app.evaluate('$("assignment-coverage-note").hidden'), false);
   const text = app.evaluate('$("assignment-coverage-description").textContent');
-  assert.match(text, /2 条明细、3 行历史日汇总/);
+  assert.match(text, /2 条明细待归属/);
   assert.match(text, /0\.000000000000000000000000123 USD/);
+  assert.equal(app.evaluate('$("open-claim").disabled'), false);
+  app.evaluate("openClaimDialog()");
   assert.equal(app.evaluate('$("create-batch").disabled'), false);
   app.evaluate("renderAssignmentCoverage({assignment_coverage: null})");
   assert.equal(app.evaluate('$("assignment-coverage-note").hidden'), true);
@@ -1619,7 +1898,7 @@ test("advanced page selection never includes directory-managed records", () => {
   const app = page();
   app.evaluate(`state.associationRows = [
     {record_key: "managed", kind: "detail", assignment_origin: "directory_binding"},
-    {record_key: "unknown", kind: "rollup", assignment_origin: "unassigned"}
+    {record_key: "unknown", kind: "detail", assignment_origin: "unassigned"}
   ]; renderAssociationRecords();
   const all = document.querySelectorAll("[data-association-select]")[0]; all.checked = true; all.emit("change");`);
   assert.deepEqual(JSON.parse(app.evaluate('JSON.stringify([...state.associationSelected.keys()])')), ["unknown"]);

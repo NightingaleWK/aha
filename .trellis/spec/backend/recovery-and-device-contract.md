@@ -2,7 +2,7 @@
 
 ## 1. 范围与触发
 
-修改来源身份、核对、目录依据、备份/恢复及 HTTP/CLI 时阅读。aha 自有台账和报销原包可独立备份恢复。应用 schema 5 支持正式 schema 3/4 完整备份的严格校验及新目录升级。
+修改来源身份、核对、目录依据、备份和恢复时阅读。schema 6 支持正式 schema 3 至 5 完整备份的严格校验和新目录升级。
 
 ## 2. 签名与所有者
 
@@ -33,7 +33,7 @@ HTTP使用既有Cookie/Host/Origin/CSRF边界：
 - 安装UUID在账本外的本机`aha-device/installation.json`，Windows基于LOCALAPPDATA，Linux基于XDG_STATE_HOME或`~/.local/state`。不上传/进入材料或完整恢复包；测试必须patch或隔离profile。
 - 每端配置保存在 `settings` 的 `codex_source_windows`、`codex_source_wsl`。绑定上下文取安装和当前还原标识的摘要，来源 ID 同时关联确认的根、发行版和时间范围。恢复后即使路径相同也要求重新确认。旧的 CCS 设置只作为历史记录。
 - 确认前无有效来源时返回 `source_binding_required`。绑定先独立恢复失败和过期租约，再受限检查正在执行的作业，并校验保存请求对应的旧绑定。
-- 全局消费key、旧内容版本、claims与冻结包不批量改写。同key同内容幂等；来源确认不等于接受已有/曾明确保留当前值的revision候选。不同来源同值汇总仍需确认重叠（rollup_origin），未知成员范围不盲加。
+- 逐笔消费身份和已核实内容版本是本地长期依据。重复输入按身份去重，来源确认和候选内容采用分别核对。
 - 当前机器没找到旧会话头，不撤销已保存matched cwd/项目；真正不同目录进入directory候选。current保留旧目录，candidate采用已确定的新目录；缺唯一候选时不提供candidate。候选尚开放而当前会话parent等元数据变化时，旧case必须过时/被替代并保留可处理的新候选，不能留下永远stale_case的开放事项。
 
 ### 完整恢复包
@@ -41,9 +41,9 @@ HTTP使用既有Cookie/Host/Origin/CSRF边界：
 - ZIP容器，`manifest.json`的format=`aha-full-backup`、format_version=1；记录application_version、store_schema_version、created_at、files的path/size/sha256及排除项。
 - SQLite backup API从一致读事务复制已提交WAL，释放源后打包；全部revisions引用的ZIP（含历史/作废版）按原hash保留，objects逐文件保全。项目/归属/报销/占用/核对在DB中完整保留。
 - 不直接拷贝活动主库，不备份runtime凭证/锁/temporary/嵌套backups/旧restore marker/机器身份。未知资料文件明确阻断，不静默丢弃。生成与恢复默认最多4GiB归档、16GiB展开、100000成员；manifest/中央目录也有独立上限，传输不走128MiB SQL base64协议。
-- 恢复按manifest所标schema 3/4/5 的权威定义校验表结构、索引/触发器DDL、quick_check、foreign keys、包引用与SHA，清单/DB版本必须一致；拒绝重复或大小写碰撞路径、穿越、绝对路径、保留设备名、链接/重解析点、缺失/多余成员及不支持格式。
+- 恢复按 manifest 标记的 schema 3 至 6 校验生产 DDL、quick_check、外键、原包引用和 SHA。清单与数据库版本一致。文件路径、成员和限额使用既有安全验证。
 - 目标必须尚不存在，且不嵌套源/当前资料目录；独占staging验证后按平台noreplace原子落位，失败清理只限本次staging。当前库始终不在线替换。
-- 新`restore-info.json`含format_version1、restore_id UUID、restored_at、archive_sha256，恢复后同机也需新来源绑定。同版本且无running/staging时DB保留原字节；schema 3/4 完整包只在独立 staging 升至 schema 5。有未完成run时仅恢复新目录将其failed/sync_interrupted并清暂存，不改归档或已发布事实/原包；旧ZIP在所有路径保持原字节。
+- restore-info.json 保存 format_version、restore_id、restored_at 和 archive_sha256。旧库在独立 staging 迁移，恢复清理旧物理游标和未完成的暂存记录。冻结包从原文件读取。
 - 完整备份为私有资料，与费用分享包不同。恢复目录与默认目录独立；再次双击默认EXE仍打开默认目录，结果需提供再次打开恢复目录的方式。
 
 ## 4. 验证与错误矩阵
@@ -64,15 +64,15 @@ HTTP使用既有Cookie/Host/Origin/CSRF边界：
 ## 5. 正常、基础与错误场景
 
 - 正常：旧台账完整保留，新电脑明确绑定后补入新key；重复同步不增加，旧cwd和原包保持。
-- 基础：新机 Codex 来源暂未确认或不可用时仍可查全部历史；早期只有日汇总按整日使用，已经被明细替代的汇总不重复计入。
+- 新机 Codex 来源暂未确认或不可用时，仍可查询台账中已保存的逐笔明细。
 - 错误：把同路径当同设备、确认来源当全部修订同意、找不到旧日志就清cwd、只备DB不备原包、在线替换当前库、把两份复制账本当自动协调报销。
 
 ## 6. 必需测试
 
-- test_device_continuity/test_storage/test_sync_timeout：换机/恢复绑定、空源/缩水、旧key去重/改值、汇总同值异源、开放及已保留候选、目录缺失/冲突、原占用/ZIP、租约恢复与有效run保护。
+- test_device_continuity、test_storage 和 test_sync_timeout 覆盖换机绑定、来源缩水、旧身份去重、原报销占用、目录依据和同步租约。
 - test_backup/test_backup_cli：WAL一致、多版本/作废原包、历史归属/核对/占用、running恢复、DDL索引约束、缺包/哈希/穿越/链接/限额、取消/中断/磁盘失败、发布竞争且目标不覆盖。
 - test_http_backup/test_http/web_state：鉴权、分块/offset、取消/断连遗留清理、退出、绑定门禁、全历史只读、核对后原意图重查、迟到成功/失败不污染新状态。
-- 原生Directory/OneFile、实际页面与真实资料副本回归；真实原库写入前必须先验证独立恢复路径，原包/旧事实与项目不减少。
+- 原生 Directory、OneFile 和浏览器验证真实资料副本。真实台账升级前先验证独立恢复路径、逐笔事实、项目和原包。
 
 ## 7. 错误与正确做法
 

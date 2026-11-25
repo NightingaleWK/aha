@@ -294,7 +294,7 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])
         self.assertEqual(headers["Referrer-Policy"], "no-referrer")
-        self.assertIn("本地用量台账", payload.decode())
+        self.assertIn('<title>aha · 用量与费用</title>', payload.decode())
         self.assertNotIn(self.server.app.bootstrap_token, payload.decode())
         self.assertEqual(self.request("GET", "/app.js")[0], 200)
         self.assertEqual(self.request("GET", "/licenses")[0], 200)
@@ -537,9 +537,12 @@ class HTTPTests(unittest.TestCase):
             {r["record_key"] for r in first["rows"]} & {r["record_key"] for r in second["rows"]}
         )
         self.assertEqual(self.request("GET", path + "?size=201")[0], 400)
-        for kind in ("daily", "models", "rollup"):
+        for kind in ("daily", "models"):
             page = self.json("GET", path + "?kind=" + kind)
             self.assertLessEqual(len(page["rows"]), 50)
+        code, _, raw = self.request("GET", path + "?kind=rollup")
+        self.assertEqual(code, 400)
+        self.assertEqual(json.loads(raw)["code"], "invalid_grain")
         self.load_usage(56)
         self.assertEqual(self.request("GET", path + "?kind=detail")[0], 409)
 
@@ -557,6 +560,34 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(
             self.request("GET", f"/api/analysis/{analysis['analysis_id']}/details")[0], 409
         )
+
+    def test_home_trend_and_daily_filter_require_auth_and_current_analysis(self) -> None:
+        self.load_usage(3)
+        home = self.analyze()
+        path = f"/api/analysis/{home['analysis_id']}"
+        trend = path + "/trend"
+        daily = path + "/details?kind=daily"
+        self.assertEqual(self.request("GET", trend, authenticated=False)[0], 401)
+        result = self.json("GET", trend)
+        self.assertEqual(result["grain"], "month")
+        self.assertEqual([point["record_count"] for point in result["points"]], [0, 3])
+        self.assertEqual(result["points"][1]["total_cost_usd"], home["summary"]["total_cost_usd"])
+        actual = self.json("GET", daily + "&day=2026-10-26")["rows"]
+        self.assertEqual(sum(row["record_count"] for row in actual), 3)
+        self.assertEqual(self.json("GET", daily + "&day=2026-09-01")["rows"], [])
+        for invalid in (
+            daily + "&day=2026-09-31",
+            daily + "&day=2026-10-27",
+            daily + "&day=2026-10-26&day=2026-09-01",
+            path + "/details?kind=detail&day=2026-10-26",
+        ):
+            with self.subTest(url=invalid):
+                self.assertEqual(self.request("GET", invalid)[0], 400)
+        self.save(home)
+        for old in (trend, daily + "&day=2026-10-26"):
+            code, _, payload = self.request("GET", old)
+            self.assertEqual(code, 409)
+            self.assertEqual(json.loads(payload)["code"], "availability_changed")
 
     def test_target_preview_cannot_be_used_for_new_batch_and_frozen_revision_is_stable(
         self,
@@ -706,7 +737,7 @@ class HTTPTests(unittest.TestCase):
         original = self.request("GET", old_url)[2]
         with zipfile.ZipFile(io.BytesIO(original)) as package:
             manifest = json.loads(package.read("导出信息.json"))
-            self.assertEqual(manifest["manifest_version"], 4)
+            self.assertEqual(manifest["manifest_version"], 5)
             self.assertEqual(manifest["selection"]["time_range"], analysis["time_range"])
             self.assertEqual(len(manifest["members"]), 10)
         own = self.json("POST", f"/api/batches/{batch_id}/analysis", {
@@ -714,6 +745,9 @@ class HTTPTests(unittest.TestCase):
         })
         self.assertEqual(own["summary"], analysis["summary"])
         self.assertEqual(own["availability"]["excluded_summary"]["record_count"], 0)
+        code, _, raw = self.request("GET", f"/api/analysis/{own['analysis_id']}/trend")
+        self.assertEqual(code, 409)
+        self.assertEqual(json.loads(raw)["code"], "analysis_target_mismatch")
         status_code, _, raw = self.request("POST", "/api/batches", {
             "analysis_id": own["analysis_id"], "claim": self.claim(),
             "idempotency_key": "cannot-reuse-target",
@@ -729,7 +763,7 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(revision["time_range"], own["time_range"])
         self.assertEqual(self.request("GET", old_url)[2], original)
 
-    def test_partial_day_rollup_http_saves_certain_members_and_keeps_incompleteness(self) -> None:
+    def test_partial_day_preview_and_package_use_only_historical_detail(self) -> None:
         event = int(datetime.fromisoformat("2026-10-26T08:00:00+08:00").timestamp())
         self.server.app.store.sync_data(build_source_data(
             [detail(created_at=event)], [rollup(date="2026-10-26", model="rollup-only-model")],
@@ -739,11 +773,11 @@ class HTTPTests(unittest.TestCase):
             "kind": "custom", "start": "2026-10-26T08:00", "end": "2026-10-26T08:00",
             "follow_now": False,
         }})
-        self.assertFalse(analysis["summary_complete"])
+        self.assertTrue(analysis["summary_complete"])
         self.assertEqual(analysis["pending_count"], 0)
         self.assertEqual(analysis["summary"]["record_count"], 1)
         self.assertEqual(analysis["availability"]["excluded_summary"]["total_cost_usd"], "0")
-        self.assertEqual(analysis["time_coverage"]["omitted_days"], ["2026-10-26"])
+        self.assertNotIn("time_coverage", analysis)
         self.assertFalse(self.json("POST", "/api/batches/preview", {
             "analysis_id": analysis["analysis_id"], "claim": self.claim(),
         })["blocking"])
@@ -752,8 +786,8 @@ class HTTPTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(self.request("GET", package_url)[2])) as package:
             manifest = json.loads(package.read("导出信息.json"))
             self.assertEqual(manifest["summary"]["record_count"], 1)
-            self.assertFalse(manifest["summary_complete"])
-            self.assertEqual(manifest["time_coverage"], analysis["time_coverage"])
+            self.assertTrue(manifest["summary_complete"])
+            self.assertNotIn("time_coverage", manifest)
 
 
 if __name__ == "__main__":

@@ -15,10 +15,15 @@ from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 from . import decimal_sql, time_ranges
-from .claims import member_from_row, scope_key, semantic_key, validate_members
+from .claims import (
+    archived_claim_lookup,
+    member_from_row,
+    scope_key,
+    semantic_key,
+    validate_members,
+)
 from .domain import (
     DETAIL_FIELDS,
-    ROLLUP_FIELDS,
     AppError,
     canonical_bytes,
     content_hash,
@@ -33,8 +38,6 @@ STATUSES = {"draft": "草稿", "submitted": "已提交", "reimbursed": "已报�
 COUNT_FIELDS = (
     "record_count",
     "detail_count",
-    "rollup_record_count",
-    "rollup_count",
     "unpriced_count",
 )
 TOKEN_FIELDS = (
@@ -44,10 +47,9 @@ TOKEN_FIELDS = (
     "cache_creation_tokens",
     "total_tokens",
 )
-COST_FIELDS = ("total_cost_usd", "detail_cost_usd", "rollup_cost_usd")
+SUMMARY_FIELDS = (*COUNT_FIELDS, *TOKEN_FIELDS, "total_cost_usd", "source_grain")
 FREEZE_FIELDS = (
     *DETAIL_FIELDS,
-    *ROLLUP_FIELDS,
     "kind",
     "record_key",
     "version_id",
@@ -172,6 +174,22 @@ def _effective(
     return control, _revision(connection, batch_id, control["active_version"])
 
 
+def _has_archived_members(connection: sqlite3.Connection, revision: sqlite3.Row) -> bool:
+    # The key prefix bounds this lookup within the revision's primary-key range.
+    return connection.execute(
+        "SELECT 1 FROM revision_members WHERE batch_id=? AND version=? "
+        "AND record_key GLOB 'rollup:*' AND kind='rollup' LIMIT 1",
+        (revision["batch_id"], revision["version"]),
+    ).fetchone() is not None
+
+
+def _require_editable(connection: sqlite3.Connection, revision: sqlite3.Row) -> None:
+    if revision["status"] != "draft":
+        raise AppError("batch_not_editable", "请先撤回已提交记录，再修改。", 409)
+    if _has_archived_members(connection, revision):
+        raise AppError("legacy_batch_archived", "这条历史报销可查看和下载原材料。", 409)
+
+
 def _decoded_object(value: str) -> dict[str, Any]:
     try:
         decoded = json.loads(value)
@@ -194,6 +212,7 @@ def _revision_result(
     claim = _decoded_object(row["claim_json"])
     effective = batch["lifecycle"] == "active" and batch["active_version"] == row["version"]
     draft = effective and row["status"] == "draft"
+    archived = draft and _has_archived_members(connection, row)
     number = f"AHA-{batch['number']:06d}"
     result: dict[str, Any] = {
         "id": row["batch_id"],
@@ -214,7 +233,6 @@ def _revision_result(
         "start_date": analysis["start_date"],
         "end_date": analysis["end_date"],
         "time_range": analysis.get("time_range"),
-        "time_coverage": analysis.get("time_coverage"),
         "assignment_coverage": analysis.get("assignment_coverage"),
         "summary_complete": analysis.get("summary_complete"),
         "pending_count": analysis.get("pending_count"),
@@ -229,13 +247,17 @@ def _revision_result(
         "is_effective": effective,
         "voided_at": batch["voided_at"],
         "void_reason": batch["void_reason"],
-        "can_edit": draft,
+        "can_edit": draft and not archived,
         "can_submit": draft,
         "can_reimburse": effective and row["status"] in {"draft", "submitted"},
         "can_withdraw": effective and row["status"] == "submitted",
         "can_void": effective,
         "member_count": analysis.get("member_count", 0),
     }
+    if archived:
+        result["archived_usage"] = True
+    if "time_coverage" in analysis:
+        result["time_coverage"] = analysis["time_coverage"]
     if include_analysis:
         result["analysis"] = analysis
     return result
@@ -268,6 +290,58 @@ def _request_signature(
             "active_version": expected_active_version,
         }
     )
+
+
+def _business_hash(analysis: dict[str, Any], claim: dict[str, Any], selection_hash: str) -> str:
+    return content_hash({
+        "selection_hash": selection_hash,
+        "claim": claim,
+        "selection": {
+            key: analysis.get(key)
+            for key in ("start_date", "end_date", "project_id", "project_name")
+        },
+        "time_range": time_ranges.from_analysis(analysis).identity(),
+        "summary": {
+            key: analysis["summary"][key] for key in SUMMARY_FIELDS if key in analysis["summary"]
+        },
+    })
+
+
+def _assignment_basis(coverage: Any) -> Any:
+    if not isinstance(coverage, dict) or "unassigned_rollup_count" not in coverage:
+        return coverage
+    if coverage["unassigned_rollup_count"]:
+        return None  # Old totals mixed details with source aggregates.
+    return {key: value for key, value in coverage.items() if key != "unassigned_rollup_count"}
+
+
+def _adapt_frozen_metadata(selection: dict[str, Any], original: dict[str, Any]) -> None:
+    if "assignment_coverage" in selection:
+        selection["assignment_coverage"] = _assignment_basis(selection["assignment_coverage"])
+    coverage = original.get("time_coverage")
+    if isinstance(coverage, dict):
+        if coverage.get("complete") is False and not selection.get("pending_count"):
+            selection["summary_complete"] = None
+        old_pending = "部分用量待核对，合计仅含已核实部分；不同粒度依据不可相加。"
+        selection["warnings"] = [
+            "部分用量待核对，合计仅含已核实部分。" if warning == old_pending else warning
+            for warning in selection.get("warnings", [])
+            if not isinstance(warning, str)
+            or not warning.startswith("统计不完整：部分日期的历史日汇总")
+        ]
+    availability = selection.get("availability")
+    if not isinstance(availability, dict):
+        return
+    keys = ("matched_summary", "available_summary", "excluded_summary")
+    summaries = {key: availability[key] for key in keys if isinstance(availability.get(key), dict)}
+    if any(summary.get("rollup_count") for summary in summaries.values()):
+        selection.pop("availability")
+    else:
+        selection["availability"] = {
+            **availability,
+            **{key: {field: summary[field] for field in SUMMARY_FIELDS if field in summary}
+               for key, summary in summaries.items()},
+        }
 
 
 def _prior(
@@ -362,13 +436,11 @@ def _candidate_rows(path: Path, column: str = "frozen_json") -> Iterator[dict[st
 
 def _candidate_daily(path: Path) -> Iterator[dict[str, Any]]:
     columns = ",".join(f"integer_sum({key}) AS {key}" for key in (*COUNT_FIELDS, *TOKEN_FIELDS))
-    columns += "," + ",".join(f"decimal_sum({key}) AS {key}" for key in COST_FIELDS)
     with _candidate_connection(path) as connection:
         for row in connection.execute(
             "SELECT project_id,MIN(project_name) AS project_name,day AS date,model,"
             + columns
-            + ",CASE WHEN MIN(kind)<>MAX(kind) THEN 'mixed' WHEN MIN(kind)='detail' THEN 'detail' "
-            "ELSE 'daily_rollup' END AS source_grain FROM members "
+            + ",decimal_sum(total_cost_usd) AS total_cost_usd FROM members "
             "GROUP BY project_id,day,model ORDER BY day,project_id,model"
         ):
             result = dict(row)
@@ -402,9 +474,8 @@ def _prepare_selection(
     os.close(descriptor)
     path = Path(name)
     selection = FrozenSelection(path, {}, "", 0)
-    money = {key: decimal_sql.DecimalSum() for key in COST_FIELDS}
+    money = decimal_sql.DecimalSum()
     totals = {key: 0 for key in (*COUNT_FIELDS, *TOKEN_FIELDS)}
-    grains: set[str] = set()
     digest = hashlib.sha256()
     try:
         with closing(sqlite3.connect(path)) as frozen, store.read_connection() as reader:
@@ -415,26 +486,27 @@ def _prepare_selection(
                 record_key TEXT PRIMARY KEY,kind TEXT NOT NULL,usage_version_id INTEGER NOT NULL,
                 scope_key TEXT NOT NULL,semantic_key TEXT,frozen_json TEXT NOT NULL,
                 member_json TEXT NOT NULL,day TEXT NOT NULL,project_id TEXT NOT NULL,
-                project_name TEXT NOT NULL,model TEXT NOT NULL,record_count TEXT NOT NULL,
-                detail_count TEXT NOT NULL,rollup_record_count TEXT NOT NULL,
-                rollup_count TEXT NOT NULL,
+                project_name TEXT NOT NULL,model TEXT NOT NULL,pricing_model TEXT NOT NULL,
+                record_count TEXT NOT NULL,
+                detail_count TEXT NOT NULL,
                 unpriced_count TEXT NOT NULL,fresh_input_tokens TEXT NOT NULL,
                 output_tokens TEXT NOT NULL,cache_read_tokens TEXT NOT NULL,
                 cache_creation_tokens TEXT NOT NULL,total_tokens TEXT NOT NULL,
-                total_cost_usd TEXT NOT NULL,detail_cost_usd TEXT NOT NULL,
-                rollup_cost_usd TEXT NOT NULL)""")
-            frozen.execute("CREATE INDEX member_scope ON members(scope_key,kind)")
+                total_cost_usd TEXT NOT NULL)""")
+            frozen.execute("CREATE INDEX member_scope ON members(scope_key)")
             basis = _frozen_basis(analysis, batch_id)
             if basis is None:
+                if batch_id is not None:
+                    _, active = _effective(reader, batch_id, expected_active_version,
+                                           expected_generation)
+                    _require_editable(reader, active)
                 store.validate_analysis(analysis, connection=reader)
                 rows = store.iter_analysis_rows(analysis, connection=reader)
             else:
                 control, saved = _effective(reader, basis[0], basis[1], expected_generation)
-                if (
-                    control["active_version"] != expected_active_version
-                    or saved["status"] != "draft"
-                ):
-                    raise AppError("batch_not_editable", "请先撤回已提交记录，再修改。", 409)
+                if control["active_version"] != expected_active_version:
+                    raise AppError("stale_batch", "报销记录已变化，请刷新后重试。", 409)
+                _require_editable(reader, saved)
                 saved_analysis = time_ranges.frozen_metadata(
                     _decoded_object(saved["analysis_json"])
                 )
@@ -458,10 +530,9 @@ def _prepare_selection(
             pending: list[tuple[Any, ...]] = []
             for original in rows:
                 row = {key: original[key] for key in FREEZE_FIELDS if key in original}
-                kind = row.get("kind")
-                if not isinstance(kind, str) or kind not in {"detail", "rollup"}:
+                if row.get("kind") != "detail":
                     raise AppError("storage_damaged", "用量粒度无效，请保留本地资料。", 409)
-                member = member_from_row(row, kind)
+                member = member_from_row(row, "detail")
                 member["key"] = (
                     store.canonical_record_key(member["key"], connection=reader)
                     if basis is None
@@ -481,25 +552,15 @@ def _prepare_selection(
                     raise AppError("storage_damaged", "用量版本依据无效，请保留本地资料。", 409)
                 row["project_id"] = row.get("project_id") or None
                 row["project_name"] = row.get("project_name") or "未归属"
-                count = 1 if kind == "detail" else member["request_count"]
                 values = {
-                    "record_count": count,
-                    "detail_count": int(kind == "detail"),
-                    "rollup_record_count": count if kind == "rollup" else 0,
-                    "rollup_count": int(kind == "rollup"),
-                    "unpriced_count": count if row.get("pricing_status") == "unpriced" else 0,
+                    "record_count": 1,
+                    "detail_count": 1,
+                    "unpriced_count": int(row.get("pricing_status") == "unpriced"),
                 }
                 values.update({key: member[key] for key in TOKEN_FIELDS})
                 for key, value in values.items():
                     totals[key] += int(value)
-                costs = {
-                    "total_cost_usd": row["total_cost_usd"],
-                    "detail_cost_usd": row["total_cost_usd"] if kind == "detail" else "0",
-                    "rollup_cost_usd": row["total_cost_usd"] if kind == "rollup" else "0",
-                }
-                for key in COST_FIELDS:
-                    money[key].step(costs[key])
-                grains.add(kind)
+                money.step(row["total_cost_usd"])
                 frozen_json = canonical_bytes(row).decode()
                 member.update(
                     {
@@ -520,7 +581,7 @@ def _prepare_selection(
                 pending.append(
                     (
                         member["key"],
-                        kind,
+                        "detail",
                         version_id,
                         scope_key(member),
                         semantic_key(member),
@@ -530,8 +591,9 @@ def _prepare_selection(
                         row["project_id"] or "",
                         row["project_name"],
                         row["model"],
+                        row.get("pricing_model") or "",
                         *(str(values[key]) for key in (*COUNT_FIELDS, *TOKEN_FIELDS)),
-                        *(str(costs[key]) for key in COST_FIELDS),
+                        row["total_cost_usd"],
                     )
                 )
                 if len(pending) == CHUNK_SIZE:
@@ -553,24 +615,21 @@ def _prepare_selection(
                 digest.update(b"\n")
             summary: dict[str, Any] = {
                 **totals,
-                **{key: value.finalize() for key, value in money.items()},
+                "total_cost_usd": money.finalize(),
+                "source_grain": "detail",
             }
-            summary["source_grain"] = (
-                "mixed" if len(grains) > 1 else "detail" if "detail" in grains else "daily_rollup"
-            )
             expected = analysis["summary"]
             for key in (*COUNT_FIELDS, *TOKEN_FIELDS):
                 if expected.get(key) != summary[key]:
                     raise AppError(
                         "selection_changed", "冻结用量与预览合计不一致，请重新预览。", 409
                     )
-            for key in COST_FIELDS:
-                comparator = decimal_sql.DecimalSum()
-                comparator.step(expected.get(key))
-                if comparator.finalize() != summary[key]:
-                    raise AppError(
-                        "selection_changed", "冻结费用与预览合计不一致，请重新预览。", 409
-                    )
+            comparator = decimal_sql.DecimalSum()
+            comparator.step(expected.get("total_cost_usd"))
+            if comparator.finalize() != summary["total_cost_usd"]:
+                raise AppError(
+                    "selection_changed", "冻结费用与预览合计不一致，请重新预览。", 409
+                )
             selection.selection_hash = digest.hexdigest()
             if basis is not None and selection.selection_hash != saved["selection_hash"]:
                 raise AppError("storage_damaged", "冻结用量校验失败，请保留本地资料。", 409)
@@ -578,7 +637,6 @@ def _prepare_selection(
                 "start_date",
                 "end_date",
                 "time_range",
-                "time_coverage",
                 "assignment_coverage",
                 "summary_complete",
                 "pending_count",
@@ -593,6 +651,10 @@ def _prepare_selection(
                 "availability",
             )
             selection.analysis = {key: analysis[key] for key in fields if key in analysis}
+            if "time_range" in selection.analysis:
+                selection.analysis["time_range"] = time_ranges.from_analysis(analysis).as_dict()
+            if basis is not None:
+                _adapt_frozen_metadata(selection.analysis, analysis)
             selection.analysis.update(
                 summary=summary,
                 member_count=selection.member_count,
@@ -618,6 +680,20 @@ def _dirty_scopes(
             "SELECT DISTINCT scope_key FROM usage_claims WHERE batch_id=?",
             (batch_id,),
         )
+        if connection.execute(
+            "SELECT 1 FROM usage_claims INDEXED BY usage_claim_archived_day "
+            "WHERE batch_id=? AND kind='rollup' LIMIT 1",
+            (batch_id,),
+        ).fetchone() is not None:
+            archived = archived_claim_lookup(
+                "r.day", "r.model", "r.pricing_model", "r.version_id",
+                owner_filter="c.batch_id=?1",
+            )
+            connection.execute(
+                "INSERT OR IGNORE INTO billing_dirty_scopes "
+                f"SELECT DISTINCT r.scope_key FROM usage_records r WHERE EXISTS({archived})",
+                (batch_id,),
+            )
     if candidate:
         connection.execute(
             "INSERT OR IGNORE INTO billing_dirty_scopes "
@@ -635,23 +711,8 @@ def _refresh(store: Store, connection: sqlite3.Connection) -> None:
 
 
 def _check_candidate_conflicts(connection: sqlite3.Connection, batch_id: str | None) -> None:
-    internal = connection.execute(
-        "SELECT 1 FROM billing_candidate.members GROUP BY scope_key HAVING "
-        "MAX(kind='rollup')=1 AND COUNT(*)>1 LIMIT 1"
-    ).fetchone()
-    if internal is not None:
-        raise AppError("usage_internal_overlap", "所选明细和来源汇总可能重复，请核对。", 409)
     branches = (
         ("c.record_key=m.record_key", "usage_claimed"),
-        (
-            "c.scope_key=m.scope_key AND m.kind='detail' AND c.kind='rollup' "
-            "AND c.record_key<>m.record_key",
-            "usage_ambiguous",
-        ),
-        (
-            "c.scope_key=m.scope_key AND m.kind='rollup' AND c.record_key<>m.record_key",
-            "usage_ambiguous",
-        ),
         (
             "c.semantic_key=m.semantic_key AND m.semantic_key IS NOT NULL "
             "AND c.record_key<>m.record_key",
@@ -660,13 +721,21 @@ def _check_candidate_conflicts(connection: sqlite3.Connection, batch_id: str | N
     )
     for relation, code in branches:
         found = connection.execute(
-            "SELECT 1 FROM billing_candidate.members m JOIN usage_claims c ON "
-            + relation
-            + " WHERE (? IS NULL OR c.batch_id<>?) LIMIT 1",
-            (batch_id, batch_id),
+            f"SELECT 1 FROM billing_candidate.members m JOIN usage_claims c ON {relation} "
+            "WHERE c.batch_id IS NOT ? LIMIT 1",
+            (batch_id,),
         ).fetchone()
         if found is not None:
             raise AppError(code, "部分用量已被占用或可能重复，请更新预览。", 409)
+    archived = archived_claim_lookup(
+        "m.day", "m.model", "m.pricing_model", "m.usage_version_id",
+        owner_filter="c.batch_id IS NOT ?1",
+    )
+    if connection.execute(
+        f"SELECT 1 FROM billing_candidate.members m WHERE EXISTS({archived}) LIMIT 1",
+        (batch_id,),
+    ).fetchone() is not None:
+        raise AppError("usage_ambiguous", "部分用量已被占用或可能重复，请更新预览。", 409)
 
 
 def _record_event(
@@ -764,18 +833,7 @@ def create_batch(
     published: str | None = None
     temporary: Path | None = None
     try:
-        business_hash = content_hash(
-            {
-                "selection_hash": selection.selection_hash,
-                "claim": claim,
-                "selection": {
-                    key: selection.analysis.get(key)
-                    for key in ("start_date", "end_date", "project_id", "project_name")
-                },
-                "time_range": time_ranges.from_analysis(selection.analysis).identity(),
-                "summary": selection.analysis["summary"],
-            }
-        )
+        business_hash = _business_hash(selection.analysis, claim, selection.selection_hash)
         with store._transaction():
             existing = _prior(store._db, idempotency_key, signature, "create")
             if existing is not None:
@@ -795,14 +853,19 @@ def create_batch(
                 control, active = _effective(
                     store._db, batch_id, expected_active_version, expected_generation
                 )
-                if active["status"] != "draft":
-                    raise AppError("batch_not_editable", "请先撤回已提交记录，再修改。", 409)
+                _require_editable(store._db, active)
                 # Identical members can still have a new frozen assignment-coverage statement.
                 active_analysis = _decoded_object(active["analysis_json"])
                 same_assignment_basis = canonical_bytes(
-                    active_analysis.get("assignment_coverage")
+                    _assignment_basis(active_analysis.get("assignment_coverage"))
                 ) == canonical_bytes(selection.analysis.get("assignment_coverage"))
-                if active["business_hash"] == business_hash and same_assignment_basis:
+                active_hash = active["business_hash"]
+                if "rollup_count" in active_analysis["summary"]:
+                    active_hash = _business_hash(
+                        active_analysis, _decoded_object(active["claim_json"]),
+                        active["selection_hash"],
+                    )
+                if active_hash == business_hash and same_assignment_basis:
                     store._db.execute(
                         "INSERT INTO idempotency VALUES(?,?,?,?,?)",
                         (idempotency_key, "create", signature, batch_id, active["version"]),
@@ -855,10 +918,7 @@ def create_batch(
                         _, active = _effective(
                             store._db, batch_id, expected_active_version, expected_generation
                         )
-                        if active["status"] != "draft":
-                            raise AppError(
-                                "batch_not_editable", "请先撤回已提交记录，再修改。", 409
-                            )
+                        _require_editable(store._db, active)
                     _check_candidate_conflicts(store._db, batch_id)
                     _dirty_scopes(store._db, batch_id, candidate=True)
                     store.publish_file(relative, temporary)
@@ -1087,16 +1147,18 @@ def overlaps(
     _validate_preview(analysis, target)
     basis = _frozen_basis(analysis, target)
     with store.read_connection() as connection:
+        if target is not None:
+            _, active = _effective(connection, target, analysis.get("expected_active_version"),
+                                   analysis.get("expected_generation"))
+            _require_editable(connection, active)
         if basis is None:
             store.validate_analysis(analysis, connection=connection)
             return []
-        control, revision = _effective(
+        control, _ = _effective(
             connection, basis[0], basis[1], analysis.get("expected_generation")
         )
-        if revision["status"] != "draft" or control["active_version"] != analysis.get(
-            "expected_active_version"
-        ):
-            raise AppError("batch_not_editable", "请先撤回已提交记录，再修改。", 409)
+        if control["active_version"] != analysis.get("expected_active_version"):
+            raise AppError("stale_batch", "报销记录已变化，请刷新后重试。", 409)
         # Existing frozen members retain their own claims. Related ownership is indexed,
         # and no caller-supplied target may exempt a new application.
         found = connection.execute(

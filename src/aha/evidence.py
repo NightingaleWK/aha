@@ -27,7 +27,7 @@ from .domain import (
 )
 
 UPSTREAM_COMMIT = "c0189078aacdd80fd2462f59b345f55f62b41cf2"
-MANIFEST_VERSION = 4
+MANIFEST_VERSION = 5
 COPY_BYTES = 1024 * 1024
 DETAIL_COLUMNS = (
     "project_id",
@@ -60,17 +60,13 @@ DAILY_COLUMNS = (
     "date",
     "model",
     "detail_count",
-    "rollup_record_count",
     "record_count",
-    "source_grain",
     "fresh_input_tokens",
     "output_tokens",
     "cache_read_tokens",
     "cache_creation_tokens",
     "total_tokens",
     "total_cost_usd",
-    "detail_cost_usd",
-    "rollup_cost_usd",
     "unpriced_count",
 )
 MEMBER_FIELDS = (
@@ -102,8 +98,6 @@ MEMBER_FIELDS = (
 SUMMARY_FIELDS = (
     "record_count",
     "detail_count",
-    "rollup_record_count",
-    "rollup_count",
     "unpriced_count",
     "fresh_input_tokens",
     "output_tokens",
@@ -111,8 +105,6 @@ SUMMARY_FIELDS = (
     "cache_creation_tokens",
     "total_tokens",
     "total_cost_usd",
-    "detail_cost_usd",
-    "rollup_cost_usd",
     "source_grain",
 )
 RowFactory = Callable[[], Iterable[dict[str, Any]]]
@@ -223,7 +215,6 @@ def _availability_basis(analysis: dict[str, Any]) -> dict[str, Any] | None:
                 "row_count",
                 "record_count",
                 "detail_count",
-                "rollup_record_count",
                 "total_cost_usd",
             )
             if key in group
@@ -263,7 +254,7 @@ def _assignment_basis(analysis: dict[str, Any]) -> dict[str, Any] | None:
         key: coverage[key]
         for key in (
             "scope", "availability_mode", "status", "unassigned_detail_count",
-            "unassigned_rollup_count", "unassigned_record_count",
+            "unassigned_record_count",
         )
         if key in coverage
     }
@@ -304,8 +295,7 @@ def _write_report(
         ("金额依据", claim["amount_note"] or "未填写"),
         (
             "用量记录",
-            f"明细 {summary.get('detail_count', 0)} 条；"
-            f"历史汇总代表 {summary.get('rollup_record_count', 0)} 条；"
+            f"{summary.get('detail_count', 0)} 条明细，"
             f"总 Token {summary.get('total_tokens', 0)}",
         ),
     ]
@@ -324,30 +314,22 @@ def _write_report(
         information.append(("待核对依据", f"{analysis['pending_count']} 条，未计入已核实合计"))
     notes = [
         *cost_notes,
-        "统计时间按北京时间计算；明细按实际发生秒纳入，手动结束分钟完整包含。",
-        "历史日汇总仅在完整自然日被所选范围覆盖时纳入，不按小时拆分。",
+        "用量按北京时间的实际发生时刻统计。手动选择的结束分钟完整计入。",
     ]
-    coverage = analysis.get("time_coverage")
-    if analysis.get("summary_complete") is None or coverage is None:
+    if analysis.get("summary_complete") is None:
         notes.append("沿用旧记录的冻结用量与说明，未重新判断历史资料完整性。")
-    elif not coverage["complete"]:
-        days = "、".join(coverage["omitted_days"])
-        notes.append(f"统计不完整：{days} 的 {coverage['omitted_rollup_count']} 条历史日汇总"
-                     "没有逐笔时间，未计入当前时间范围；其全天金额不代表本范围内费用。")
     assignment = _assignment_basis(analysis)
     if assignment is None:
-        notes.append("沿用冻结成员；原记录未保存同期项目归属覆盖信息，不补判为全部已归属。")
+        notes.append("原记录未保存同期项目归属覆盖信息。本材料沿用冻结用量。")
     elif assignment.get("status") == "incomplete":
         counts_note = (
             "同期同用量口径仍有 "
-            f"{assignment.get('unassigned_detail_count', 0)} 条明细、"
-            f"{assignment.get('unassigned_rollup_count', 0)} 条历史日汇总未归属项目"
-            f"（合计代表 {assignment.get('unassigned_record_count', 0)} 次请求）。"
+            f"{assignment.get('unassigned_detail_count', 0)} 条明细待归属。"
         )
         if analysis.get("project_id", "all") not in {"all", "unassigned"}:
             notes.append(
                 "本材料只包含所选项目及范围内已确认的消费。" + counts_note
-                + "未归属消费未计入所选项目；本项目结果不表示所有相关消费已经分配完成。"
+                + "未归属消费未计入所选项目。"
             )
         else:
             notes.append(
@@ -355,11 +337,9 @@ def _write_report(
                 + "未归属部分不能作为某个项目的完整费用依据。"
             )
     elif assignment.get("status") == "complete":
-        notes.append("同期同用量口径的已核实消费均已归属项目；本材料仅包含所选范围成员。")
+        notes.append("同期已核实消费均已归属项目。本材料包含所选范围内的用量。")
     else:
         notes.append("原记录未确定同期项目归属覆盖状态，不补判为全部已归属。")
-    if summary.get("rollup_record_count"):
-        notes.append("历史日汇总按来源完整记录纳入，没有补成逐条调用。")
     if summary.get("unpriced_count"):
         notes.append(f"有 {summary['unpriced_count']} 条记录未计价，参考成本不完整。")
     generic_notes = {
@@ -394,11 +374,9 @@ thead{display:table-header-group}tr{break-inside:avoid}h2{break-after:avoid}}</s
             output.write(f"<dt>{_escape(label)}</dt><dd>{_escape(value)}</dd>")
         output.write(
             '</dl><h2>每日用量与参考成本</h2><div class="table-wrap"><table><thead><tr>'
-            "<th>项目</th><th>日期</th><th>模型</th><th>明细数</th>"
-            "<th>汇总代表数</th><th>记录类型</th><th>参考成本 USD</th>"
+            "<th>项目</th><th>日期</th><th>模型</th><th>明细数</th><th>参考成本 USD</th>"
             "</tr></thead><tbody>"
         )
-        grains = {"detail": "逐条明细", "daily_rollup": "历史日汇总", "mixed": "明细与汇总"}
         for row in daily_rows:
             output.write("<tr>")
             for key in (
@@ -406,14 +384,9 @@ thead{display:table-header-group}tr{break-inside:avoid}h2{break-after:avoid}}</s
                 "date",
                 "model",
                 "detail_count",
-                "rollup_record_count",
-                "source_grain",
                 "total_cost_usd",
             ):
-                value = row.get(key)
-                if key == "source_grain":
-                    value = grains.get(str(value), value)
-                output.write(f"<td>{_escape(value)}</td>")
+                output.write(f"<td>{_escape(row.get(key))}</td>")
             output.write("</tr>")
         output.write("</tbody></table></div><h2>数据说明</h2><ul>")
         for note in notes:
@@ -441,6 +414,8 @@ def _write_manifest(
             continue
         output.write(b"[")
         for member in members:
+            if member.get("kind") != "detail":
+                raise AppError("invalid_analysis", "请用逐笔明细生成报销材料。", 409)
             if count:
                 output.write(b",")
             output.write(
@@ -498,14 +473,12 @@ def build_evidence(
             "status_when_saved": "draft",
         },
         "summary": _summary(analysis["summary"]),
-        "time_coverage": analysis.get("time_coverage"),
         "assignment_coverage": _assignment_basis(analysis),
         "summary_complete": analysis.get("summary_complete"),
         "pending_count": analysis.get("pending_count"),
         "claim": claim,
         "warnings": _warnings(analysis),
-        "rollup_timezone_assumption": "历史日汇总缺少原始时区，以 Asia/Shanghai 整日解释。",
-        "status_basis": "生成时为草稿；后续本地人工状态变化不改本包，不构成支付确认。",
+        "status_basis": "生成时为草稿。实际支付以付款记录为准。",
     }
     if "ledger_schema_version" in analysis:
         metadata["ledger"]["schema_version"] = analysis["ledger_schema_version"]
@@ -524,16 +497,15 @@ def build_evidence(
 
             def detail_rows() -> Iterable[dict[str, Any]]:
                 for row in rows():
+                    if row.get("kind") != "detail":
+                        raise AppError("invalid_analysis", "请用逐笔明细生成报销材料。", 409)
                     native = row.get("data_source") == "codex_native"
                     source = "codex_native" if native else "historical"
-                    source_counts[source] = source_counts.get(source, 0) + int(
-                        row.get("request_count", 1)
-                    )
+                    source_counts[source] = source_counts.get(source, 0) + 1
                     basis = row.get("pricing_basis")
                     if native and isinstance(basis, str):
                         price_references.add(basis)
-                    if row["kind"] == "detail":
-                        yield row
+                    yield row
 
             detail_count = _write_csv(
                 files["使用明细.csv"],

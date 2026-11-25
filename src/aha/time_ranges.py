@@ -1,7 +1,7 @@
 """One Beijing half-open range contract for queries and frozen evidence.
 
-Intent is presentation metadata. Only the resolved integer-second bounds and
-grain policy identify a selection; saving never resolves that intent again.
+Intent is presentation metadata. The resolved integer-second bounds identify a
+selection. Saving never resolves that intent again.
 """
 
 from __future__ import annotations
@@ -76,7 +76,6 @@ class TimeRange:
             "precision": self.precision,
             "intent": dict(self.intent),
             "resolved_at": self.resolved_at,
-            "rollup_policy": "full_days_only",
         }
 
     def identity(self) -> dict[str, Any]:
@@ -85,7 +84,6 @@ class TimeRange:
             "timezone": "Asia/Shanghai",
             "start_epoch": self.start_epoch,
             "end_exclusive_epoch": self.end_exclusive_epoch,
-            "rollup_policy": "full_days_only",
         }
 
     def full_days(self) -> tuple[date, date] | None:
@@ -192,7 +190,6 @@ def from_analysis(analysis: dict[str, Any]) -> TimeRange:
         or type(value.get("version")) is not int
         or value["version"] != 1
         or value.get("timezone") != "Asia/Shanghai"
-        or value.get("rollup_policy") != "full_days_only"
         or not isinstance(value.get("precision"), str)
         or value["precision"] not in {"day", "minute", "second"}
         or not isinstance(value.get("intent"), dict)
@@ -218,6 +215,6 @@ def frozen_metadata(analysis: dict[str, Any]) -> dict[str, Any]:
             result["time_range"] = from_analysis(result).as_dict()
         except OverflowError:
             pass  # Old extreme-date analyses retain their old export error.
-    for key in ("time_coverage", "summary_complete", "pending_count"):
+    for key in ("summary_complete", "pending_count"):
         result.setdefault(key, None)
     return result

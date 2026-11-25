@@ -45,12 +45,6 @@ window.AhaTimeRange = (() => {
     if (["preset", "custom"].includes(range.intent?.kind)) return clone(range.intent);
     return {kind: "custom", start: range.start_at.slice(0, 16), end: inclusiveEnd(range).slice(0, 16), follow_now: false};
   }
-  function wholeDays(result) {
-    const range = fromAnalysis(result);
-    if (!range) return null;
-    return {kind: "custom", start: `${range.start_at.slice(0, 10)}T00:00`, end: `${inclusiveEnd(range).slice(0, 10)}T23:59`, follow_now: false};
-  }
-
   class Picker {
     constructor(root, {id, label = "时间范围", context, onApply}) {
       this.root = root; this.id = id; this.label = label; this.context = context; this.onApply = onApply;
@@ -181,10 +175,10 @@ window.AhaTimeRange = (() => {
       if (disabled && this.opened && !this.applying) this.close();
     }
     renderTrigger() {
-      const title = `${name(this.intent)}${this.intent.follow_now ? " · 跟随当前时刻" : ""}`;
+      const title = name(this.intent);
       this.title.textContent = title;
-      this.subtitle.textContent = !this.pending && this.resolved ? describe(this.resolved) : "选择日期与时间，确认后更新预览";
-      this.trigger.setAttribute("aria-label", `${this.label}：${title}，${this.subtitle.textContent}`);
+      this.subtitle.textContent = !this.pending && this.resolved ? describe(this.resolved) : "确认时间后更新预览";
+      this.trigger.setAttribute("aria-label", `${this.label}，${title}${this.intent.follow_now ? "，跟随当前时刻" : ""}，${this.subtitle.textContent}`);
     }
     anchor() {
       const previous = this.lastResolved?.end_before;
@@ -322,8 +316,11 @@ window.AhaTimeRange = (() => {
         if (error) input.setAttribute("aria-errormessage", this.error.id); else input.removeAttribute("aria-errormessage");
       }
       const preview = this.preview(this.draft);
-      const explanation = preview ? `参考范围：${describe(preview)}。` : "请选择开始和结束时间。";
-      this.explanation.textContent = explanation + (follow ? "跟随范围在本次预览时确定；保存沿用预览，不会继续延长。" : this.draft.kind === "preset" && this.draft.preset !== "all" ? "保留快捷范围的秒级截止；编辑端点将转为自定义分钟范围。" : "包含起止分钟；历史日汇总仅在完整覆盖当天时计入。");
+      const explanation = preview ? `${describe(preview)}。` : "请选择起止时间。";
+      const hint = follow ? "保存时采用本次预览的截止时间。"
+        : this.draft.kind === "custom" ? "包含起止分钟。"
+          : this.draft.preset === "all" ? "" : "编辑起止时间可按分钟选择。";
+      this.explanation.textContent = explanation + hint;
       this.renderCalendar();
       if (this.opened) this.position();
     }
@@ -437,5 +434,5 @@ window.AhaTimeRange = (() => {
       this.applying = false; this.close(); this.abort.abort(); this.root.replaceChildren();
     }
   }
-  return {create: (root, options) => new Picker(root, options), describe, fromAnalysis, editableIntent, wholeDays, name};
+  return {create: (root, options) => new Picker(root, options), describe, fromAnalysis, editableIntent, name};
 })();

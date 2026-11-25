@@ -32,7 +32,7 @@ Store.create_batch(analysis, claim, idempotency_key, batch_id=None, **kwargs)
 Store.download(batch_id, version) -> tuple[Path, str]
 ```
 
-内部用量投影版本 23 与应用 schema 5 独立。现行来源、事件与计价见 [Codex 原生采集](./codex-native-source-contract.md)。schema 3/4 升级前先做一致完整备份，schema 1/2 或未知资料继续拒绝自动打开。Windows 默认 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。完整备份与来源重绑遵循 [恢复合同](./recovery-and-device-contract.md)。开发测试使用独立资料目录和本机设置。
+内部用量投影版本 23 与应用 schema 6 独立。schema 3 至 5 升级前先生成一致完整备份。Windows 默认资料位于 %LOCALAPPDATA%\aha，Linux 为 ${XDG_DATA_HOME:-~/.local/share}/aha。完整备份和来源重绑见 [恢复合同](./recovery-and-device-contract.md)。
 
 CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`；同目录单实例，复用不新增启动同步。runtime.json 含本次 PID/run_id/私有启动地址，不能加入材料或公开记录；持久锁文件退出后保留。详见 [实例与生命周期契约](./runtime-lifecycle-contract.md)。
 
@@ -49,19 +49,19 @@ CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`�
 
 - 金额始终是精确十进制字符串，使用 [decimal_sql.py](../../../src/aha/decimal_sql.py) 的 `decimal_sum/integer_sum/usage_groups` 支持大整数和极小金额；禁止 REAL SUM、按当前价格重算、再乘倍率或固定微美元截断。
 - input_token_semantics 0 扣 cache read，1 扣 read+creation，2 已是 fresh；异常减成负数保留原 input 并标记。总 Token 对 fresh/output/read/creation 各计一次。
-- 新时间入口使用北京时间半开秒区间，固定分钟输入包含结束分钟；旧日期入口仍含起止两日。部分日汇总省略且独立提示，合法确定成员仍可保存；详见 [时间合同](./time-range-contract.md)。原 rollup 日期与时区依据保留，不能假称备份验证了历史时区或把无记录当成零消耗证明。
-- 明细/来源日汇总/本地日统计分层。数值匹配不是成员完整证明；部分/未知覆盖的双方可查且不可相加，不造差额明细、不比例拆分。核对选择要有原因、generation 和幂等，不能释放已占用成员。
+- 新时间入口使用北京时间半开秒区间，固定结束分钟整分钟计入。旧日期入口包含起止两日。所有当前选择采用真实事件时间，详见 [时间合同](./time-range-contract.md)。
+- 逐笔明细是活动用量事实。本地日统计按所选明细生成，旧来源日汇总随台账升级删除。冻结材料使用登记的原版本和原包。
 - 归属对已明确确认的目录采用目录整体权威，确认时覆盖旧人工跨项目例外并统一历史，后续和迟到依据自动接续；未纳管旧模式以有效内容指纹人工覆盖和持久逐笔关系为权威。未确定项进入待归属清单。普通配置草稿或本机缺日志不能抹去关系，目录整体保存/转移先预览影响再一次原子确认。Windows 路径忽略大小写，Linux 保留；普通/zstd 会话头只提供线索，不读正文。优先级、批量和恢复见[项目归属合同](./project-association-contract.md)。
 
 ### 本地查询与冻结材料
 
 - [queries.py](../../../src/aha/queries.py) 是 SQL 选择/核算入口，analysis.py 只再导出该入口。分析只保存条件、摘要和 data/classification/claim 依据，不保存全体行数组。
-- 明细、来源汇总、每日、模型四个视图均游标分页，size1–200；游标绑定筛选与版本。完整日/月从 `daily_usage_stats/monthly_usage_stats` 读取，部分日按事件秒读明细，段间不重叠；可用性在 `usage_records` 派生列中维护，不把全部 facts/claims/overrides fetchall 到 Python。
+- 逐笔、按日和按模型视图支持游标分页，size 为 1 至 200。完整日月使用聚合表，部分日按事件秒读明细。分析、预览和保存使用同一选择。
 - summary 仅合计已核实依据；pending_count/summary_complete 和核对入口说明未核实部分。available/all 区分申请与只读；all 或空选择不得保存报销。
 - assignment_coverage 单独说明同期未归属，不能混成时间/核对完整性；确定项目仍可报销。覆盖随预览冻结、分享只带计数不带未归属金额；覆盖变化时 current 修订不能当原 business_hash 无变化返回旧版，见[项目归属合同](./project-association-contract.md)。
 - 保存草稿即占用，单有效版本，lifecycle 为 active/voided；有效草稿可修订，已提交带原因撤回，已报销纠错先作废，作废终态仅释放自身。独占、版本、generation、幂等、事件及统计在权威事务内重检/提交。
 - current 修订使用专用目标预览，不能借给新建自身豁免；frozen_basis 保留目标有效版原成员，只改用途也不能被无关全局 data_revision 永久阻断。
-- `revision_members` 行式冻结；新材料 manifest_version4，四文件仍为使用明细.csv、每日汇总.csv、费用说明.html、导出信息.json。原 manifest3 包保留字节，旧 frozen 的完整性缺失保留未知。CSV BOM/公式保护、HTML 转义、允许分享投影、精确金额和成员摘要算法均保留。
+- revision_members 按行冻结材料。新材料 manifest 5，包含使用明细.csv、每日汇总.csv、费用说明.html 和导出信息.json。历史材料按原 ZIP 字节下载，冻结依据缺失的信息显示未知。
 - CSV、逐成员 manifest、ZIP、校验和下载全链路分块。物理包名与用户下载名分开，深 Windows 资料目录必须可保存；已存包重下原字节，来源修订仅通过 current_difference_count 提示差异。
 
 ## 4. 校验与错误矩阵
@@ -119,7 +119,7 @@ package_path, filename = store.download(batch_id, version)
 - 日/月派生统计按相同project/model/kind/state精确口径，在事实、分类、覆盖和占用变更的同一事务更新。完整自然月读月表，首尾非完整月份读日表，段间不能重叠。聚合不经过REAL；冻结主体仍按其完整成员。
 - keyset除tuple严格比较外，还须显式收紧event_time标量范围。执行计划和VM工作量应证明直接seek，不能仅凭SQL中存在游标断言深页恒定。
 - 源读取后再做本地 staging；本机写者等待与应用退出取消皆有界。详见 [原生提交合同](./database-guidelines.md#原生同步事务)。
-- 同源新key的旧语义成员缺席当前完整staging时才提示身份重建；本轮并存的同秒同Token不同key请求不能误合并。rollup代表量下降单独以已确认观察基线核对，不将降价误判为重建。
+- 同源重建仅在旧语义成员缺席于当前完整暂存时提示身份变化。同批已观察到的不同请求仍分别记录。
 
 
 ## 分页核对与批量确认同一消费

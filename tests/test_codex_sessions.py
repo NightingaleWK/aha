@@ -73,6 +73,12 @@ def _response(
     }, stamp)
 
 
+def _compacted(size: int, stamp: str = FOLLOWUP) -> bytes:
+    return _line("compacted", {
+        "replacement_history": [{"role": "assistant", "text": "private-history" * size}],
+    }, stamp)
+
+
 class CodexSessionTests(unittest.TestCase):
     def setUp(self) -> None:
         folder = TemporaryDirectory()
@@ -233,6 +239,178 @@ class CodexSessionTests(unittest.TestCase):
         self.assertEqual(receipt["coverage"], "complete")
         self.assertEqual(len(confirmed), 2)
         self.assertEqual(len({event.event_id for event in confirmed}), 2)
+
+    def test_oversized_compaction_preserves_paired_usage_in_plain_and_archived_files(self) -> None:
+        beginning = _header() + _context() + _response("resp_before", 1) + _snapshot(1)
+        ending = (
+            _snapshot(1, FOLLOWUP, usage={"total_tokens": 42})
+            + _response("resp_after", 2, AFTER) + _snapshot(2, AFTER)
+        )
+        path = self.directory / "rollout.jsonl"
+        path.write_bytes(beginning + _compacted(1) + ending)
+        expected, complete = self.scan()
+        self.assertEqual(complete["coverage"], "complete")
+        self.assertEqual(len(expected), 2)
+        archive = self.root / "archived_sessions"
+        archive.mkdir()
+        compacted = _compacted(128_000)
+        data = beginning + compacted + ending
+        compressor = zstandard.ZstdCompressor()
+        mid_compaction = len(beginning) + len(compacted) // 2
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed):
+                path.unlink()
+                if compressed:
+                    path = archive / "rollout.jsonl.zst"
+                    path.write_bytes(
+                        compressor.compress(data[:mid_compaction])
+                        + compressor.compress(data[mid_compaction:])
+                    )
+                else:
+                    path = self.directory / "rollout.jsonl"
+                    path.write_bytes(data)
+                self.cursors.clear()
+                observed, receipt = self.scan()
+                self.assertEqual(receipt["issues"], {})
+                self.assertEqual(
+                    [(event.event_id, event.row, event.evidence) for event in observed],
+                    [(event.event_id, event.row, event.evidence) for event in expected],
+                )
+                self.assertNotIn("private-history", json.dumps(self.cursors))
+
+    def test_oversized_compaction_updates_reset_after_a_split_line_finishes(self) -> None:
+        prefix = (
+            _header() + _context() + _snapshot(1) + _snapshot(2)
+            + _line("response_item", {"text": "pad" * 2200})
+        )
+        compacted = _compacted(300)
+        self.directory.joinpath("rollout.jsonl").write_bytes(
+            prefix + compacted
+            + _snapshot(2, FOLLOWUP, usage={"total_tokens": 42}) + _snapshot(1, AFTER)
+        )
+        with (
+            patch("aha.codex_sessions.MAX_LINE_BYTES", 1024),
+            patch("aha.codex_sessions.MAX_SOURCE_BYTES", len(prefix) + len(compacted) - 200),
+        ):
+            confirmed, partial = self.scan()
+            self.assertEqual(partial["issues"], {"scan_limit": 1})
+            cursor = self.cursors["sessions/rollout.jsonl"]
+            self.assertIsNone(cursor["discarding"])
+            self.assertEqual(cursor["offset"], len(prefix))
+            self.assertFalse(cursor["state"]["reset_allowed"])
+            for _ in range(10):
+                events, receipt = self.scan()
+                confirmed.extend(events)
+                if receipt["coverage"] == "complete":
+                    break
+        self.assertEqual(receipt["issues"], {})
+        self.assertEqual(len(confirmed), 3)
+        self.assertEqual(len({event.event_id for event in confirmed}), 3)
+
+    def test_old_positions_replay_only_files_with_unclassified_long_lines(self) -> None:
+        data = _header() + _context() + _response("resp_one", 1) + _snapshot(1)
+        affected = self.directory / "affected.jsonl"
+        affected.write_bytes(data + _compacted(300)
+                             + _snapshot(1, FOLLOWUP, usage={"total_tokens": 42}))
+        healthy = self.directory / "healthy.jsonl"
+        healthy.write_bytes(_header() + _context() + _response("resp_healthy", 1))
+        with patch("aha.codex_sessions.MAX_LINE_BYTES", 1024):
+            with (
+                patch("aha.codex_sessions.CURSOR_VERSION", 1),
+                patch("aha.codex_sessions._oversized_kind", return_value="unknown"),
+            ):
+                first, partial = self.scan()
+            self.assertEqual(partial["issues"], {"line_limit": 1, "invalid_cumulative_usage": 1})
+            affected_event = next(
+                event for event in first if event.relative_path == "sessions/affected.jsonl"
+            )
+            replayed, repaired = self.scan()
+            self.assertEqual(repaired["issues"], {})
+            self.assertEqual([event.event_id for event in replayed], [affected_event.event_id])
+            self.assertEqual(self.cursors["sessions/healthy.jsonl"]["version"], 1)
+            observed, current = self.scan()
+            self.assertEqual(observed, [])
+            self.assertEqual(current["bytes_read"], 0)
+
+    def test_legacy_incomplete_compaction_is_reclassified_on_append(self) -> None:
+        path = self.directory / "rollout.jsonl"
+        compacted = _compacted(300)
+        path.write_bytes(_header() + _context() + _snapshot(1) + compacted[:-1])
+        with patch("aha.codex_sessions.MAX_LINE_BYTES", 1024):
+            with (
+                patch("aha.codex_sessions.CURSOR_VERSION", 1),
+                patch("aha.codex_sessions._oversized_kind", return_value="unknown"),
+            ):
+                first, partial = self.scan()
+            self.assertEqual(partial["issues"], {"incomplete_tail": 1})
+            self.assertEqual(self.cursors["sessions/rollout.jsonl"]["discarding"], "unknown")
+            with path.open("ab") as stream:
+                stream.write(
+                    compacted[-1:] + _snapshot(1, FOLLOWUP, usage={"total_tokens": 42})
+                    + _snapshot(1, AFTER)
+                )
+            replayed, repaired = self.scan()
+        self.assertEqual(repaired["issues"], {})
+        self.assertEqual([event.event_id for event in replayed], [first[0].event_id])
+
+    def test_early_compaction_cursor_replays_the_unvalidated_line(self) -> None:
+        path = self.directory / "rollout.jsonl"
+        compacted = _compacted(300)
+        path.write_bytes(_header() + _context() + _snapshot(1) + compacted[:-1])
+        with patch("aha.codex_sessions.MAX_LINE_BYTES", 1024):
+            with patch("aha.codex_sessions._Lines.unfinished_discard", return_value="compacted"):
+                first, partial = self.scan()
+            self.assertEqual(partial["issues"], {"incomplete_tail": 1})
+            self.assertEqual(self.cursors["sessions/rollout.jsonl"]["discarding"], "compacted")
+            with path.open("ab") as stream:
+                stream.write(
+                    compacted[-1:] + _snapshot(1, FOLLOWUP, usage={"total_tokens": 42})
+                    + _snapshot(1, AFTER)
+                )
+            replayed, repaired = self.scan()
+        self.assertEqual(repaired["issues"], {})
+        self.assertEqual([event.event_id for event in replayed], [first[0].event_id])
+
+    def test_bad_oversized_compaction_cannot_authorize_a_new_snapshot(self) -> None:
+        compacted = _compacted(300)
+        candidates = (
+            ("truncated", compacted[:-3] + b"\n", 8192),
+            ("different effective type", compacted[:-2] + b', "type": "unknown"}\n', 8192),
+            ("over compaction cap", compacted, 2048),
+        )
+        for reason, row, limit in candidates:
+            with (
+                self.subTest(reason=reason),
+                patch("aha.codex_sessions.MAX_LINE_BYTES", 1024),
+                patch("aha.codex_sessions.MAX_COMPACTED_LINE_BYTES", limit),
+            ):
+                self.cursors.clear()
+                self.directory.joinpath("rollout.jsonl").write_bytes(
+                    _header() + _context() + _snapshot(1) + _snapshot(2)
+                    + _compacted(1) + row + _snapshot(1, AFTER)
+                )
+                events, receipt = self.scan()
+                self.assertEqual(receipt["coverage"], "partial")
+                self.assertEqual(
+                    receipt["issues"], {"line_limit": 1, "cumulative_baseline_unconfirmed": 1}
+                )
+                self.assertEqual(
+                    [event.evidence.get("pending_reason") for event in events],
+                    [None, None, "cumulative_baseline_unconfirmed"],
+                )
+
+    def test_oversized_compaction_does_not_hide_invalid_usage(self) -> None:
+        invalid = _snapshot(2, FOLLOWUP, usage={"total_tokens": 42})
+        oversized_usage = _response("resp_oversized", 2, AFTER, body="x" * 3000)
+        self.directory.joinpath("rollout.jsonl").write_bytes(
+            _header() + _context() + _response("resp_before", 1) + _snapshot(1)
+            + _compacted(300) + invalid + oversized_usage
+        )
+        with patch("aha.codex_sessions.MAX_LINE_BYTES", 1024):
+            events, receipt = self.scan()
+        self.assertEqual([event.evidence["response_id"] for event in events], ["resp_before"])
+        self.assertEqual(receipt["coverage"], "partial")
+        self.assertEqual(receipt["issues"], {"line_limit": 1, "invalid_cumulative_usage": 1})
 
     def test_projected_tokens_distinguish_reasoning_and_unpriced_cache_write(self) -> None:
         (self.directory / "rollout.jsonl").write_bytes(

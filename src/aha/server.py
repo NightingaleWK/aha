@@ -690,6 +690,8 @@ class Application:
         batch = self.store.batch_detail(batch_id)
         if batch["lifecycle"] == "voided":
             raise AppError("batch_voided", "这条报销记录已作废，请新建记录。", 409)
+        if batch.get("archived_usage"):
+            raise AppError("legacy_batch_archived", "这条历史报销可查看和下载原材料。", 409)
         if not batch["can_edit"]:
             raise AppError("inactive_revision", "当前记录不能修改，请先核对报销状态。", 409)
         if batch["generation"] != _generation(body) or batch["active_version"] != _version(
@@ -845,19 +847,24 @@ class Application:
             return {"batches": self.store.list_batches()}
         if match := re.fullmatch(r"/api/batches/" + SAFE_ID, path):
             return self.store.batch_detail(match[1])
+        if match := re.fullmatch(r"/api/analysis/" + SAFE_ID + r"/trend", path):
+            return self.store.analysis_trend(self._analysis(match[1]))
         if match := re.fullmatch(r"/api/analysis/" + SAFE_ID + r"/details", path):
             result = self._analysis(match[1])
             kind = query.get("kind", ["detail"])[0]
-            if kind not in {"detail", "rollup", "daily", "models"}:
-                raise AppError("invalid_grain", "请选择明细、汇总或统计。")
+            if kind not in {"detail", "daily", "models"}:
+                raise AppError("invalid_grain", "请选择逐条明细、按日统计或按模型统计。")
             try:
                 size = int(query.get("size", ["50"])[0])
             except ValueError:
                 raise AppError("invalid_page", "分页参数不正确。") from None
             if not 1 <= size <= 200:
                 raise AppError("invalid_page", "每页可查看 1 至 200 条记录。")
+            if len(query.get("day", [])) > 1:
+                raise AppError("invalid_date", "请选择一个日期。")
             return self.store.analysis_details(
-                result, cursor=query.get("cursor", [None])[0], size=size, kind=kind
+                result, cursor=query.get("cursor", [None])[0], size=size, kind=kind,
+                day=query.get("day", [None])[0],
             )
         raise AppError("not_found", "未找到此内容。", 404)
 

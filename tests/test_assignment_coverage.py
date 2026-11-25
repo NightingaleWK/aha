@@ -36,8 +36,7 @@ class AssignmentCoverageTests(unittest.TestCase):
         self.other = detail("other", session_id="other-session", total_cost_usd="0.00000003")
         self.unknown = detail("unknown", session_id="unknown-session", total_cost_usd="1e-100",
                               input_tokens=2**63 - 1, input_token_semantics=2)
-        self.store.sync_data(source_data([self.known, self.other, self.unknown], [rollup()]),
-                             trust="live")
+        self.store.sync_data(source_data([self.known, self.other, self.unknown]), trust="live")
         self.store.assign_keys([record_key(self.known)], self.first)
         self.store.assign_keys([record_key(self.other)], self.second)
 
@@ -51,15 +50,14 @@ class AssignmentCoverageTests(unittest.TestCase):
         self.assertEqual(coverage["scope"], "period")
         self.assertEqual(coverage["status"], "incomplete")
         self.assertEqual(coverage["unassigned_detail_count"], 1)
-        self.assertEqual(coverage["unassigned_rollup_count"], 1)
-        self.assertEqual(coverage["unassigned_record_count"], 8)
+        self.assertNotIn("unassigned_rollup_count", coverage)
+        self.assertEqual(coverage["unassigned_record_count"], 1)
         amount = DecimalSum()
         amount.step("1e-100")
-        amount.step(rollup()["total_cost_usd"])
         self.assertEqual(coverage["unassigned_cost_usd"], amount.finalize())
         self.assertTrue(total["summary_complete"], "assignment is not time/reconciliation coverage")
         self.assertTrue(all(row["assignment_coverage"] == coverage for row in results))
-        for key in ("record_count", "detail_count", "rollup_count", "fresh_input_tokens",
+        for key in ("record_count", "detail_count", "fresh_input_tokens",
                     "output_tokens", "cache_read_tokens", "cache_creation_tokens", "total_tokens"):
             self.assertEqual(sum(row["summary"][key] for row in results), total["summary"][key])
         accumulator = DecimalSum()
@@ -68,7 +66,7 @@ class AssignmentCoverageTests(unittest.TestCase):
         self.assertEqual(accumulator.finalize(), total["summary"]["total_cost_usd"])
         self.assertEqual(total["unassigned_count"], coverage["unassigned_record_count"])
 
-    def test_partial_period_omits_rollup_without_counting_its_whole_day_as_unassigned(self) -> None:
+    def test_partial_minute_counts_only_unassigned_details_in_that_minute(self) -> None:
         def at(value: str) -> int:
             return int(datetime.fromisoformat(value + "+08:00").timestamp())
 
@@ -76,8 +74,7 @@ class AssignmentCoverageTests(unittest.TestCase):
         unknown = detail("unknown", created_at=at("2026-10-26T10:00:30"),
                          model="unknown-model", session_id="unknown", total_cost_usd="0.00000001")
         outside = detail("outside", created_at=at("2026-10-26T11:00:00"), total_cost_usd="99")
-        history = rollup(date="2026-10-26", model="history-model", total_cost_usd="999")
-        self.store.sync_data(source_data([known, unknown, outside], [history]), trust="live")
+        self.store.sync_data(source_data([known, unknown, outside]), trust="live")
         self.store.assign_keys([record_key(known)], self.first)
         selected = self.store.analyze_time_range({
             "kind": "custom", "start": "2026-10-26T10:00", "end": "2026-10-26T10:00",
@@ -85,19 +82,18 @@ class AssignmentCoverageTests(unittest.TestCase):
         })
         coverage = selected["assignment_coverage"]
         self.assertEqual(coverage["unassigned_detail_count"], 1)
-        self.assertEqual(coverage["unassigned_rollup_count"], 0)
         self.assertEqual(coverage["unassigned_record_count"], 1)
         self.assertEqual(coverage["unassigned_cost_usd"], "0.00000001")
-        self.assertFalse(selected["time_coverage"]["complete"])
-        self.assertEqual(selected["time_coverage"]["omitted_rollup_count"], 1)
+        self.assertTrue(selected["summary_complete"])
+        self.assertNotIn("time_coverage", selected)
         self.assertEqual(selected["summary"]["record_count"], 2)
 
-    def test_zero_represented_requests_do_not_hide_an_unassigned_rollup(self) -> None:
-        self.store.sync_data(source_data([], [rollup(request_count=0, total_cost_usd="0")]),
+    def test_retired_history_does_not_inflate_assignment_counts(self) -> None:
+        self.store.sync_data(source_data([], [rollup()]),
                              trust="live")
         coverage = self.store.analyze("2026-10-24", "2026-10-24")["assignment_coverage"]
-        self.assertEqual(coverage["status"], "incomplete")
-        self.assertEqual(coverage["unassigned_rollup_count"], 1)
+        self.assertEqual(coverage["status"], "complete")
+        self.assertNotIn("unassigned_rollup_count", coverage)
         self.assertEqual(coverage["unassigned_record_count"], 0)
 
     def test_available_and_target_exemption_use_the_same_unassigned_members(self) -> None:

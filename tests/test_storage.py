@@ -207,18 +207,20 @@ class LedgerStorageTests(unittest.TestCase):
                 db.execute("SELECT payload_json FROM session_metadata_versions").fetchone()[0],
             )
 
-    def test_consistent_source_cleanup_does_not_delete_local_rows(self) -> None:
-        self.store.sync_data(source_data(), trust="live")
-        self.store.sync_data(source_data([], [rollup(date="2026-10-26")]), trust="live")
-        self.assertEqual(self.store.ledger_status()["counts"]["detail_count"], 1)
-        case = self.store.list_reconciliations()[0]
-        self.assertEqual(case["type"], "coverage")
-        self.assertFalse(self.query()["summary_complete"])
-        self.assertEqual(self.query()["summary"]["record_count"], 0)
-        self.store.resolve_reconciliation(
-            case["id"], "detail", "仅采用已留明细，汇总另作核对", case["generation"]
+    def test_historical_projection_ignores_retired_rollups(self) -> None:
+        first = self.store.sync_data(source_data([detail()], [rollup()]), trust="live")
+        revised = self.store.sync_data(
+            source_data([detail()], [rollup(total_cost_usd="900")]), trust="live"
         )
+        detail_only = self.store.sync_data(source_data([detail()]), trust="live")
+        self.assertEqual(first["new_count"], 1)
+        for run in (revised, detail_only):
+            self.assertEqual((run["state"], run["revised_count"]), ("completed", 0))
+        self.assertEqual(self.store.ledger_status()["counts"]["detail_count"], 1)
         self.assertEqual(self.query()["summary"]["record_count"], 1)
+        self.assertEqual(self.store.list_reconciliations(), [])
+        with self.store.read_connection() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM usage_versions").fetchone()[0], 1)
 
     def test_reader_does_not_wait_for_python_writer_lock(self) -> None:
         self.store.sync_data(source_data(), trust="live")
@@ -346,62 +348,30 @@ class LedgerStorageTests(unittest.TestCase):
         self.assertEqual(self.store.list_reconciliations(), [])
 
     def test_source_confirmation_does_not_accept_a_regressed_fact_revision(self) -> None:
-        self.store.sync_data(source_data([], [rollup(request_count=100)]), trust="live")
+        first = detail(total_cost_usd="1")
+        self.store.sync_data(
+            source_data([first, detail("second"), detail("third")]), trust="live"
+        )
         before = self.store.ledger_status()["last_successful_sync_at"]
-        regressed = source_data([], [rollup(request_count=10)])
+        regressed = source_data([detail(total_cost_usd="10")])
         result = self.store.sync_data(regressed, trust="live")
         self.assertEqual(result["state"], "needs_review")
         self.assertEqual(self.store.ledger_status()["last_successful_sync_at"], before)
-        self.assertEqual(self.store._db.execute(
-            "SELECT request_count FROM usage_records WHERE kind='rollup'"
-        ).fetchone()[0], "100")
         cases = self.store.list_reconciliations()
         self.assertEqual({case["type"] for case in cases}, {"source", "revision"})
         source = next(case for case in cases if case["type"] == "source")
         self.store.resolve_reconciliation(source["id"], "current", "已核对来源重建基线")
         repeated = self.store.sync_data(regressed, trust="live")
-        self.assertEqual(repeated["state"], "completed")
-        self.assertEqual(repeated["revised_count"], 0)
+        self.assertEqual((repeated["state"], repeated["revised_count"]), ("completed", 0))
         self.assertEqual(self.store._db.execute(
-            "SELECT request_count FROM usage_records WHERE kind='rollup'"
-        ).fetchone()[0], "100")
+            "SELECT total_cost_usd FROM usage_records WHERE record_key=?", (record_key(first),)
+        ).fetchone()[0], "1")
         revision = self.store.list_reconciliations()[0]
         self.assertEqual(revision["type"], "revision")
         self.store.resolve_reconciliation(revision["id"], "current", "保留旧设备已核实历史")
-        self.assertEqual(self.query()["summary"]["record_count"], 100)
-        repeated = self.store.sync_data(regressed, trust="live")
-        self.assertEqual(repeated["revised_count"], 0)
-        self.assertEqual(self.query()["summary"]["record_count"], 100)
+        self.assertEqual(self.store.sync_data(regressed, trust="live")["revised_count"], 0)
+        self.assertEqual(self.query()["summary"]["record_count"], 3)
         self.assertEqual(self.store.list_reconciliations(), [])
-
-    def test_rollup_row_loss_is_reviewed_even_when_detail_count_is_unchanged(self) -> None:
-        self.store.sync_data(source_data([detail()], [rollup(), rollup(date="2026-10-23")]),
-                             trust="live")
-        before = self.store.ledger_status()["last_successful_sync_at"]
-        reduced = source_data([detail()], [rollup()])
-        result = self.store.sync_data(reduced, trust="live")
-        self.assertEqual(result["state"], "needs_review")
-        self.assertEqual(self.store.ledger_status()["last_successful_sync_at"], before)
-        self.assertEqual(self.store._db.execute(
-            "SELECT COUNT(*) FROM usage_records WHERE kind='rollup'"
-        ).fetchone()[0], 2)
-        source = next(
-            case for case in self.store.list_reconciliations() if case["type"] == "source"
-        )
-        self.store.resolve_reconciliation(source["id"], "current", "确认来源窗口变化，保留历史")
-        self.assertEqual(self.store.sync_data(reduced, trust="live")["state"], "completed")
-        self.assertEqual(self.query()["summary"]["record_count"], 15)
-
-    def test_rollup_cost_correction_without_count_regression_remains_normal_revision(self) -> None:
-        self.store.sync_data(source_data([detail()], [rollup(total_cost_usd="10")]), trust="live")
-        result = self.store.sync_data(source_data([detail()], [rollup(total_cost_usd="2")]),
-                                      trust="live")
-        self.assertEqual(result["state"], "completed")
-        self.assertEqual(result["revised_count"], 1)
-        self.assertEqual(self.store.list_reconciliations(), [])
-        self.assertEqual(self.store._db.execute(
-            "SELECT total_cost_usd FROM usage_records WHERE kind='rollup'"
-        ).fetchone()[0], "2")
 
     def test_native_rollout_closed_before_bounded_writer_wait(self) -> None:
         self.store.sync_data(source_data(), trust="live")
