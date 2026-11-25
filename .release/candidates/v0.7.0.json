@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "version": "0.7.0",
+  "base_sha": "f8646631b30857827a80778aa8a5e0a10871933f",
+  "previous_tag": "v0.6.0",
+  "fragment_ids": [
+    "codex-dual-source-usage",
+    "reconciliation-batch-performance",
+    "retire-ccs-readers"
+  ],
+  "notes_sha256": "45032cebc510fee08817afdab85499991c95777f6fa036d672a7a88ede1361c3"
+}
