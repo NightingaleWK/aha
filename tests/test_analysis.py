@@ -80,6 +80,9 @@ class LocalAnalysisTests(unittest.TestCase):
         with self.assertRaises(AppError) as error:
             self.store.analysis_details(analysis, cursor=cursor)
         self.assertEqual(error.exception.code, "analysis_expired")
+        with self.assertRaises(AppError) as error:
+            self.store.analysis_trend(analysis)
+        self.assertEqual(error.exception.code, "analysis_expired")
 
     def test_cursor_seeks_near_position_in_both_directions_and_keeps_date_bounds(self) -> None:
         midnight = detail()["created_at"] - 3600
@@ -237,6 +240,15 @@ class LocalAnalysisTests(unittest.TestCase):
         self.assertEqual(readonly["summary"]["record_count"], 3)
         for key in ("matched_summary", "available_summary", "excluded_summary", "excluded_groups"):
             self.assertEqual(readonly["availability"][key], basis[key])
+        for mode, expected in (("available", (0, "0", 0)), ("all", (3, "0.5", 1))):
+            homepage = self.store.analyze("2026-10-26", "2026-10-26", availability_mode=mode)
+            point = self.store.analysis_trend(homepage)["points"][0]
+            self.assertEqual(
+                (point["record_count"], point["total_cost_usd"], point["unpriced_count"]), expected
+            )
+        only_project = self.store.analyze("2026-10-26", "2026-10-26", p2, availability_mode="all")
+        point = self.store.analysis_trend(only_project)["points"][0]
+        self.assertEqual((point["record_count"], point["total_cost_usd"]), (1, "0.3"))
 
     def test_target_global_overlap_self_exemption_has_no_negative_exclusion(self) -> None:
         self.store.sync_data(source_data([detail("a"), detail("b")]), trust="live")

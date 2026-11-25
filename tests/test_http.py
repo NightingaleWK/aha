@@ -294,7 +294,7 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])
         self.assertEqual(headers["Referrer-Policy"], "no-referrer")
-        self.assertIn("本地用量台账", payload.decode())
+        self.assertIn('<title>aha · 用量与费用</title>', payload.decode())
         self.assertNotIn(self.server.app.bootstrap_token, payload.decode())
         self.assertEqual(self.request("GET", "/app.js")[0], 200)
         self.assertEqual(self.request("GET", "/licenses")[0], 200)
@@ -558,6 +558,34 @@ class HTTPTests(unittest.TestCase):
             self.request("GET", f"/api/analysis/{analysis['analysis_id']}/details")[0], 409
         )
 
+    def test_home_trend_and_daily_filter_require_auth_and_current_analysis(self) -> None:
+        self.load_usage(3)
+        home = self.analyze()
+        path = f"/api/analysis/{home['analysis_id']}"
+        trend = path + "/trend"
+        daily = path + "/details?kind=daily"
+        self.assertEqual(self.request("GET", trend, authenticated=False)[0], 401)
+        result = self.json("GET", trend)
+        self.assertEqual(result["grain"], "month")
+        self.assertEqual([point["record_count"] for point in result["points"]], [0, 3])
+        self.assertEqual(result["points"][1]["total_cost_usd"], home["summary"]["total_cost_usd"])
+        actual = self.json("GET", daily + "&day=2026-10-26")["rows"]
+        self.assertEqual(sum(row["record_count"] for row in actual), 3)
+        self.assertEqual(self.json("GET", daily + "&day=2026-09-01")["rows"], [])
+        for invalid in (
+            daily + "&day=2026-09-31",
+            daily + "&day=2026-10-27",
+            daily + "&day=2026-10-26&day=2026-09-01",
+            path + "/details?kind=detail&day=2026-10-26",
+        ):
+            with self.subTest(url=invalid):
+                self.assertEqual(self.request("GET", invalid)[0], 400)
+        self.save(home)
+        for old in (trend, daily + "&day=2026-10-26"):
+            code, _, payload = self.request("GET", old)
+            self.assertEqual(code, 409)
+            self.assertEqual(json.loads(payload)["code"], "availability_changed")
+
     def test_target_preview_cannot_be_used_for_new_batch_and_frozen_revision_is_stable(
         self,
     ) -> None:
@@ -714,6 +742,9 @@ class HTTPTests(unittest.TestCase):
         })
         self.assertEqual(own["summary"], analysis["summary"])
         self.assertEqual(own["availability"]["excluded_summary"]["record_count"], 0)
+        code, _, raw = self.request("GET", f"/api/analysis/{own['analysis_id']}/trend")
+        self.assertEqual(code, 409)
+        self.assertEqual(json.loads(raw)["code"], "analysis_target_mismatch")
         status_code, _, raw = self.request("POST", "/api/batches", {
             "analysis_id": own["analysis_id"], "claim": self.claim(),
             "idempotency_key": "cannot-reuse-target",

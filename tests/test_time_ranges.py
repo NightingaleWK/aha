@@ -212,6 +212,20 @@ class PreciseLedgerTests(unittest.TestCase):
                          ["2024-02-01", "2024-02-29"])
         for kind in ("daily", "models"):
             self.assert_totals(result["summary"], self.all_rows(result, kind))
+        monthly = self.store.analyze_time_range(custom("2024-01-30T12:00", "2024-03-01T12:00"))
+        trend = self.store.analysis_trend(monthly)
+        self.assertEqual(trend["grain"], "month")
+        self.assertEqual([
+            (point["start_date"], point["end_date"], point["total_cost_usd"], point["record_count"])
+            for point in trend["points"]
+        ], [
+            ("2024-01-30", "2024-01-31", "1.0000000000001", 8),
+            ("2024-02-01", "2024-02-29", "9.00000000000021", 17),
+            ("2024-03-01", "2024-03-01", "5.00000000000001", 1),
+        ])
+        partial = self.store.analysis_details(result, kind="daily", day="2024-03-01")
+        self.assertEqual([row["total_cost_usd"] for row in partial["rows"]],
+                         ["5.00000000000001"])
         source, parameters = _statistics_source(result)
         with self.store.read_connection() as connection:
             plan = [row[3] for row in connection.execute(
@@ -243,6 +257,10 @@ class PreciseLedgerTests(unittest.TestCase):
         self.assertEqual(result["availability"]["excluded_groups"], [])
         for kind in ("detail", "rollup", "daily", "models"):
             self.assertEqual(self.all_rows(result, kind), [])
+        self.assertEqual(self.store.analysis_trend(result), {"grain": "day", "points": [{
+            "start_date": "2026-10-26", "end_date": "2026-10-26", "total_cost_usd": "0",
+            "record_count": 0, "unpriced_count": 0,
+        }]})
         with self.assertRaises(AppError) as failure:
             self.store.create_batch(result, claim(), "empty-partial")
         self.assertEqual(failure.exception.code, "empty_usage")
@@ -262,6 +280,7 @@ class PreciseLedgerTests(unittest.TestCase):
         self.assertEqual(pending["pending_count"], 1)  # Only the actual minute's detail.
         self.assertEqual(pending["time_coverage"]["omitted_rollup_count"], 1)
         self.assertEqual(pending["summary"]["record_count"], 0)
+        self.assertEqual(self.store.analysis_trend(pending)["points"][0]["record_count"], 0)
         other = self.store.save_project(None, "other", "", [])['project']['id']
         self.assertTrue(self.store.analyze_time_range(selected, other)["time_coverage"]["complete"])
         case = self.store.list_reconciliations()[0]
@@ -272,6 +291,66 @@ class PreciseLedgerTests(unittest.TestCase):
         self.assertTrue(resolved["summary_complete"])
         self.assertEqual(resolved["time_coverage"]["omitted_rollup_count"], 0)
         self.assertEqual(resolved["summary"]["record_count"], 1)
+
+    def test_daily_trend_and_scoped_cursors_cover_group_pages_without_narrowing_save(self) -> None:
+        event = timestamp("2026-10-26T10:00:00")
+        rows = [
+            detail(str(index), created_at=event + index, model=f"model-{index:02d}",
+                   total_cost_usd="0.00000000000001")
+            for index in range(60)
+        ]
+        rows.append(precise_detail("next-day", "2026-10-27T10:00:00", total_cost_usd="1e-50"))
+        self.store.sync_data(source_data(rows), trust="live")
+        result = self.store.analyze("2026-10-25", "2026-10-28")
+        trend = self.store.analysis_trend(result)
+        self.assertEqual(trend["grain"], "day")
+        self.assertEqual([point["record_count"] for point in trend["points"]], [0, 60, 1, 0])
+        self.assertEqual(trend["points"][1]["total_cost_usd"], "0.0000000000006")
+        exact = DecimalSum()
+        for point in trend["points"]:
+            exact.step(point["total_cost_usd"])
+        self.assertEqual(exact.finalize(), result["summary"]["total_cost_usd"])
+
+        day = "2026-10-26"
+        first = self.store.analysis_details(result, kind="daily", day=day)
+        second = self.store.analysis_details(
+            result, kind="daily", day=day, cursor=first["next_cursor"]
+        )
+        self.assertEqual([len(first["rows"]), len(second["rows"])], [50, 10])
+        self.assertEqual({row["date"] for row in first["rows"] + second["rows"]}, {day})
+        self.assertIsNone(second["next_cursor"])
+        back = self.store.analysis_details(
+            result, kind="daily", day=day, cursor=second["previous_cursor"]
+        )
+        self.assertEqual(back["rows"], first["rows"])
+        for selected in (None, "2026-10-27"):
+            with self.subTest(day=selected), self.assertRaises(AppError) as failure:
+                self.store.analysis_details(
+                    result, kind="daily", day=selected, cursor=first["next_cursor"]
+                )
+            self.assertEqual(failure.exception.code, "invalid_cursor")
+
+        saved = self.store.create_batch(result, claim(), "full-trend-preview")
+        with zipfile.ZipFile(self.store.download(saved["id"], 1)[0]) as package:
+            manifest = json.loads(package.read("导出信息.json"))
+        self.assertEqual(manifest["summary"], result["summary"])
+        self.assertEqual(len(manifest["members"]), 61)
+
+    def test_trend_coalesces_long_ranges_and_distinguishes_empty_and_zero_cost(self) -> None:
+        self.store.sync_data(source_data([
+            precise_detail("old", "1980-04-02T02:00:00", total_cost_usd="0.000000001"),
+            precise_detail("today", "2026-10-27T02:00:00", total_cost_usd="0"),
+        ]), trust="live")
+        result = self.store.analyze("1980-04-02", "2026-10-28")
+        trend = self.store.analysis_trend(result)
+        self.assertEqual(trend["grain"], "year")
+        self.assertEqual(len(trend["points"]), 24)
+        first, last = trend["points"][0], trend["points"][-1]
+        self.assertEqual((first["start_date"], first["end_date"]), ("1980-04-02", "1981-12-31"))
+        self.assertEqual((last["start_date"], last["end_date"]), ("2026-01-01", "2026-10-28"))
+        self.assertEqual((first["record_count"], first["total_cost_usd"]), (1, "0.000000001"))
+        self.assertEqual((last["record_count"], last["total_cost_usd"]), (1, "0"))
+        self.assertTrue(all(point["record_count"] == 0 for point in trend["points"][1:-1]))
 
     def test_follow_preview_is_resolved_once_save_does_not_call_clock(self) -> None:
         self.store.sync_data(source_data([
@@ -419,6 +498,7 @@ class PreciseLedgerTests(unittest.TestCase):
                 yield connection
 
         observed_work = []
+        trend_work = []
         for size in (1000, 2000):
             self.store.sync_data(source_data(history[:size] + target), trust="live")
             self.store._db.execute("ANALYZE")
@@ -426,10 +506,16 @@ class PreciseLedgerTests(unittest.TestCase):
             with patch.object(self.store, "read_connection", measured_reader):
                 result = self.store.analyze_time_range(
                     custom("2026-10-26T01:00", "2026-10-26T01:00"))
-            observed_work.append(work)
+                observed_work.append(work)
+                work = 0
+                trend = self.store.analysis_trend(result)
+                trend_work.append(work)
             self.assertEqual(result["summary"]["record_count"], 2)
+            self.assertEqual(trend["points"][0]["record_count"], 2)
         self.assertLessEqual(observed_work[1], observed_work[0] + 1000)
         self.assertLess(observed_work[1], 10000)
+        self.assertLessEqual(trend_work[1], trend_work[0] + 1000)
+        self.assertLess(trend_work[1], 10000)
         where, parameters = _filters(result)
         with reader() as connection:
             plan = [r[3] for r in connection.execute(

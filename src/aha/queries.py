@@ -7,6 +7,7 @@ import json
 import sqlite3
 from calendar import monthrange
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -17,6 +18,7 @@ from .domain import (
     AppError,
     canonical_bytes,
     content_hash,
+    parse_date,
 )
 from .migrations import SCHEMA_VERSION
 
@@ -30,6 +32,7 @@ TOKENS = (
     "cache_creation_tokens",
     "total_tokens",
 )
+TREND_MAX_POINTS = 31
 
 
 def validate_analysis(
@@ -221,6 +224,75 @@ def _finish_summary(values: dict[str, Any]) -> dict[str, Any]:
         else "empty"
     )
     return result
+
+
+def _trend_buckets(
+    start: date, end: date
+) -> tuple[str, str, list[int], list[tuple[str | int, date, date]]]:
+    days = (end - start).days + 1
+    if days <= TREND_MAX_POINTS:
+        dates = [start + timedelta(days=offset) for offset in range(days)]
+        return "day", "s.day", [], [(day.isoformat(), day, day) for day in dates]
+
+    first_month = start.year * 12 + start.month - 1
+    last_month = end.year * 12 + end.month - 1
+    months = last_month - first_month + 1
+    if months <= TREND_MAX_POINTS:
+        month_bounds: list[tuple[str | int, date, date]] = []
+        for position in range(first_month, last_month + 1):
+            year, month_index = divmod(position, 12)
+            month = month_index + 1
+            first = date(year, month, 1)
+            last = date(year, month, monthrange(year, month)[1])
+            month_bounds.append((first.isoformat()[:7], max(start, first), min(end, last)))
+        return "month", "substr(s.day,1,7)", [], month_bounds
+
+    years = end.year - start.year + 1
+    years_per_point = (years + TREND_MAX_POINTS - 1) // TREND_MAX_POINTS
+    year_bounds: list[tuple[str | int, date, date]] = [
+        (position, max(start, date(year, 1, 1)),
+         min(end, date(min(end.year, year + years_per_point - 1), 12, 31)))
+        for position, year in enumerate(range(start.year, end.year + 1, years_per_point))
+    ]
+    return (
+        "year", "(CAST(substr(s.day,1,4) AS INTEGER)-?)/?",
+        [start.year, years_per_point], year_bounds,
+    )
+
+
+def analysis_trend(store: Store, analysis: dict[str, Any]) -> dict[str, Any]:
+    if analysis.get("target_batch_id"):
+        raise AppError("analysis_target_mismatch", "请在用量首页查看费用趋势。", 409)
+    interval = time_ranges.from_analysis(analysis)
+    grain, period, period_parameters, bounds = _trend_buckets(
+        interval.start_date, interval.end_date
+    )
+    source, parameters = _statistics_source(analysis, daily=grain == "day")
+    where = "s.state='available'" if analysis["availability_mode"] == "available" else (
+        "s.state!='pending'"
+    )
+    with store.read_connection() as connection:
+        validate_analysis(store, analysis, connection)
+        totals = {
+            row["period"]: row for row in connection.execute(
+                f"""SELECT {period} AS period,decimal_sum(s.total_cost_usd) AS total_cost_usd,
+                  integer_sum(s.record_count) AS record_count,
+                  integer_sum(s.unpriced_count) AS unpriced_count
+                FROM {source} WHERE {where} GROUP BY period""",
+                [*period_parameters, *parameters],
+            )
+        }
+    points = []
+    for key, first, last in bounds:
+        row = totals.get(key)
+        points.append({
+            "start_date": first.isoformat(),
+            "end_date": last.isoformat(),
+            "total_cost_usd": row["total_cost_usd"] if row is not None else "0",
+            "record_count": int(row["record_count"]) if row is not None else 0,
+            "unpriced_count": int(row["unpriced_count"]) if row is not None else 0,
+        })
+    return {"grain": grain, "points": points}
 
 
 def _summary_groups(
@@ -705,6 +777,25 @@ def _cursor_encode(analysis: dict[str, Any], kind: str, values: list[Any], direc
     ).decode()
 
 
+def _daily_view(analysis: dict[str, Any], day: str) -> dict[str, Any]:
+    selected = parse_date(day)
+    interval = time_ranges.from_analysis(analysis)
+    if not interval.start_date <= selected <= interval.end_date:
+        raise AppError("invalid_date", "所选日期不在当前预览内。")
+    view = {
+        **analysis, "start_date": day, "end_date": day,
+        "selection_hash": content_hash({"selection": analysis["selection_hash"], "day": day}),
+    }
+    if analysis.get("time_range") is not None:
+        midnight = time_ranges.midnight(selected)
+        view["time_range"] = replace(
+            interval,
+            start_epoch=max(interval.start_epoch, midnight),
+            end_exclusive_epoch=min(interval.end_exclusive_epoch, midnight + 86400),
+        ).as_dict()
+    return view
+
+
 def analysis_details(
     store: Store,
     analysis: dict[str, Any],
@@ -712,6 +803,7 @@ def analysis_details(
     cursor: str | None = None,
     size: int = 50,
     kind: str = "detail",
+    day: str | None = None,
 ) -> dict[str, Any]:
     if (
         isinstance(size, bool)
@@ -720,6 +812,10 @@ def analysis_details(
         or kind not in {"detail", "rollup", "daily", "models"}
     ):
         raise AppError("invalid_page", "分页参数无效。")
+    if day is not None:
+        if kind != "daily":
+            raise AppError("invalid_grain", "按日期筛选只适用于每日汇总。")
+        analysis = _daily_view(analysis, day)
     state = _cursor_decode(cursor, analysis, kind)
     with store.read_connection() as connection:
         validate_analysis(store, analysis, connection)

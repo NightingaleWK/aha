@@ -845,6 +845,8 @@ class Application:
             return {"batches": self.store.list_batches()}
         if match := re.fullmatch(r"/api/batches/" + SAFE_ID, path):
             return self.store.batch_detail(match[1])
+        if match := re.fullmatch(r"/api/analysis/" + SAFE_ID + r"/trend", path):
+            return self.store.analysis_trend(self._analysis(match[1]))
         if match := re.fullmatch(r"/api/analysis/" + SAFE_ID + r"/details", path):
             result = self._analysis(match[1])
             kind = query.get("kind", ["detail"])[0]
@@ -856,8 +858,11 @@ class Application:
                 raise AppError("invalid_page", "分页参数不正确。") from None
             if not 1 <= size <= 200:
                 raise AppError("invalid_page", "每页可查看 1 至 200 条记录。")
+            if len(query.get("day", [])) > 1:
+                raise AppError("invalid_date", "请选择一个日期。")
             return self.store.analysis_details(
-                result, cursor=query.get("cursor", [None])[0], size=size, kind=kind
+                result, cursor=query.get("cursor", [None])[0], size=size, kind=kind,
+                day=query.get("day", [None])[0],
             )
         raise AppError("not_found", "未找到此内容。", 404)
 

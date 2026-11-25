@@ -427,6 +427,11 @@ class Store:
 
         return analysis_details(self, analysis, **kwargs)
 
+    def analysis_trend(self, analysis: dict[str, Any]) -> dict[str, Any]:
+        from .queries import analysis_trend
+
+        return analysis_trend(self, analysis)
+
     def iter_analysis_rows(
         self, analysis: dict[str, Any], connection: sqlite3.Connection | None = None
     ) -> Iterator[dict[str, Any]]:
