@@ -4,27 +4,33 @@
 
 页面由 [server.py](../../../src/aha/server.py) 提供，使用内置 HTML/CSS/JavaScript，没有前端构建器或外部资源。修改 `web/` 或请求字段前同时阅读 [后端契约](../backend/usage-evidence-contract.md)。产品文案使用简体中文。
 
-页面查询本地台账；首次页面初始化和用户主动操作触发来源同步，服务按本次生命周期去重。刷新、重复双击重开和托盘打开不重跑已有启动同步；关闭标签不会退出进程。页面与 Windows 托盘的“退出程序”共用关闭流程。没有周期轮询来源、关闭后采集或开机启动。同步任务运行期间的 job 状态轮询不属于周期采集；实例与退出的后端边界见 [运行契约](../backend/runtime-lifecycle-contract.md)。
+页面查询本地台账；程序就绪后按已确认来源启动一次同步，用户可手动再同步，服务按本次生命周期去重。刷新、重复双击重开和托盘打开不重跑已有启动同步；关闭标签不会退出进程。页面与 Windows 托盘的“退出程序”共用关闭流程。没有周期轮询来源、关闭后采集或开机启动。同步任务运行期间的 job 状态轮询不属于周期采集；实例与退出的后端边界见 [运行契约](../backend/runtime-lifecycle-contract.md)。
 
 ## 2. HTTP 入口
 
 | 接口 | 契约摘要 |
 | --- | --- |
-| `GET /api/status` | 本次启动凭证、日期、北京时间秒级 now、默认来源、启动与最近同步任务 |
+| `GET /api/status` | 本次启动凭证、日期、北京时间秒级 now、逐端来源、启动与最近同步任务 |
 | `GET /api/instance` | 认证后的轻量实例身份/状态，供启动器复用，不读台账、不返回业务信息 |
 | `GET /api/ledger` | 本地记录数、覆盖、成功同步时间、最近尝试和目录依据 |
-| `POST /api/sync` | `{path?}`，空路径使用当前系统用户默认 CCS 库，返回异步 job |
-| `GET /api/sync/{job}` | `running/completed/failed/needs_review` 与结果；只有 running 继续轮询 |
-| `POST /api/source/sqlite` | SQLite 手动同步入口的兼容路由 |
-| `POST /api/source/sql` | `{name,content_base64}`，流式解析受限 SQL，返回异步 job |
-| `POST /api/session-metadata` | `{roots?:string[]}`，刷新本地目录依据 |
+| `GET /api/codex-sources` | `sources`、`windows_default`、`distributions` 和 `history_default_since` |
+| `POST /api/codex-sources` | `{kind,root,distribution?,since?}`。校验后确认并返回 `sources`，不会隐式同步 |
+| `POST /api/sync` | `{trigger?}`，值为 `startup` 或 `manual`，默认手动，返回异步 job |
+| `GET /api/sync/{job}` | `running/completed/failed/needs_review/cancelled` 与逐端结果，只有 running 继续轮询 |
+| `POST /api/sync/{job}/cancel` | 请求有限后台作业取消，轮询终态确认结果 |
+| `POST /api/session-metadata` | 使用已确认本机 Codex 根刷新旧台账的目录依据 |
 | `GET /api/projects` | 项目配置与分类 revision |
 | `POST /api/projects/preview`、`/api/projects/apply` | 目录草稿→整体影响→一次确认，原子保存配置和历史，见[目录整体合同](../backend/project-association-contract.md#8-已确认目录的整体归属合同) |
 | `POST /api/projects`、`/api/projects/{id}` | 旧兼容路径，目录变更须先预览确认；仅允许不改目录的元信息更新 |
 | `POST /api/assignments` | `project_id` 加 keys 或 session_ids；rollup 按整条记录处理 |
 | `GET /api/project-associations`、`/records` | 项目费用/待归属分组及修订绑定的keyset记录清单 |
 | `POST /api/project-associations/preview`、`/apply` | 全筛选/逐条/整会话的归属影响预览与原子幂等应用；协议见[项目归属合同](../backend/project-association-contract.md) |
-| `GET /api/reconciliations` | `{cases}`，来源重建、版本或覆盖的待核对事项 |
+| `GET /api/reconciliations/summary` | `{total}`，台账中待处理的核对事项数 |
+| `GET /api/reconciliations/page` | `type/source_id/start_date/end_date/eligibility/cursor/size`，返回 `{cases,total,eligible_count,next_cursor,version,sources}` |
+| `GET /api/reconciliations/{id}` | `{case}`，按需查看完整新旧证据、选择和 generation |
+| `POST /api/reconciliations/batch-preview` | `{filters,ids?,version}`，返回 `{count,candidate_count,current_cost_usd,candidate_cost_usd,preview_hash}`，省略 ids 表示跨页全选筛选范围内的可批量项，两个精确金额字符串仅汇总采用候选的事项 |
+| `POST /api/reconciliations/batch` | `{filters,ids?,preview_hash,reason,idempotency_key}`，返回 `{resolved_count,open_count,...revisions}` |
+| `GET /api/reconciliations` | 兼容入口，返回 `{cases}` |
 | `POST /api/reconciliations/{id}` | `choice/reason/expected_generation/idempotency_key`，按实际候选确认 |
 | `POST /api/analysis` | project、time_range意图或旧起止日期（二者互斥）、`availability_mode=available|all`；只查本地库 |
 | `GET /api/analysis/{id}/details` | `kind=detail|rollup|daily|models`、cursor、size1–200 |
@@ -38,13 +44,19 @@
 | `GET /api/batches/{id}/revisions/{n}/download` | 流式返回指定版本原 ZIP |
 | `POST /api/shutdown` | 本机认证后接受退出请求；页面显示正在退出，不将 HTTP 成功等同全部资源已释放 |
 
+待核对分页的 `eligibility` 为 `all/batch/manual`。开始和结束日期均按北京时间日历日包含，默认每页 50 项，size 允许 1–200。游标和预览绑定当前资料版本。后端权威资格和事务见 [批量核对合同](../backend/usage-evidence-contract.md#分页核对与批量确认同一消费)。
+
 请求字段的精确允许值由服务端边界与领域函数验证。页面不再发送 capture_id、旧分页 page 或旧版本消解请求。
 
 ## 3. 状态、分页与同步
 
 `api()` 统一 same-origin Cookie、JSON 与 X-AHA-CSRF；Cookie 按端口命名。启动 URL 与 runtime 凭证不得进入业务链接、日志或导出。
 
-同步与普通操作分别使用 syncBusy/busy；来源读取在后台 job，现有本地查询仍可用。成功、失败和待核对分别显示；needs_review 是终态，停止轮询并提示核对，不显示成功提示。刷新页面恢复最近任务，不能被较早启动任务覆盖。上次成功时间和最近失败/待核对尝试分开展示。
+同步与普通操作分别使用 syncBusy 与 busy。本地查询在后台读取期间继续可用。job 的 `sources` 逐端报告本次尝试，运行前保留绑定及先前成功时间。任一端完成发布即使另一个端随后失败或取消，页面也要失效旧预览。页面刷新时，最近任务的来源种类、根目录、发行版和起日均须匹配当前绑定。配置改变后保留台账和对应来源的历史结果，忽略旧绑定的迟到轮询。
+
+每端 `sources` 有 `kind`、`root`、`distribution`、`since`、`configured` 和 `status`。成功时间为 `last_success_at`，当前 `result` 可含 `coverage_from`、`coverage_through`、`issues` 与新增/核对计数。日期采用北京时间，失败仍可在 `last_success_range` 查看最近成功范围。
+
+设置时 `kind` 为 `windows` 或 `wsl`，WSL 必须明确选择发行版，空根按当前环境发现。起日 `since` 是北京时间 `YYYY-MM-DD`（含该日），空字符串读取全部历史。旧台账初次确认默认使用最后一个已有历史日，修改起日时重扫并按稳定事件去重。设置弹窗、发现、保存与同步互有独立的请求身份。
 
 明细、历史汇总、每日和模型使用游标，固定每页50条；游标绑定分析 revision 与筛选。total 可能为 null，此时显示本页数量并依据 next_cursor 导航，不猜总页数。切换标签、筛选或重新分析清选择；同标签翻页允许跨页勾选。导出使用完整分析范围，不只导出可见页。
 
@@ -61,6 +73,7 @@
 - 仅有效草稿可改。已提交可带原因撤回且保留占用；已报销纠错通过作废再新建。作废释放占用且为终态；旧版本与作废版本仍可下载原包。
 - 用途/金额说明各最多4000字符；金额可空或零，填写须依据，币种 CNY/USD。参考 USD 成本与申请金额分开。新建成功清用途、金额和说明。
 - 核对必须展示实际候选和所需原因，不自动把较晚导入的备份当最新事实，不补造差额明细。
+- 单笔、批量核对、项目归属及撤回／作废的说明只在新确认表单打开时预填「已人工确认」，清空后以同一文字作为占位提示。当前值可编辑，显式确认提交实际文字。同一操作的失败和重试保留草稿。
 - 用户/来源文字通过 textContent/DOM 插入，不拼接 innerHTML。
 
 ## 5. 可读性与产品表达
@@ -77,4 +90,4 @@
 
 ## 换机与完整恢复入口
 
-完整备份/分块还原、本机来源绑定及独立资料目录的签名、限额和错误以[恢复合同](../backend/recovery-and-device-contract.md)为准。原“导入备份”明确为CCS用量导入；本地界面显示资料位置，不能把完整恢复包当费用材料或把默认EXE位置当资料位置。恢复结果提供独立台账打开方式，明确默认双击仍打开原默认目录；不在线换当前库。
+完整备份/分块还原、本机来源绑定及独立资料目录的签名、限额和错误以[恢复合同](../backend/recovery-and-device-contract.md)为准。本地界面显示资料位置，完整恢复包为私有资料，费用分享使用独立报销原包。恢复结果提供独立台账打开方式，明确默认双击仍打开原默认目录；不在线换当前库。

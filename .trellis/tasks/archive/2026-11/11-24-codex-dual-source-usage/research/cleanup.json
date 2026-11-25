@@ -1,0 +1,13 @@
+{
+  "removed_logical_bytes": {
+    "private-legacy-check": 614436327,
+    "real-native-check": 76632188,
+    "provisional-build": 36379074,
+    "aha-codex-ui.jWjYz7": 13081,
+    "aha-dual-codex.4v5dfJ": 367582638,
+    "aha-dual-codex.L9vURw": 139286019,
+    "repository_task_cache_files": 5968765
+  },
+  "total_logical_bytes": 1240298092,
+  "desktop_and_rollback_hash_verified_after_cleanup": true
+}

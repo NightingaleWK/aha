@@ -77,6 +77,7 @@ def _launch(data_dir: Path, port: int, *, no_browser: bool, no_tray: bool) -> No
         runtime.start()
         if server.stopping.is_set():
             return
+        server.app.start_configured_sync()
         if sys.stdout is not None:
             print(f"AHA_URL={server.bootstrap_url}", flush=True)
         if not no_browser:
@@ -90,7 +91,7 @@ def _launch(data_dir: Path, port: int, *, no_browser: bool, no_tray: bool) -> No
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="aha · 本机 Codex 用量与费用证据")
-    parser.add_argument("--data-dir", type=Path, default=None, help="应用资料目录（独立于 CCS）")
+    parser.add_argument("--data-dir", type=Path, default=None, help="aha 台账和报销资料目录")
     parser.add_argument("--port", type=int, default=0, help="本机端口，0 表示自动选择")
     parser.add_argument("--no-browser", action="store_true", help="启动后不自动打开浏览器")
     parser.add_argument(

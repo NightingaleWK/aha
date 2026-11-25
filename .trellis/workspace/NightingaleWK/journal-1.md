@@ -717,3 +717,47 @@ v0.5.1已正式公开，发布源码f044119；功能PR11与发布PR12均合入ma
 ### Next Steps
 
 - 用户确认先补齐 0.6.0 发版条件，已授权推送功能草稿 PR 并运行云端 CI。
+
+
+## Session 25: 双端原生 Codex 采集、历史迁移与本机交付
+<!-- trellis-session: v=2 fp=d106fe84b9f6c046 -->
+
+**Date**: 2026-11-24
+**Task**: 双端原生 Codex 采集、历史迁移与本机交付
+**Branch**: `codex/codex-dual-source-usage`
+
+### Summary
+
+双端采集、跨端去重、schema 3/4 备份接续及 CCS 读取退役完成。Windows 372 项 Python、73 项前端状态测试通过。桌面单文件与原生验收一致，保留正式旧版。用户选先补齐发版条件，并确认功能草稿 PR 和 Windows CI。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1c867679a78736004cea43265a00f0af57f990bd` | feat!: 改用 Windows 与 WSL 原生 Codex 用量采集 |
+
+### Status
+
+[OK] **Completed**
+
+
+## Session 26: 完成数据核对跨页批量确认与原生候选采用
+<!-- trellis-session: v=2 fp=300a80110afd82ad -->
+
+**Date**: 2026-11-24
+**Task**: 完成数据核对跨页批量确认与原生候选采用
+**Branch**: `codex/codex-dual-source-usage`
+
+### Summary
+
+跨页批量确认、一次重算、原生候选参考成本及确认说明通过桌面和万级验证。桌面单文件已交付，合成资料及临时环境已清理。累计变更继续纳入 v0.7.0 草稿。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6ee52e92b98f889346d4a6454072fb248293c656` | feat: 支持数据核对批量确认与提速 |
+
+### Status
+
+[OK] **Completed**

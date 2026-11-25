@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "source_sha": "1c867679a78736004cea43265a00f0af57f990bd",
+  "completed_at": "2026-11-24T13:49:17+08:00",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "fingerprints": {
+    "full": "a8e49bfc4042ee9e47c6c6087fd975fec9f58ebe14df1e4d6351c35770da13ee",
+    "tray": "544be406b5e37bb4998bc6b60f2c7d3e4ac305f73d856b0766df2cd65b2a2ff2",
+    "materials": "67084f176864abe81132e349f081d080b2d12ebe88f1fabb81d4d631c535b776",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "checks": {
+    "tray": {
+      "schema_version": 1,
+      "executable_sha256": "e082de661b676395f512a5f52b6f49b3f62b13af3274bd872c0dc3d58b018bcf",
+      "product_version": "0.6.0",
+      "started_at": "2026-11-24T13:48:23+08:00",
+      "owned_instance_ready": true,
+      "browser_auto_launch": false,
+      "exit_code": 0,
+      "exited_at": "2026-11-24T13:49:17+08:00",
+      "descriptor_removed": true,
+      "endpoint_closed": true,
+      "maintainer_observation": "两次都打开了页面，退出后图标消失",
+      "actions": [
+        "托盘双击",
+        "右键打开 aha",
+        "右键退出程序"
+      ]
+    }
+  }
+}

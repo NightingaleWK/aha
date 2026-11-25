@@ -1,0 +1,29 @@
+{
+  "id": "codex-dual-source-usage",
+  "name": "codex-dual-source-usage",
+  "title": "aha 双端 Codex 用量采集",
+  "description": "直接采集 Windows 与 WSL 的 Codex 会话用量，移除 CCS 读取路径，保全 aha 台账及备份还原，并交付 Windows 成品。",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "NightingaleWK",
+  "assignee": "NightingaleWK",
+  "createdAt": "2026-11-24",
+  "completedAt": "2026-11-24",
+  "branch": "codex/codex-dual-source-usage",
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": "1c867679a78736004cea43265a00f0af57f990bd",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "11-24-codex-native-usage",
+    "11-24-codex-history-backup-cutover"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "2026-11-24 用户确认立项并修订范围：直接读取 Windows 与 WSL 的 Codex 会话，以现有用量、项目、报销和备份功能为准，彻底移除 CCS 读取逻辑。先完成设计和执行计划，等待方案审阅。\n2026-11-24 用户确认方案后实施。已交付并独立验收桌面单文件，验收见 verification.md。发版建议 v0.7.0，待确认工作提交、归档及发版选择。",
+  "meta": {}
+}

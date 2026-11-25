@@ -12,10 +12,10 @@ from typing import Any
 from unittest.mock import patch
 
 import test_http
-from test_sources import database, detail
 
 from aha.domain import AppError
 from aha.server import BACKUP_CHUNK_BYTES
+from aha.source_bindings import configured_codex_sources
 from aha.storage import Store
 
 
@@ -25,6 +25,7 @@ class BackupHTTPTests(unittest.TestCase):
     authenticate = test_http.HTTPTests.authenticate
     wait_sync = test_http.HTTPTests.wait_sync
     load_usage = test_http.HTTPTests.load_usage
+    configure_windows = test_http.HTTPTests.configure_windows
     analyze = test_http.HTTPTests.analyze
     claim = staticmethod(test_http.HTTPTests.claim)
     save = test_http.HTTPTests.save
@@ -122,7 +123,7 @@ class BackupHTTPTests(unittest.TestCase):
             archive, _ = recovered.download(saved["batch_id"], saved["version"])
             self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), original_hash)
             self.assertEqual(recovered.ledger_status()["counts"], before["counts"])
-            self.assertTrue(recovered.source_binding_status(self.root / "source.db")["required"])
+            self.assertEqual(configured_codex_sources(recovered), {})
         self.assertEqual(self.json("GET", "/api/ledger")["counts"], before["counts"])
         with patch("aha.server.subprocess.Popen") as opened:
             self.json("POST", "/api/backups/" + restored["id"] + "/open", {})
@@ -230,37 +231,35 @@ class BackupHTTPTests(unittest.TestCase):
             self.assertEqual(self.wait_transfer(job)["status"], "cancelled")
 
     def test_new_computer_binding_preserves_old_usage_and_never_quarantines_history(self) -> None:
-        source = self.root / "synthetic-source.db"
-        database(source, [detail()], version=25).close()
         with patch("aha.source_bindings.installation_id", return_value="old-device"):
-            self.server.app.store.sync_sqlite(source)
+            self.load_usage(1)
         before = self.json("GET", "/api/ledger")
         with self.server.app.store.read_connection() as reader:
             before_runs = reader.execute("SELECT count(*) FROM sync_runs").fetchone()[0]
         status = self.json("GET", "/api/status")
-        self.assertTrue(status["default_source"]["binding"]["required"])
+        self.assertFalse(status["sources"][0]["configured"])
         self.assertEqual(before["counts"]["pending_count"], 0)
-        failed = self.wait_sync(self.json("POST", "/api/sync", {}))
-        self.assertEqual(failed["code"], "source_binding_required")
+        code, _, raw = self.request("POST", "/api/sync", {})
+        self.assertEqual(code, 409)
+        self.assertIn(b"source_binding_required", raw)
         with self.server.app.store.read_connection() as reader:
             count = reader.execute("SELECT count(*) FROM sync_runs").fetchone()[0]
             self.assertEqual(count, before_runs)
-        self.assertEqual(self.request("POST", "/api/source/binding", {"reason": ""})[0], 400)
-        binding = self.json("POST", "/api/source/binding", {"reason": "新电脑接续，保留历史"})
-        self.assertTrue(binding["bound"])
-        self.assertFalse(binding["required"])
+        binding = self.configure_windows()
+        self.assertTrue(binding["sources"][0]["configured"])
         self.assertEqual(self.json("GET", "/api/ledger")["counts"], before["counts"])
-        self.assertEqual(self.wait_sync(self.json("POST", "/api/sync", {}))["status"], "completed")
+        job = self.wait_sync(self.json("POST", "/api/sync", {}))
+        self.assertEqual(job["status"], "completed")
+        self.assertEqual(job["result"]["new_count"], 0)
         self.assertEqual(self.json("GET", "/api/ledger")["counts"], before["counts"])
 
     def test_binding_metadata_error_does_not_prevent_querying_saved_history(self) -> None:
         self.load_usage(2)
-        (self.root / "synthetic-source.db").touch()
-        with patch.object(self.server.app.store, "source_binding_status", side_effect=AppError(
+        with patch("aha.source_bindings.configured_codex_sources", side_effect=AppError(
             "source_binding_damaged", "来源绑定需要检查。", 409
         )):
             status = self.json("GET", "/api/status")
-        self.assertTrue(status["default_source"]["binding"]["required"])
+        self.assertEqual(status["sources"][0]["status"], "unavailable")
         self.assertEqual(status["ledger"]["counts"]["detail_count"], 2)
         self.assertEqual(self.analyze()["summary"]["detail_count"], 2)
 

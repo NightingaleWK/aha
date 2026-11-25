@@ -39,6 +39,14 @@ def record_projection(row: dict[str, Any], kind: str) -> dict[str, Any]:
     enriched = {**row, "date": day}
     member = claims.member_from_row(enriched, kind)
     fresh = fresh_input(row)
+    coverage = [
+        day, row["app_type"], row["provider_id"], row["model"],
+        row.get("request_model") or "", row.get("pricing_model") or "",
+    ]
+    if row.get("data_source") == "codex_native":
+        # An old daily aggregate has no member identity. Native overlap is
+        # reconciled separately, leaving the historic aggregate's basis intact.
+        coverage.append("codex_native")
     return {
         "record_key": record_key(row, kind),
         "kind": kind,
@@ -47,16 +55,7 @@ def record_projection(row: dict[str, Any], kind: str) -> dict[str, Any]:
         "event_time": event_time,
         "scope_key": claims.scope_key(member),
         "semantic_key": claims.semantic_key(member),
-        "coverage_key": content_hash(
-            [
-                day,
-                row["app_type"],
-                row["provider_id"],
-                row["model"],
-                row.get("request_model") or "",
-                row.get("pricing_model") or "",
-            ]
-        ),
+        "coverage_key": content_hash(coverage),
         "model": row["model"],
         "pricing_model": row.get("pricing_model") or row["model"],
         "session_id": row.get("session_id"),
@@ -98,9 +97,14 @@ def set_current(
         raise AppError("invalid_candidate", "核对候选不存在。", 409)
     import json
 
-    projection = record_projection(
-        json.loads(version["payload_json"]), version["record_key"].split(":", 1)[0]
-    )
+    payload = json.loads(version["payload_json"])
+    projection = record_projection(payload, version["record_key"].split(":", 1)[0])
+    if payload.get("data_source") == "codex_native":
+        priced = connection.execute(
+            "SELECT 1 FROM codex_event_evidence WHERE version_id=? AND pricing_basis IS NOT NULL",
+            (version_id,),
+        ).fetchone()
+        projection["pricing_status"] = "available" if priced else "unpriced"
     canonical = canonical_record_key(connection, projection["record_key"])
     if logical_key is not None and canonical != logical_key:
         raise AppError("invalid_candidate", "事实候选不属于该消费身份。", 409)
@@ -430,80 +434,242 @@ def _insert_stats(connection: sqlite3.Connection, where: str, parameters: tuple[
     )
 
 
+def reconciliation_usage_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: payload.get(key) for key in (
+            "model", "session_id", "created_at", "input_tokens", "output_tokens",
+            "cache_read_tokens", "cache_creation_tokens", "total_cost_usd",
+        )
+    }
+
+
+_OPEN_RECONCILIATIONS = (
+    "SELECT c.*,s.name AS source_name FROM reconciliation_cases c "
+    "LEFT JOIN source_profiles s ON s.id=c.source_id WHERE c.state='open'"
+)
+
+
+def _reconciliation_details(
+    store: Store, connection: sqlite3.Connection, row: sqlite3.Row
+) -> dict[str, Any]:
+    info = store._decode(row["info_json"])
+    choices = (
+        ["detail", "rollup"]
+        if row["type"] == "coverage"
+        else ["current", "candidate"]
+        if row["type"] in {"revision", "directory"} and (
+            row["type"] != "directory" or info.get("candidate_cwd")
+        )
+        else ["same", "independent"]
+        if row["type"] == "identity"
+        else ["current", "independent"]
+        if row["type"] == "native_overlap"
+        else ["current"]
+    )
+    if row["type"] in {"identity", "revision"}:
+        current_key = row["record_key"]
+        if row["type"] == "identity":
+            other = info.get("other_record_key")
+            current_key = (
+                canonical_record_key(connection, other) if isinstance(other, str) else None
+            )
+        for label, key in (("current", current_key), ("candidate", row["record_key"])):
+            version_id = (
+                info.get("candidate_version_id")
+                if label == "candidate" and row["type"] == "revision"
+                else None
+            )
+            fact = connection.execute(
+                (
+                    "SELECT v.payload_json FROM usage_records r "
+                    "JOIN usage_versions v ON v.id=r.version_id WHERE r.record_key=?"
+                ),
+                (key,),
+            ).fetchone()
+            if fact:
+                payload = store._decode(fact["payload_json"])
+                if version_id:
+                    candidate = connection.execute(
+                        "SELECT payload_json FROM usage_versions WHERE id=?", (version_id,)
+                    ).fetchone()
+                    payload = store._decode(candidate[0]) if candidate else payload
+                info[label + "_summary"] = reconciliation_usage_summary(payload)
+    return {
+        **info,
+        "id": row["id"],
+        "type": row["type"],
+        "generation": row["generation"],
+        "message": row["message"],
+        "source_name": row["source_name"],
+        "choices": choices,
+    }
+
+
 def list_reconciliations(store: Store) -> list[dict[str, Any]]:
     with store.read_connection() as connection:
-        results = []
-        for row in connection.execute(
-            "SELECT c.*,s.name AS source_name FROM reconciliation_cases c LEF"
-            "T JOIN source_profiles s ON s.id=c.source_id WHERE c.state='open"
-            "' ORDER BY c.rowid LIMIT 1000"
-        ):
-            info = store._decode(row["info_json"])
-            choices = (
-                ["detail", "rollup"]
-                if row["type"] == "coverage"
-                else ["current", "candidate"]
-                if row["type"] in {"revision", "directory"} and (
-                    row["type"] != "directory" or info.get("candidate_cwd")
-                )
-                else ["same", "independent"]
-                if row["type"] == "identity"
-                else ["current"]
+        return [
+            _reconciliation_details(store, connection, row)
+            for row in connection.execute(_OPEN_RECONCILIATIONS + " ORDER BY c.rowid LIMIT 1000")
+        ]
+
+
+def reconciliation_detail(store: Store, case_id: str) -> dict[str, Any]:
+    with store.read_connection() as connection:
+        row = connection.execute(
+            _OPEN_RECONCILIATIONS + " AND c.id=?", (case_id,)
+        ).fetchone()
+        if row is None:
+            raise AppError("stale_case", "核对事项已变化，请刷新。", 409)
+        return _reconciliation_details(store, connection, row)
+
+
+SAME_CANDIDATE = "same_candidate"
+
+
+def _confirm_same_identity(
+    store: Store,
+    connection: sqlite3.Connection,
+    case: sqlite3.Row,
+    info: dict[str, Any],
+    reason: str,
+    *,
+    adopted_version: int | None = None,
+) -> set[str]:
+    case_id = case["id"]
+    if connection.execute(
+        "SELECT 1 FROM usage_claims WHERE record_key=?", (case["record_key"],)
+    ).fetchone():
+        raise AppError("usage_claimed", "该候选已占用，请先处理原报销。", 409)
+    canonical = canonical_record_key(connection, info["other_record_key"])
+    if canonical == case["record_key"]:
+        raise AppError("invalid_candidate", "消费身份关系已变化，请刷新。", 409)
+    original = connection.execute(
+        "SELECT r.*,v.payload_json FROM usage_records r JOIN usage_versions v "
+        "ON v.id=r.version_id WHERE r.record_key=?", (canonical,)
+    ).fetchone()
+    candidate = connection.execute(
+        "SELECT r.*,v.payload_json FROM usage_records r JOIN usage_versions v "
+        "ON v.id=r.version_id WHERE r.record_key=?", (case["record_key"],)
+    ).fetchone()
+    if original is None or candidate is None:
+        raise AppError("invalid_candidate", "消费事实已变化，请刷新。", 409)
+    if adopted_version is not None and (
+        candidate["version_id"] != adopted_version or original["availability_state"] != "available"
+    ):
+        raise AppError(
+            "stale_reconciliation_batch", "核对事项或依据已变化，请重新查询并预览。", 409,
+        )
+    if (original["project_id"] and candidate["project_id"]
+            and original["project_id"] != candidate["project_id"]):
+        raise AppError(
+            "assignment_conflict",
+            "两条消费属于不同项目，请先核实项目归属再合并身份。", 409
+        )
+    if not original["project_id"] and candidate["project_id"]:
+        from .project_links import link_record
+
+        # Identity confirmation is new project evidence for the canonical
+        # consumption, not a copied fingerprint-bound candidate override.
+        link_record(
+            connection, canonical, candidate["project_id"], "identity_confirmation",
+            {"case_id": case_id, "alias_record_key": case["record_key"],
+             "candidate_version_id": candidate["version_id"],
+             "candidate_assignment_origin": candidate["assignment_origin"]},
+            operation="identity:" + case_id, reason=reason.strip(), now=store._now(),
+        )
+    connection.execute(
+        "UPDATE usage_records SET suppressed=1 WHERE record_key=?",
+        (case["record_key"],),
+    )
+    connection.execute(
+        (
+            "INSERT INTO record_aliases VALUES(?,?,?) ON CONFLICT(alias_key) "
+            "DO UPDATE SET canonical_key=excluded.canonical_key,reason=exclud"
+            "ed.reason"
+        ),
+        (case["record_key"], canonical, reason),
+    )
+    scopes = {original["scope_key"], candidate["scope_key"]}
+    if adopted_version is not None:
+        new_scope, _ = set_current(connection, adopted_version, logical_key=canonical)
+        scopes.add(new_scope)
+        if original["assignment_origin"] == "manual":
+            # The confirmed identity carries its active manual project exception forward.
+            connection.execute(
+                "UPDATE overrides SET content_hash=? WHERE record_key=? AND content_hash=?",
+                (candidate["content_hash"], canonical, original["content_hash"]),
             )
-            if row["type"] in {"identity", "revision"}:
-                for label, key in (
-                    (
-                        "current",
-                        info.get("other_record_key")
-                        if row["type"] == "identity"
-                        else row["record_key"],
-                    ),
-                    ("candidate", row["record_key"]),
-                ):
-                    version_id = (
-                        info.get("candidate_version_id")
-                        if label == "candidate" and row["type"] == "revision"
-                        else None
-                    )
-                    fact = connection.execute(
-                        (
-                            "SELECT r.*,v.payload_json FROM usage_records r JOIN usage_versio"
-                            "ns v ON v.id=r.version_id WHERE r.record_key=?"
-                        ),
-                        (key,),
-                    ).fetchone()
-                    if fact:
-                        payload = store._decode(fact["payload_json"])
-                        if version_id:
-                            candidate = connection.execute(
-                                "SELECT payload_json FROM usage_versions WHERE id=?", (version_id,)
-                            ).fetchone()
-                            payload = store._decode(candidate[0]) if candidate else payload
-                        info[label + "_summary"] = {
-                            k: payload.get(k)
-                            for k in (
-                                "model",
-                                "session_id",
-                                "created_at",
-                                "input_tokens",
-                                "output_tokens",
-                                "cache_read_tokens",
-                                "cache_creation_tokens",
-                                "total_cost_usd",
-                            )
-                        }
-            results.append(
-                {
-                    **info,
-                    "id": row["id"],
-                    "type": row["type"],
-                    "generation": row["generation"],
-                    "message": row["message"],
-                    "source_name": row["source_name"],
-                    "choices": choices,
-                }
-            )
-        return results
+        connection.execute(
+            """UPDATE reconciliation_cases SET info_json=json_set(info_json,
+                '$.current_version_id',?,'$.candidate_version_id',?,
+                '$.current_cost_usd',?,'$.candidate_cost_usd',?) WHERE id=?""",
+            (original["version_id"], adopted_version, original["total_cost_usd"],
+             candidate["total_cost_usd"], case_id),
+        )
+        return scopes
+    accepted = store._decode(original["payload_json"])
+    proposed = store._decode(candidate["payload_json"])
+    accepted.pop("request_id", None)
+    proposed.pop("request_id", None)
+    history_match = (
+        accepted.get("data_source") == "codex_session"
+        and proposed.get("data_source") == "codex_native"
+    ) or (
+        info.get("adopted_history_replay") is True
+        and accepted.get("data_source") == "codex_native"
+        and proposed.get("data_source") == "codex_session"
+    ) or info.get("native_snapshot_pair") is True
+    if accepted != proposed and not history_match:
+        create_case(
+            connection, "revision", "已确认同一消费，但事实值不同，请核对版本。",
+            {
+                "candidate_version_id": candidate["version_id"],
+                "candidate_hash": candidate["content_hash"],
+                "current_version_id": original["version_id"],
+                "date": original["day"], "model": original["model"],
+                "current_cost_usd": original["total_cost_usd"],
+                "candidate_cost_usd": candidate["total_cost_usd"],
+            }, key=canonical, source_id=case["source_id"],
+        )
+    return scopes
+
+
+def _record_resolution(
+    store: Store, connection: sqlite3.Connection, case_id: str, choice: str, reason: str
+) -> None:
+    connection.execute(
+        "UPDATE reconciliation_cases SET state='resolved',generation=generation+1,"
+        "info_json=json_set(info_json,'$.resolved_choice',?) WHERE id=?",
+        (choice, case_id),
+    )
+    connection.execute(
+        "INSERT INTO reconciliation_events(case_id,choice,reason,created_at) VALUES(?,?,?,?)",
+        (case_id, choice, reason.strip(), store._now()),
+    )
+
+
+def _refresh_resolved_scopes(
+    connection: sqlite3.Connection, scopes: set[str], *, update_projects: bool = True
+) -> None:
+    connection.execute(
+        "UPDATE settings SET value=CAST(value AS INTEGER)+1 WHERE key='data_revision'"
+    )
+    if update_projects:
+        reclassify(connection, scopes or None)
+    refresh_availability(connection, scopes or None)
+
+
+def _replay_resolution(
+    store: Store, connection: sqlite3.Connection, key: str, signature: str
+) -> dict[str, Any] | None:
+    prior = connection.execute(
+        "SELECT * FROM reconciliation_idempotency WHERE key=?", (key,)
+    ).fetchone()
+    if prior is None:
+        return None
+    if prior["payload_hash"] != signature:
+        raise AppError("idempotency_conflict", "同一重试标识对应不同内容。", 409)
+    return dict(store._decode(prior["result_json"]))
 
 
 def resolve_reconciliation(
@@ -520,13 +686,9 @@ def resolve_reconciliation(
     with store._transaction():
         connection = store._db
         if idempotency_key:
-            prior = connection.execute(
-                "SELECT * FROM reconciliation_idempotency WHERE key=?", (idempotency_key,)
-            ).fetchone()
-            if prior:
-                if prior["payload_hash"] != signature:
-                    raise AppError("idempotency_conflict", "同一重试标识对应不同内容。", 409)
-                return dict(store._decode(prior["result_json"]))
+            result = _replay_resolution(store, connection, idempotency_key, signature)
+            if result is not None:
+                return result
         case = connection.execute(
             "SELECT * FROM reconciliation_cases WHERE id=?", (case_id,)
         ).fetchone()
@@ -589,76 +751,35 @@ def resolve_reconciliation(
         elif case["type"] == "identity":
             if choice not in {"same", "independent"}:
                 raise AppError("invalid_choice", "请确认同一消费或独立消费。")
+            if choice == "same":
+                scopes.update(_confirm_same_identity(store, connection, case, info, reason))
+            else:
+                row = connection.execute(
+                    "SELECT scope_key FROM usage_records WHERE record_key=?", (case["record_key"],)
+                ).fetchone()
+                if row:
+                    scopes.add(row[0])
+        elif case["type"] in {"native_overlap", "native_uncertain"}:
+            choices = {"current"}
+            if case["type"] == "native_overlap":
+                choices.add("independent")
+            if choice not in choices:
+                raise AppError("invalid_choice", "请选择保留已有历史或确认独立消费。")
             row = connection.execute(
                 "SELECT scope_key FROM usage_records WHERE record_key=?", (case["record_key"],)
             ).fetchone()
-            if row:
-                scopes.add(row[0])
-            if choice == "same":
+            if not row:
+                raise AppError("stale_case", "原生明细已变化，请刷新。", 409)
+            if choice == "current":
                 if connection.execute(
                     "SELECT 1 FROM usage_claims WHERE record_key=?", (case["record_key"],)
                 ).fetchone():
-                    raise AppError("usage_claimed", "该候选已占用，请先处理原报销。", 409)
-                canonical = canonical_record_key(connection, info["other_record_key"])
-                if canonical == case["record_key"]:
-                    raise AppError("invalid_candidate", "消费身份关系已变化，请刷新。", 409)
-                original = connection.execute(
-                    "SELECT r.*,v.payload_json FROM usage_records r JOIN usage_versions v "
-                    "ON v.id=r.version_id WHERE r.record_key=?", (canonical,)
-                ).fetchone()
-                candidate = connection.execute(
-                    "SELECT r.*,v.payload_json FROM usage_records r JOIN usage_versions v "
-                    "ON v.id=r.version_id WHERE r.record_key=?", (case["record_key"],)
-                ).fetchone()
-                if original is None or candidate is None:
-                    raise AppError("invalid_candidate", "消费事实已变化，请刷新。", 409)
-                if (original["project_id"] and candidate["project_id"]
-                        and original["project_id"] != candidate["project_id"]):
-                    raise AppError(
-                        "assignment_conflict",
-                        "两条消费属于不同项目，请先核实项目归属再合并身份。", 409
-                    )
-                if not original["project_id"] and candidate["project_id"]:
-                    from .project_links import link_record
-
-                    # Identity confirmation is new project evidence for the canonical
-                    # consumption, not a copied fingerprint-bound candidate override.
-                    link_record(
-                        connection, canonical, candidate["project_id"], "identity_confirmation",
-                        {"case_id": case_id, "alias_record_key": case["record_key"],
-                         "candidate_version_id": candidate["version_id"],
-                         "candidate_assignment_origin": candidate["assignment_origin"]},
-                        operation="identity:" + case_id, reason=reason.strip(), now=store._now(),
-                    )
-                scopes.add(original["scope_key"])
+                    raise AppError("usage_claimed", "该明细已占用，请先处理原报销。", 409)
                 connection.execute(
                     "UPDATE usage_records SET suppressed=1 WHERE record_key=?",
                     (case["record_key"],),
                 )
-                connection.execute(
-                    (
-                        "INSERT INTO record_aliases VALUES(?,?,?) ON CONFLICT(alias_key) "
-                        "DO UPDATE SET canonical_key=excluded.canonical_key,reason=exclud"
-                        "ed.reason"
-                    ),
-                    (case["record_key"], canonical, reason),
-                )
-                accepted = store._decode(original["payload_json"])
-                proposed = store._decode(candidate["payload_json"])
-                accepted.pop("request_id", None)
-                proposed.pop("request_id", None)
-                if accepted != proposed:
-                    create_case(
-                        connection, "revision", "已确认同一消费，但事实值不同，请核对版本。",
-                        {
-                            "candidate_version_id": candidate["version_id"],
-                            "candidate_hash": candidate["content_hash"],
-                            "current_version_id": original["version_id"],
-                            "date": original["day"], "model": original["model"],
-                            "current_cost_usd": original["total_cost_usd"],
-                            "candidate_cost_usd": candidate["total_cost_usd"],
-                        }, key=canonical, source_id=case["source_id"],
-                    )
+            scopes.add(row[0])
         elif case["type"] == "directory":
             if choice not in {"current", "candidate"}:
                 raise AppError("invalid_choice", "请选择保留原目录或采用候选目录。")
@@ -719,20 +840,8 @@ def resolve_reconciliation(
                 )
         else:
             raise AppError("invalid_case", "核对事项类型无法处理，请刷新后重试。", 409)
-        connection.execute(
-            "UPDATE reconciliation_cases SET state='resolved',generation=generation+1,"
-            "info_json=json_set(info_json,'$.resolved_choice',?) WHERE id=?",
-            (choice, case_id),
-        )
-        connection.execute(
-            "INSERT INTO reconciliation_events(case_id,choice,reason,created_at) VALUES(?,?,?,?)",
-            (case_id, choice, reason.strip(), store._now()),
-        )
-        connection.execute(
-            "UPDATE settings SET value=CAST(value AS INTEGER)+1 WHERE key='data_revision'"
-        )
-        reclassify(connection, scopes if scopes else None)
-        refresh_availability(connection, scopes if scopes else None)
+        _record_resolution(store, connection, case_id, choice, reason)
+        _refresh_resolved_scopes(connection, scopes)
         result = {
             "id": case_id,
             "state": "resolved",

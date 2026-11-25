@@ -1,4 +1,4 @@
-"""Source snapshots, local staging budgets and failure isolation."""
+"""Native source processing budgets, lease recovery and atomic staging."""
 
 from __future__ import annotations
 
@@ -13,38 +13,54 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
-from test_sources import database
+from test_native_sync import usage
 from test_storage_helpers import claim, detail, source_data
 
-from aha import sources, sync
-from aha.domain import AppError, record_key
+from aha import sync
+from aha.codex_sessions import CodexSource
+from aha.domain import AppError
+from aha.native_sync import NativeBatch
 from aha.storage import Store
 from aha.sync import _Stager
 
 
-class SnapshotStagingTests(unittest.TestCase):
+class NativeStagingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.store = Store(self.root / "data")
-        self.enterContext(patch(
-            "aha.source_bindings.installation_id", return_value="synthetic-timeout-installation"
-        ))
+        self.source = CodexSource("windows", str(self.root / "synthetic-codex"))
+        self.enterContext(patch("aha.native_sync.scan_source", side_effect=self.scan_source))
         self.store.sync_data(source_data(), trust="live")
         analysis = self.store.analyze("2026-10-01", "2026-10-31")
         batch = self.store.create_batch(analysis, claim(), "snapshot-existing-package")
         self.package, _ = self.store.download(batch["id"], batch["version"])
         self.package_sha = hashlib.sha256(self.package.read_bytes()).hexdigest()
         self.before = self.store.ledger_status()
-        self.source = self.root / "synthetic-source.sqlite"
 
     def tearDown(self) -> None:
         self.store.close()
         self.temporary.cleanup()
 
     def make_source(self, count: int = 1) -> None:
-        with closing(database(self.source, [detail(f"new-{n}") for n in range(count)])):
-            pass
+        timestamp = int(detail()["created_at"]) + 86400
+        self.events = [usage(f"new-{n}", created_at=timestamp) for n in range(count)]
+
+    def scan_source(self, source, load_cursor, on_event, on_cursor, *, cancel):
+        self.assertEqual(source, self.source)
+        for event in self.events:
+            on_event(event)
+            if cancel.is_set():
+                raise AppError("sync_cancelled", "同步已取消。", 409)
+        on_cursor("sessions/fixture.jsonl", {"offset": 100})
+        return {
+            "files": 1, "bytes_read": 100, "events": len(self.events), "coverage": "complete",
+            "issues": {}, "first_at": self.events[0].row["created_at"],
+            "last_at": self.events[-1].row["created_at"],
+        }
+
+    def sync_native(self, *, cancel=None):
+        return self.store.sync_codex(self.source, "fixture-codex", cancel=cancel)
 
     def assert_failed_without_publication(self, code: str) -> None:
         after = self.store.ledger_status()
@@ -62,68 +78,6 @@ class SnapshotStagingTests(unittest.TestCase):
             )
         self.assertEqual(list((self.store.data_dir / "temporary").iterdir()), [])
 
-    def test_source_writer_commits_during_slow_local_processing_of_prior_snapshot(self) -> None:
-        self.make_source()
-        staging, committed = threading.Event(), threading.Event()
-        original_add = _Stager.add
-        first = True
-
-        def slow_add(stager, table, row):
-            nonlocal first
-            if first:
-                first = False
-                staging.set()
-                self.assertTrue(committed.wait(3), "source writer was blocked by a read lock")
-                time.sleep(5.1)  # Exceeds the old source-plus-processing budget.
-            return original_add(stager, table, row)
-
-        def update_source():
-            self.assertTrue(staging.wait(3))
-            with closing(sqlite3.connect(self.source, timeout=1)) as connection:
-                connection.execute("UPDATE proxy_request_logs SET output_tokens=77")
-                connection.commit()
-            committed.set()
-
-        with ThreadPoolExecutor(max_workers=2) as pool, patch.object(_Stager, "add", slow_add):
-            writer = pool.submit(update_source)
-            run = pool.submit(self.store.sync_sqlite, self.source)
-            result = run.result(timeout=15)
-            writer.result(timeout=3)
-
-        self.assertEqual(result["state"], "completed")
-        self.assertGreater(result["timings_ms"]["local_staging_ms"], 5000)
-        self.assertLess(result["timings_ms"]["source_scan_ms"], 5000)
-        with self.store.read_connection() as connection:
-            output = connection.execute(
-                "SELECT output_tokens FROM usage_records WHERE record_key=?",
-                (record_key(detail("new-0")),),
-            ).fetchone()[0]
-        self.assertEqual(output, "10")
-        with closing(sqlite3.connect(self.source)) as connection:
-            self.assertEqual(connection.execute(
-                "SELECT output_tokens FROM proxy_request_logs"
-            ).fetchone()[0], 77)
-        self.assertEqual(list((self.store.data_dir / "temporary").iterdir()), [])
-
-    def test_source_timeout_remains_distinct_and_cleans_snapshot(self) -> None:
-        self.make_source()
-        original = sources.canonical_bytes
-
-        def slow_projection(value):
-            time.sleep(0.02)
-            return original(value)
-
-        with patch.object(sources, "SNAPSHOT_TIMEOUT", 0.005), patch.object(
-            sources, "canonical_bytes", slow_projection
-        ):
-            with self.assertRaises(AppError) as error:
-                self.store.sync_sqlite(self.source)
-        self.assertEqual(error.exception.code, "source_busy")
-        self.assert_failed_without_publication("source_busy")
-        with closing(sqlite3.connect(self.source, timeout=1)) as connection:
-            connection.execute("UPDATE proxy_request_logs SET output_tokens=11")
-            connection.commit()
-
     def test_last_batch_commit_must_finish_within_local_budget(self) -> None:
         self.make_source()
         original = _Stager.flush
@@ -134,11 +88,11 @@ class SnapshotStagingTests(unittest.TestCase):
             committed.append(True)
             time.sleep(0.6)
 
-        with patch("aha.sync.LOCAL_STAGING_TIMEOUT", 0.5), patch.object(
+        with patch("aha.native_sync.LOCAL_STAGING_TIMEOUT", 0.5), patch.object(
             _Stager, "flush", slow_commit
         ):
             with self.assertRaises(AppError) as error:
-                self.store.sync_sqlite(self.source)
+                self.sync_native()
         self.assertEqual(error.exception.code, "sync_processing_timeout")
         self.assertEqual(committed, [True])
         self.assert_failed_without_publication("sync_processing_timeout")
@@ -160,11 +114,11 @@ class SnapshotStagingTests(unittest.TestCase):
             return original(stager)
 
         with ThreadPoolExecutor(max_workers=2) as pool, patch(
-            "aha.sync.LOCAL_STAGING_TIMEOUT", 0.1
+            "aha.native_sync.LOCAL_STAGING_TIMEOUT", 0.1
         ), patch.object(_Stager, "flush", waiting_flush):
             writer = pool.submit(hold_writer)
             with self.assertRaises(AppError) as error:
-                self.store.sync_sqlite(self.source)
+                self.sync_native()
             writer.result(timeout=3)
         self.assertEqual(error.exception.code, "sync_processing_timeout")
         self.assert_failed_without_publication("sync_processing_timeout")
@@ -206,7 +160,7 @@ class SnapshotStagingTests(unittest.TestCase):
                 started = time.monotonic()
                 with patch.object(_Stager, "flush", blocked_flush):
                     with self.assertRaises(AppError) as error:
-                        self.store.sync_sqlite(self.source)
+                        self.sync_native()
                 self.assertEqual(error.exception.code, "store_busy")
                 self.assertLess(time.monotonic() - started, 3)
                 self.assertFalse(writer.done(), "failure waited for the competing writer")
@@ -230,7 +184,7 @@ class SnapshotStagingTests(unittest.TestCase):
                 self.assertEqual(list((self.store.data_dir / "temporary").iterdir()), [])
                 started = time.monotonic()
                 with self.assertRaises(AppError) as retry_while_locked:
-                    self.store.sync_sqlite(self.source)
+                    self.sync_native()
                 self.assertEqual(retry_while_locked.exception.code, "store_busy")
                 self.assertLess(time.monotonic() - started, 3)
             finally:
@@ -246,7 +200,7 @@ class SnapshotStagingTests(unittest.TestCase):
 
         with patch.object(sync, "_record_failure", broken_recovery):
             with self.assertRaises(AppError) as recovery_error:
-                self.store.sync_sqlite(self.source)
+                self.sync_native()
         self.assertEqual(recovery_error.exception.code, "storage_write_failed")
         with self.store.read_connection() as connection:
             self.assertEqual(connection.execute(
@@ -256,7 +210,7 @@ class SnapshotStagingTests(unittest.TestCase):
                 "SELECT COUNT(*) FROM sync_stage WHERE run_id=?", (failed_run,)
             ).fetchone()[0], 512)
 
-        self.assertEqual(self.store.sync_sqlite(self.source)["state"], "completed")
+        self.assertEqual(self.sync_native()["state"], "completed")
         with self.store.read_connection() as connection:
             failed = connection.execute(
                 "SELECT state,error_code FROM sync_runs WHERE id=?", (failed_run,)
@@ -293,7 +247,7 @@ class SnapshotStagingTests(unittest.TestCase):
             try:
                 with patch.object(_Stager, "flush", blocked_flush):
                     started = time.monotonic()
-                    result = pool.submit(self.store.sync_sqlite, self.source)
+                    result = pool.submit(self.sync_native)
                     with self.assertRaises(AppError) as error:
                         result.result(timeout=3)
                     self.assertEqual(error.exception.code, "store_busy")
@@ -302,7 +256,7 @@ class SnapshotStagingTests(unittest.TestCase):
             finally:
                 release.set()
             writer.result(timeout=5)
-        self.assertEqual(self.store.sync_sqlite(self.source)["state"], "completed")
+        self.assertEqual(self.sync_native()["state"], "completed")
         with self.store.read_connection() as connection:
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM sync_stage").fetchone()[0], 0)
 
@@ -324,7 +278,7 @@ class SnapshotStagingTests(unittest.TestCase):
         self.seed_running_with_staging("expired", "2000-01-01T00:00:00+00:00")
         self.store.close()
         self.store = Store(self.root / "data")
-        self.assertEqual(self.store.sync_sqlite(self.source)["state"], "completed")
+        self.assertEqual(self.sync_native()["state"], "completed")
         with self.store.read_connection() as connection:
             self.assertEqual(tuple(connection.execute(
                 "SELECT state,error_code FROM sync_runs WHERE id='expired'"
@@ -338,7 +292,7 @@ class SnapshotStagingTests(unittest.TestCase):
         self.make_source()
         self.seed_running_with_staging("active", self.store._now())
         with self.assertRaises(AppError) as error:
-            self.store.sync_sqlite(self.source)
+            self.sync_native()
         self.assertEqual(error.exception.code, "sync_in_progress")
         with self.store.read_connection() as connection:
             self.assertEqual(connection.execute(
@@ -360,7 +314,7 @@ class SnapshotStagingTests(unittest.TestCase):
 
         with patch.object(sync, "_recover_failed_runs", start_competing_run):
             with self.assertRaises(AppError) as error:
-                self.store.sync_sqlite(self.source)
+                self.sync_native()
         self.assertEqual(error.exception.code, "sync_in_progress")
         with self.store.read_connection() as connection:
             self.assertEqual(connection.execute(
@@ -379,21 +333,19 @@ class SnapshotStagingTests(unittest.TestCase):
 
     def test_both_cancellation_signals_interrupt_source_even_when_both_supplied(self) -> None:
         self.make_source()
-        original = sources.scan_sqlite
+        original = NativeBatch.observe
         for signal in ("explicit", "store"):
             with self.subTest(signal=signal):
                 external = threading.Event()
 
-                def cancel_after_first_row(path, sink, **kwargs):
-                    def interrupted_sink(table, row):
-                        sink(table, row)
-                        (external if signal == "explicit" else self.store._sync_cancel).set()
-                    return original(path, interrupted_sink, **kwargs)
+                def cancel_after_first_row(batch, event):
+                    original(batch, event)
+                    (external if signal == "explicit" else self.store._sync_cancel).set()
 
                 try:
-                    with patch.object(sources, "scan_sqlite", cancel_after_first_row):
+                    with patch.object(NativeBatch, "observe", cancel_after_first_row):
                         with self.assertRaises(AppError) as error:
-                            self.store.sync_sqlite(self.source, cancel=external)
+                            self.sync_native(cancel=external)
                     self.assertEqual(error.exception.code, "sync_cancelled")
                     self.assert_failed_without_publication("sync_cancelled")
                 finally:
@@ -401,110 +353,77 @@ class SnapshotStagingTests(unittest.TestCase):
 
     def test_both_cancellation_signals_interrupt_partial_local_staging(self) -> None:
         self.make_source(520)
-        original = _Stager.add
+        original = _Stager.add_usage
         for signal in ("explicit", "store"):
             with self.subTest(signal=signal):
                 external = threading.Event()
                 added = 0
 
-                def cancel_after_batch(stager, table, row):
+                def cancel_after_batch(stager, kind, row):
                     nonlocal added
                     added += 1
                     if added == 513:  # One full batch has been committed to staging.
                         (external if signal == "explicit" else self.store._sync_cancel).set()
-                    return original(stager, table, row)
+                    return original(stager, kind, row)
 
                 try:
-                    with patch.object(_Stager, "add", cancel_after_batch):
+                    with patch.object(_Stager, "add_usage", cancel_after_batch):
                         with self.assertRaises(AppError) as error:
-                            self.store.sync_sqlite(self.source, cancel=external)
+                            self.sync_native(cancel=external)
                     self.assertEqual(error.exception.code, "sync_cancelled")
                     self.assert_failed_without_publication("sync_cancelled")
                 finally:
                     self.store._sync_cancel.clear()
 
-    def test_both_cancellation_signals_interrupt_source_query_progress(self) -> None:
-        self.make_source()
-        original = sources._validate_schema
-        for signal in ("explicit", "store"):
-            with self.subTest(signal=signal):
-                external = threading.Event()
-
-                def interrupt_query(connection):
-                    version = original(connection)
-                    (external if signal == "explicit" else self.store._sync_cancel).set()
-                    connection.execute(
-                        "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL "
-                        "SELECT x+1 FROM n WHERE x<100000) SELECT SUM(x) FROM n"
-                    ).fetchone()
-                    return version
-
-                try:
-                    with patch.object(sources, "_validate_schema", interrupt_query):
-                        with self.assertRaises(AppError) as error:
-                            self.store.sync_sqlite(self.source, cancel=external)
-                    self.assertEqual(error.exception.code, "sync_cancelled")
-                    self.assert_failed_without_publication("sync_cancelled")
-                finally:
-                    self.store._sync_cancel.clear()
-
-    def test_temporary_write_and_replay_failures_close_file_and_remove_staging(self) -> None:
+    def test_spool_write_and_staged_replay_failure_close_the_temporary_database(self) -> None:
         self.make_source(520)
-        original = tempfile.TemporaryFile
-        for failure in ("write", "short_write", "replay", "unexpected"):
-            with self.subTest(failure=failure):
+        connect = sqlite3.connect
+        original_add = _Stager.add_usage
+        for phase in ("write", "replay"):
+            with self.subTest(phase=phase):
                 opened = []
+                added = 0
 
-                class FailingProjection:
-                    def __init__(self, *args, **kwargs):
-                        self.file = original(*args, **kwargs)
-                        opened.append(self.file)
+                def capture(database, *args, **kwargs):
+                    connection = connect(database, *args, **kwargs)
+                    if database == "":
+                        opened.append(connection)
+                    return connection
 
-                    def __enter__(self):
-                        return self
+                def interrupted_replay(stager, kind, row):
+                    nonlocal added
+                    added += 1
+                    if added == 513:
+                        raise OSError("private staged data path")
+                    return original_add(stager, kind, row)
 
-                    def __exit__(self, *args):
-                        self.file.close()
-
-                    def write(self, value):
-                        if failure == "write":
-                            raise OSError("private temporary path")
-                        if failure == "short_write":
-                            return self.file.write(value[:-1])
-                        return self.file.write(value)
-
-                    def seek(self, *args):
-                        return self.file.seek(*args)
-
-                    def __iter__(self):
-                        for index, line in enumerate(self.file):
-                            if index == 513:  # The first 512 rows have already been staged.
-                                if failure == "unexpected":
-                                    raise RuntimeError("private temporary path")
-                                raise OSError("private temporary path")
-                            yield line
-
-                with patch("aha.sync.tempfile.TemporaryFile", FailingProjection):
+                effect = (
+                    patch.object(NativeBatch, "observe", side_effect=OSError("private path"))
+                    if phase == "write" else patch.object(_Stager, "add_usage", interrupted_replay)
+                )
+                with patch("aha.native_sync.sqlite3.connect", side_effect=capture), effect:
                     with self.assertRaises(AppError) as error:
-                        self.store.sync_sqlite(self.source)
+                        self.sync_native()
                 self.assertEqual(error.exception.code, "sync_failed")
                 self.assertEqual(len(opened), 1)
-                self.assertTrue(opened[0].closed)
+                with self.assertRaises(sqlite3.ProgrammingError):
+                    opened[0].execute("SELECT 1")
                 self.assert_failed_without_publication("sync_failed")
-                with closing(sqlite3.connect(self.source, timeout=1)) as connection:
-                    connection.execute("UPDATE proxy_request_logs SET output_tokens=11")
-                    connection.commit()
 
-    def test_temporary_creation_failure_preserves_local_data(self) -> None:
+    def test_spool_creation_failure_is_a_failed_run_with_safe_error(self) -> None:
         self.make_source()
-        with patch("aha.sync.tempfile.TemporaryFile", side_effect=OSError("private path")):
+        connect = sqlite3.connect
+
+        def fail_temporary(database, *args, **kwargs):
+            if database == "":
+                raise sqlite3.OperationalError("private temporary directory")
+            return connect(database, *args, **kwargs)
+
+        with patch("aha.native_sync.sqlite3.connect", side_effect=fail_temporary):
             with self.assertRaises(AppError) as error:
-                self.store.sync_sqlite(self.source)
+                self.sync_native()
         self.assertEqual(error.exception.code, "sync_failed")
         self.assert_failed_without_publication("sync_failed")
-        with closing(sqlite3.connect(self.source, timeout=1)) as connection:
-            connection.execute("UPDATE proxy_request_logs SET output_tokens=11")
-            connection.commit()
 
 
 if __name__ == "__main__":

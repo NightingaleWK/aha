@@ -4,22 +4,19 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import tempfile
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import suppress
 from pathlib import Path
 from time import monotonic, perf_counter
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from . import ledger, session_meta, source_bindings, sources
+from . import ledger, session_meta
 from .domain import (
     MAX_ROWS,
-    SUPPORTED_CCS_SCHEMA_VERSIONS,
     USAGE_PROJECTION_SCHEMA_VERSION,
     AppError,
-    canonical_bytes,
     content_hash,
     normalize_row,
     record_key,
@@ -28,6 +25,7 @@ from .domain import (
 )
 
 if TYPE_CHECKING:
+    from .native_sync import NativeBatch
     from .storage import Store
 
 LOCAL_STAGING_TIMEOUT = 120.0
@@ -187,13 +185,8 @@ class _Stager:
         if self.processing_deadline is not None and monotonic() >= self.processing_deadline:
             raise AppError("sync_processing_timeout", "本地同步处理超过时限，请稍后重试。", 409)
 
-    def add(self, table: str, row: dict[str, Any]) -> None:
+    def add(self, kind: str, row: dict[str, Any]) -> None:
         self.check()
-        kind = {
-            "proxy_request_logs": "detail",
-            "usage_daily_rollups": "rollup",
-            "model_pricing": "pricing",
-        }[table]
         if kind != "pricing":
             if (
                 row.get("app_type") != "codex"
@@ -201,20 +194,28 @@ class _Stager:
                 or (kind == "rollup" and row.get("provider_id") != "_codex_session")
             ):
                 return
-            normalized = normalize_row(row, kind)
-            self.rows.append(
-                (
-                    self.run_id,
-                    record_key(normalized, kind),
-                    kind,
-                    row_fingerprint(normalized, kind),
-                    self.store._encode(normalized),
-                )
-            )
+            self.add_usage(kind, row)
         else:
             from .domain import normalize_price
             price = normalize_price(row)
             self.prices.append((self.run_id, price["model_id"], self.store._encode(price)))
+            self._added(kind)
+
+    def add_usage(self, kind: str, row: dict[str, Any]) -> None:
+        self.check()
+        normalized = normalize_row(row, kind)
+        self.rows.append(
+            (
+                self.run_id,
+                record_key(normalized, kind),
+                kind,
+                row_fingerprint(normalized, kind),
+                self.store._encode(normalized),
+            )
+        )
+        self._added(kind)
+
+    def _added(self, kind: str) -> None:
         self.counts[kind] += 1
         if self.counts[kind] > MAX_ROWS:
             raise AppError("source_too_large", "单次来源记录超过上限。", 413)
@@ -255,31 +256,6 @@ def _failed(store: Store, run_id: str, error: AppError) -> None:
                 del store._pending_sync_failures[run_id]
 
 
-def _metadata(store: Store, run_id: str, roots: list[Path] | None) -> dict[str, Any]:
-    if roots is None:
-        return {"sessions": {}}
-    with store.read_connection() as connection:
-        wanted = {
-            row[0]
-            for row in connection.execute(
-                (
-                    "SELECT DISTINCT json_extract(t.payload_json,'$.session_id') FROM"
-                    " sync_stage t LEFT JOIN sessions s ON s.id=json_extract(t.payloa"
-                    "d_json,'$.session_id') WHERE t.run_id=? AND t.kind='detail' AND "
-                    "json_extract(t.payload_json,'$.session_id') IS NOT NULL AND (s.i"
-                    "d IS NULL OR s.status!='matched') LIMIT ?"
-                ),
-                (run_id, session_meta.MAX_SESSIONS + 1),
-            )
-        }
-    limited = len(wanted) > session_meta.MAX_SESSIONS
-    wanted = set(sorted(wanted)[: session_meta.MAX_SESSIONS])
-    result = session_meta.scan_metadata(wanted, roots, cancel=store._sync_cancel)
-    if limited:
-        result["errors"].append({"code": "metadata_selection_limit", "count": 1})
-    return result
-
-
 def _rebase_directory_cases(
     store: Store, session_id: str, cwd: str | None, fingerprint: str
 ) -> None:
@@ -314,12 +290,14 @@ def _rebase_directory_cases(
         )
 
 
-def _save_metadata(store: Store, metadata: dict[str, Any], trust: str) -> set[str]:
+def _save_metadata(
+    store: Store, sessions: Iterable[tuple[str, dict[str, Any]]]
+) -> set[str]:
     from .projects import canonical_path
 
     connection = store._db
     changed: set[str] = set()
-    for session_id, entry in metadata.get("sessions", {}).items():
+    for session_id, entry in sessions:
         status = entry.get("status", "missing")
         cwd = entry.get("cwd") if status == "matched" else None
         if status not in {"matched", "missing", "conflict"} or (
@@ -396,6 +374,54 @@ def _save_metadata(store: Store, metadata: dict[str, Any], trust: str) -> set[st
     return changed
 
 
+def _record_observation(
+    store: Store, run_id: str, source_id: str, row: sqlite3.Row
+) -> int:
+    connection = store._db
+    connection.execute(
+        """INSERT INTO usage_versions(record_key,content_hash,payload_json,created_at,source_id)
+        VALUES(?,?,?,?,?) ON CONFLICT(record_key,content_hash) DO NOTHING""",
+        (row["record_key"], row["content_hash"], row["payload_json"], store._now(), source_id),
+    )
+    version = int(connection.execute(
+        "SELECT id FROM usage_versions WHERE record_key=? AND content_hash=?",
+        (row["record_key"], row["content_hash"]),
+    ).fetchone()[0])
+    connection.execute(
+        "INSERT INTO record_evidence VALUES(?,?,?) ON CONFLICT(version_id,source_id) DO NOTHING",
+        (version, source_id, run_id),
+    )
+    return version
+
+
+def _adopted_history_rebuild_keys(
+    connection: sqlite3.Connection, run_id: str, source_id: str
+) -> dict[str, str]:
+    # The adopted native projection has no legacy semantic key. Recover the
+    # original match only for the same identity and for the legacy rebuild path.
+    keys: dict[str, str] = {}
+    for row in connection.execute("""
+        SELECT old.payload_json,r.record_key
+        FROM reconciliation_cases c
+        JOIN usage_versions old ON old.id=json_extract(c.info_json,'$.current_version_id')
+        JOIN usage_records r ON r.record_key=old.record_key AND r.suppressed=0
+        JOIN usage_versions accepted ON accepted.id=r.version_id
+            AND accepted.record_key=c.record_key
+        WHERE c.type='identity' AND c.state='resolved'
+          AND json_extract(c.info_json,'$.resolved_choice')=?
+          AND json_extract(c.info_json,'$.other_record_key')=r.record_key
+          AND (old.source_id!=? OR NOT EXISTS(
+              SELECT 1 FROM sync_stage observed
+              WHERE observed.run_id=? AND observed.record_key=r.record_key
+          ))
+        ORDER BY r.record_key
+    """, (ledger.SAME_CANDIDATE, source_id, run_id)):
+        semantic = ledger.record_projection(json.loads(row["payload_json"]), "detail")
+        if semantic["semantic_key"] is not None:
+            keys.setdefault(semantic["semantic_key"], row["record_key"])
+    return keys
+
+
 def _publish(
     store: Store,
     run_id: str,
@@ -404,6 +430,7 @@ def _publish(
     stager: _Stager,
     metadata: dict[str, Any],
     source: dict[str, Any],
+    native: NativeBatch | None = None,
 ) -> dict[str, Any]:
     stager.flush()
     publishing_started = perf_counter()
@@ -444,7 +471,9 @@ def _publish(
             AS INTEGER) LIMIT 1""",
             (source_id, run_id, source_id),
         ).fetchone() is not None
-        shrinking = detail_shrinking or rollup_shrinking or represented_shrinking
+        shrinking = native is None and (
+            detail_shrinking or rollup_shrinking or represented_shrinking
+        )
         if shrinking:
             before_cases = connection.total_changes
             ledger.create_case(
@@ -496,6 +525,10 @@ def _publish(
         has_aliases = (
             connection.execute("SELECT 1 FROM record_aliases LIMIT 1").fetchone() is not None
         )
+        adopted_history = (
+            _adopted_history_rebuild_keys(connection, run_id, source_id)
+            if native is None and has_aliases else {}
+        )
         while rows := cursor.fetchmany(512):
             stager.check()
             for row in rows:
@@ -506,10 +539,10 @@ def _publish(
                 )
                 current = connection.execute(
                     (
-                        "SELECT r.*,s.trust AS current_trust,v.source_id AS current_sourc"
-                        "e FROM usage_records r JOIN usage_versions v ON v.id=r.version_i"
-                        "d JOIN source_profiles s ON s.id=v.source_id WHERE r.record_key="
-                        "?"
+                        "SELECT r.*,s.trust AS current_trust,v.source_id AS current_source,"
+                        "v.record_key AS current_version_key FROM usage_records r "
+                        "JOIN usage_versions v ON v.id=r.version_id "
+                        "JOIN source_profiles s ON s.id=v.source_id WHERE r.record_key=?"
                     ),
                     (logical_key,),
                 ).fetchone()
@@ -537,31 +570,28 @@ def _publish(
                             scopes.add(current["scope_key"])
                     counts["unchanged_count"] += 1
                     continue
-                connection.execute(
-                    (
-                        "INSERT INTO usage_versions(record_key,content_hash,payload_json,"
-                        "created_at,source_id) VALUES(?,?,?,?,?) ON CONFLICT(record_key,c"
-                        "ontent_hash) DO NOTHING"
-                    ),
-                    (
-                        row["record_key"],
-                        row["content_hash"],
-                        row["payload_json"],
-                        store._now(),
-                        source_id,
-                    ),
-                )
-                version = connection.execute(
-                    "SELECT id FROM usage_versions WHERE record_key=? AND content_hash=?",
-                    (row["record_key"], row["content_hash"]),
-                ).fetchone()[0]
-                connection.execute(
-                    (
-                        "INSERT INTO record_evidence VALUES(?,?,?) ON CONFLICT(version_id"
-                        ",source_id) DO NOTHING"
-                    ),
-                    (version, source_id, run_id),
-                )
+                if native is not None and current:
+                    # NativeBatch will record all observed variants and compare them
+                    # against this accepted version, including confirmed history aliases.
+                    counts["unchanged_count"] += 1
+                    continue
+                version = _record_observation(store, run_id, source_id, row)
+                if (
+                    current and native is None and logical_key == row["record_key"]
+                    and current["current_version_key"] != logical_key
+                    and connection.execute("""
+                        SELECT 1 FROM reconciliation_cases
+                        WHERE record_key=? AND state='resolved' AND type='identity'
+                          AND json_extract(info_json,'$.resolved_choice')=?
+                          AND json_extract(info_json,'$.other_record_key')=?
+                          AND json_extract(info_json,'$.current_version_id')=? LIMIT 1
+                    """, (current["current_version_key"], ledger.SAME_CANDIDATE,
+                          logical_key, version)).fetchone()
+                ):
+                    # This exact historical observation was replaced by an explicitly
+                    # adopted native fact. Preserve its provenance without reopening it.
+                    counts["unchanged_count"] += 1
+                    continue
                 if current and logical_key != row["record_key"]:
                     candidate = json.loads(row["payload_json"])
                     accepted = json.loads(connection.execute(
@@ -570,7 +600,19 @@ def _publish(
                     ).fetchone()[0])
                     candidate.pop("request_id", None)
                     accepted.pop("request_id", None)
-                    if candidate == accepted:
+                    if candidate == accepted or (
+                        accepted.get("data_source") == "codex_native"
+                        and candidate.get("data_source") == "codex_session"
+                        and connection.execute("""
+                            SELECT 1 FROM usage_records r
+                            JOIN reconciliation_cases c ON c.record_key=r.record_key
+                            WHERE r.record_key=? AND r.version_id=? AND r.suppressed=1
+                              AND c.type='identity' AND c.state='resolved'
+                              AND json_extract(c.info_json,'$.resolved_choice')='same'
+                              AND json_extract(c.info_json,'$.adopted_history_replay')=1
+                            LIMIT 1
+                        """, (row["record_key"], version)).fetchone()
+                    ):
                         counts["unchanged_count"] += 1
                         continue
                 revision_case = connection.execute(
@@ -635,7 +677,7 @@ def _publish(
                         ),
                         (payload["session_id"], content_hash(missing)),
                     )
-                projection = ledger.record_projection(json.loads(row["payload_json"]), row["kind"])
+                projection = ledger.record_projection(payload, row["kind"])
                 groups.add(projection["coverage_key"])
                 counts["revised_count" if current else "new_count"] += 1
                 connection.execute(
@@ -646,7 +688,10 @@ def _publish(
                     ),
                     (logical_key, version),
                 )
-                if not current and projection["semantic_key"]:
+                if native is not None and not current and native.check_history(payload, projection):
+                    counts["pending_count"] += 1
+                    cases_changed = True
+                if native is None and not current and projection["semantic_key"]:
                     other = connection.execute(
                         (
                             "SELECT r.record_key,v.source_id FROM usage_records r JOIN usage_"
@@ -658,17 +703,24 @@ def _publish(
                         ),
                         (projection["semantic_key"], row["record_key"], source_id, run_id),
                     ).fetchone()
-                    if other:
+                    adopted_key = (
+                        None if other else adopted_history.get(projection["semantic_key"])
+                    )
+                    other_key = other["record_key"] if other else adopted_key
+                    if other_key:
                         before_cases = connection.total_changes
+                        info = {
+                            "date": projection["day"],
+                            "model": projection["model"],
+                            "other_record_key": other_key,
+                        }
+                        if adopted_key:
+                            info["adopted_history_replay"] = True
                         ledger.create_case(
                             connection,
                             "identity",
                             "不同来源标识的用量可能来自会话重建，请先核对。",
-                            {
-                                "date": projection["day"],
-                                "model": projection["model"],
-                                "other_record_key": other["record_key"],
-                            },
+                            info,
                             key=row["record_key"],
                             source_id=source_id,
                         )
@@ -677,7 +729,10 @@ def _publish(
         compared_at = perf_counter()
         stager.timings["compare_current_versions_ms"] = (compared_at - publishing_started) * 1000
         scopes |= ledger.update_coverage(connection, groups)
-        changed_sessions = _save_metadata(store, metadata, trust)
+        if native is not None:
+            cases_changed |= native.publish(stager, scopes, counts)
+        sessions = native.sessions() if native is not None else metadata.get("sessions", {}).items()
+        changed_sessions = _save_metadata(store, sessions)
         for session_id in changed_sessions:
             scopes.update(
                 r[0]
@@ -689,6 +744,11 @@ def _publish(
             ledger.reclassify(connection, scopes)
             ledger._scope_table(connection, scopes)
             connection.execute("""UPDATE usage_records AS r SET pricing_status=CASE WHEN EXISTS(
+                SELECT 1 FROM codex_event_evidence e WHERE e.version_id=r.version_id)
+                THEN CASE WHEN EXISTS(SELECT 1 FROM codex_event_evidence e
+                    WHERE e.version_id=r.version_id AND e.pricing_basis IS NOT NULL)
+                    THEN 'available' ELSE 'unpriced' END
+                WHEN EXISTS(
                 SELECT 1 FROM pricing p WHERE p.model_id=r.pricing_model AND (
                     json_extract(p.payload_json,'$.input_cost_per_million')!='0' OR
                     json_extract(p.payload_json,'$.output_cost_per_million')!='0' OR
@@ -713,12 +773,12 @@ def _publish(
             **counts,
             "observed": dict(stager.counts),
             "source_fingerprint": source.get("fingerprint"),
-            "source_schema_version": source_version
-            if type(source_version) is int and source_version in SUPPORTED_CCS_SCHEMA_VERSIONS
-            else None,
+            "source_schema_version": source_version if type(source_version) is int else None,
             "metadata_errors": metadata.get("errors", []),
             "timings_ms": stager.timings,
         }
+        if native is not None:
+            result.update(native.coverage(source))
         stager.check()
         stager.timings["publish_before_commit_ms"] = (
             perf_counter() - publishing_started
@@ -728,6 +788,14 @@ def _publish(
             WHERE type='source' AND source_id=? AND state='open' LIMIT 1""",
             (source_id,),
         ).fetchone() is not None
+        if native is not None:
+            needs_review |= (
+                counts["pending_count"] > 0 or result["coverage"] == "partial"
+                or connection.execute(
+                    "SELECT 1 FROM reconciliation_cases WHERE source_id=? AND state='open' LIMIT 1",
+                    (source_id,),
+                ).fetchone() is not None
+            )
         connection.execute(
             """INSERT INTO source_rollup_observations(source_id,record_key,request_count)
             SELECT ?,record_key,CAST(json_extract(payload_json,'$.request_count') AS TEXT)
@@ -763,13 +831,13 @@ def _execute(
     source: dict[str, Any],
     read: Callable[[_Stager], dict[str, Any]],
     metadata: dict[str, Any] | None,
-    roots: list[Path] | None,
     *,
     source_id: str | None,
     trust: str,
     trigger: str,
     startup_id: str | None,
     cancel: threading.Event | None,
+    native: NativeBatch | None = None,
 ) -> dict[str, Any]:
     run_id, identity, existing = _begin(store, source, trust, source_id, trigger, startup_id)
     if existing:
@@ -782,10 +850,7 @@ def _execute(
         stager.timings["source_projection_and_staging_ms"] = (
             perf_counter() - projection_started
         ) * 1000
-        metadata_started = perf_counter()
-        meta = metadata if metadata is not None else _metadata(store, run_id, roots)
-        stager.timings["metadata_ms"] = (perf_counter() - metadata_started) * 1000
-        return _publish(store, run_id, identity, trust, stager, meta, observed)
+        return _publish(store, run_id, identity, trust, stager, metadata or {}, observed, native)
     except AppError as exc:
         _failed(store, run_id, exc)
         raise
@@ -817,13 +882,13 @@ def sync_data(
     source = {"kind": "history", "name": "历史用量", **data.get("source", {})}
 
     def read(stager: _Stager) -> dict[str, Any]:
-        for key, table in (
-            ("details", "proxy_request_logs"),
-            ("rollups", "usage_daily_rollups"),
-            ("pricing", "model_pricing"),
+        for key, kind in (
+            ("details", "detail"),
+            ("rollups", "rollup"),
+            ("pricing", "pricing"),
         ):
             for row in data.get(key, []):
-                stager.add(table, row)
+                stager.add(kind, row)
         return source
 
     return _execute(
@@ -831,107 +896,8 @@ def sync_data(
         source,
         read,
         metadata,
-        None,
         source_id=source_id,
         trust=trust,
-        trigger=trigger,
-        startup_id=startup_id,
-        cancel=cancel,
-    )
-
-
-def sync_sql(
-    store: Store,
-    data: bytes,
-    name: str,
-    metadata_roots: list[Path] | None = None,
-    *,
-    source_id: str | None = None,
-    trigger: str = "import",
-    cancel: threading.Event | None = None,
-) -> dict[str, Any]:
-    from .sql_dump import scan_sql_dump
-
-    source = {"kind": "sql", "name": source_name(name)}
-    return _execute(
-        store,
-        source,
-        lambda stager: scan_sql_dump(data, name, stager.add),
-        None,
-        metadata_roots,
-        source_id=source_id,
-        trust="backup",
-        trigger=trigger,
-        startup_id=None,
-        cancel=cancel,
-    )
-
-
-def sync_sqlite(
-    store: Store,
-    path: Path,
-    metadata_roots: list[Path] | None = None,
-    *,
-    trigger: str = "manual",
-    startup_id: str | None = None,
-    cancel: threading.Event | None = None,
-    installation_id: str | None = None,
-) -> dict[str, Any]:
-    path = Path(path)
-    source = {"kind": "sqlite", "name": source_name(str(path)), "location": str(path.resolve())}
-    bound_source_id = source_bindings.source_id_for_sync(
-        store, path, installation_id=installation_id
-    )
-
-    def read(stager: _Stager) -> dict[str, Any]:
-        # Only the bounded, allowed projection is spooled; no normalization or
-        # application-database writes occur while the source transaction is open.
-        with tempfile.TemporaryFile(mode="w+b", dir=store.data_dir / "temporary") as projection:
-            def spool(table: str, row: dict[str, Any]) -> None:
-                encoded = table.encode("ascii") + b"\t" + canonical_bytes(row) + b"\n"
-                try:
-                    if projection.write(encoded) != len(encoded):
-                        raise OSError("incomplete temporary projection write")
-                except OSError as exc:
-                    raise AppError(
-                        "sync_failed", "本地同步暂存失败，请检查空间和目录权限。", 500
-                    ) from exc
-
-            scan_started = perf_counter()
-            observed = sources.scan_sqlite(
-                path, spool, cancel=_CombinedCancel(store._sync_cancel, cancel)
-            )
-            stager.timings["source_scan_ms"] = (perf_counter() - scan_started) * 1000
-
-            staging_started = perf_counter()
-            stager.processing_deadline = monotonic() + LOCAL_STAGING_TIMEOUT
-            try:
-                stager.check()
-                projection.seek(0)
-                for line in projection:
-                    stager.check()
-                    table_bytes, payload = line.split(b"\t", 1)
-                    table = table_bytes.decode("ascii")
-                    row = json.loads(payload)
-                    if table not in sources.TABLE_FIELDS or not isinstance(row, dict):
-                        raise ValueError("invalid temporary projection")
-                    stager.add(table, row)
-                # The tail must be committed and checked under the same budget.
-                stager.flush()
-                stager.check()
-            finally:
-                stager.processing_deadline = None
-            stager.timings["local_staging_ms"] = (perf_counter() - staging_started) * 1000
-            return observed
-
-    return _execute(
-        store,
-        source,
-        read,
-        None,
-        metadata_roots,
-        source_id=bound_source_id,
-        trust="live",
         trigger=trigger,
         startup_id=startup_id,
         cancel=cancel,
@@ -949,7 +915,7 @@ def refresh_metadata(store: Store, roots: list[Path]) -> dict[str, Any]:
         }
     metadata = session_meta.scan_metadata(wanted, roots, cancel=store._sync_cancel)
     with store._transaction():
-        changed = _save_metadata(store, metadata, "live")
+        changed = _save_metadata(store, metadata.get("sessions", {}).items())
         scopes: set[str] = set()
         for session_id in changed:
             scopes.update(

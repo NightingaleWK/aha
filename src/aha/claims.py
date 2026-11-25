@@ -39,6 +39,10 @@ def semantic_key(member: dict[str, Any]) -> str | None:
         return None
     if member.get("created_at") is None:
         return None
+    if member.get("data_source") == "codex_native":
+        # The native parser confirms an event identity. Identical second-level
+        # counts for different confirmed events are not evidence of overlap.
+        return None
     return content_hash(
         [
             member.get(key, "")
@@ -124,7 +128,8 @@ def validate_members(value: Any) -> list[dict[str, Any]]:
             if member["key"] in keys or not member["key"].startswith(kind + ":"):
                 raise ValueError
             keys.add(member["key"])
-            if member["app_type"] != "codex" or member["data_source"] != "codex_session":
+            sources = {"codex_session", "codex_native"} if kind == "detail" else {"codex_session"}
+            if member["app_type"] != "codex" or member["data_source"] not in sources:
                 raise ValueError
             parse_date(member["date"])
             for key in TOKEN_FIELDS:

@@ -1,27 +1,19 @@
+"""Synthetic historical usage projection and its stable fact identities."""
+
 from __future__ import annotations
 
-import hashlib
-import sqlite3
-import tempfile
-import threading
-import time
 import unittest
-from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 from aha.domain import (
     DETAIL_FIELDS,
-    PRICING_FIELDS,
     ROLLUP_FIELDS,
     AppError,
-    content_hash,
+    build_source_data,
     decimal_text,
     record_key,
     row_fingerprint,
 )
-from aha.sources import TABLE_FIELDS, load_sqlite, scan_sqlite
-from aha.sql_dump import load_sql_dump
 
 
 def detail(**changes: Any) -> dict[str, Any]:
@@ -81,388 +73,77 @@ def price(**changes: Any) -> dict[str, Any]:
     }
 
 
-def _literal(value: Any) -> str:
-    if value is None:
-        return "NULL"
-    if isinstance(value, str):
-        return "'" + value.replace("'", "''") + "'"
-    return str(value)
-
-
-def dump(
+def history_projection(
     details: list[dict[str, Any]] | None = None,
     rollups: list[dict[str, Any]] | None = None,
     pricing: list[dict[str, Any]] | None = None,
     *,
     version: int = 23,
-) -> bytes:
-    parts = [
-        f"-- CC Switch backup\n-- user_version: {version}\n"
-        "PRAGMA foreign_keys=OFF;\nBEGIN TRANSACTION;"
-    ]
-    values = {
-        "proxy_request_logs": details or [],
-        "usage_daily_rollups": rollups or [],
-        "model_pricing": pricing or [],
-    }
-    for table, fields in TABLE_FIELDS.items():
-        parts.append(f'CREATE TABLE "{table}" (' + ",".join(f'"{f}" TEXT' for f in fields) + ");")
-        if values[table]:
-            parts.append(
-                f'INSERT INTO "{table}" ('
-                + ",".join(f'"{f}"' for f in fields)
-                + ") VALUES\n"
-                + ",\n".join(
-                    "(" + ",".join(_literal(row[f]) for f in fields) + ")" for row in values[table]
-                )
-                + ";"
-            )
-    parts.append("COMMIT;")
-    return "\n".join(parts).encode("utf-8")
-
-
-def database(
-    path: Path, rows: list[dict[str, Any]] | None = None, *, version: int = 23
-) -> sqlite3.Connection:
-    connection = sqlite3.connect(path)
-    connection.execute(f"PRAGMA user_version={version}")
-    for table, fields in TABLE_FIELDS.items():
-        # No affinity lets these fixtures exercise actual integer/text distinctions.
-        connection.execute(f'CREATE TABLE "{table}" (' + ",".join(f'"{f}"' for f in fields) + ")")
-    for row in rows or []:
-        connection.execute(
-            "INSERT INTO proxy_request_logs VALUES (" + ",".join("?" for _ in DETAIL_FIELDS) + ")",
-            [row[key] for key in DETAIL_FIELDS],
-        )
-    connection.execute(
-        "INSERT INTO model_pricing VALUES (" + ",".join("?" for _ in PRICING_FIELDS) + ")",
-        [price()[key] for key in PRICING_FIELDS],
+) -> dict[str, Any]:
+    return build_source_data(
+        [detail()] if details is None else details,
+        [] if rollups is None else rollups,
+        [price()] if pricing is None else pricing,
+        {"kind": "history", "name": "测试历史投影", "source_schema_version": version},
     )
-    connection.commit()
-    return connection
 
 
-class SqlDumpTests(unittest.TestCase):
-    def test_literals_bom_multiline_and_private_configuration_projection(self) -> None:
-        original = detail(request_id="r,';\n中文", model="m,';\n模型")
-        raw = b"\xef\xbb\xbf" + dump([original], [rollup()], [price()])
-        raw += b"\nINSERT INTO providers (id, secret) VALUES (1, 'PRIVATE_KEY');"
-        with patch("sqlite3.connect", side_effect=AssertionError("SQL must never execute")):
-            result = load_sql_dump(raw, r"C:\private\input.sql")
-        self.assertEqual(result["details"][0]["request_id"], original["request_id"])
-        self.assertEqual(result["details"][0]["model"], original["model"])
-        self.assertEqual(result["source"]["name"], "input.sql")
-        self.assertEqual(result["source"]["fingerprint"], hashlib.sha256(raw).hexdigest())
-        self.assertEqual(set(result["details"][0]), set(DETAIL_FIELDS))
-        self.assertNotIn("PRIVATE_KEY", str(result))
-        self.assertNotIn("private", str(result))
+class HistoricalProjectionTests(unittest.TestCase):
+    def test_cached_fields_and_money_remain_exact_in_allowed_projection(self) -> None:
+        original = detail(
+            request_id="记录,';\n旧版", model="m", total_cost_usd="1.234567891234567891e-10",
+            cwd="/unrelated/private", message="PRIVATE_DATA",
+        )
+        normalized = history_projection([original], [rollup()], [price()])
+        captured = normalized["details"][0]
+        self.assertEqual(captured["request_id"], original["request_id"])
+        self.assertEqual(captured["total_cost_usd"], "0.0000000001234567891234567891")
+        self.assertEqual(set(captured), set(DETAIL_FIELDS))
+        self.assertNotIn("PRIVATE_DATA", str(normalized))
+        with self.assertRaises(AppError):
+            decimal_text(0.1)
 
-    def test_same_second_same_tokens_distinct_keys_are_preserved(self) -> None:
-        result = load_sql_dump(dump([detail(), detail(request_id="r2")]), "x.sql")
-        self.assertEqual(len(result["details"]), 2)
-        self.assertNotEqual(record_key(result["details"][0]), record_key(result["details"][1]))
-
-    def test_duplicate_detail_rollup_and_price_primary_keys_are_rejected(self) -> None:
-        for rows in (
+    def test_duplicate_usage_and_price_identities_are_rejected(self) -> None:
+        for projections in (
             ([detail(), detail()], [], []),
             ([], [rollup(), rollup()], []),
             ([detail()], [], [price(), price()]),
         ):
-            with self.subTest(rows=len(rows[0])), self.assertRaises(AppError) as error:
-                load_sql_dump(dump(*rows), "x.sql")
+            with self.subTest(projections=projections), self.assertRaises(AppError) as error:
+                history_projection(*projections)
             self.assertEqual(error.exception.code, "duplicate_key")
 
-    def test_side_effects_and_expressions_are_rejected_without_execution(self) -> None:
-        raw = dump([detail(model="EXPRESSION")])
-        expressions = (
-            b"load_extension('private')",
-            b"(SELECT 'm')",
-            b"random()",
-            b"'m'||'x'",
-            b"X'1234'",
+    def test_projection_preserves_distinct_same_second_requests(self) -> None:
+        records = history_projection([detail(), detail(request_id="r2")])["details"]
+        self.assertEqual(len(records), 2)
+        self.assertNotEqual(record_key(records[0]), record_key(records[1]))
+
+    def test_irrelevant_app_and_proxy_rows_stay_outside_history(self) -> None:
+        data = history_projection(
+            [
+                detail(),
+                detail(request_id="proxy", data_source="proxy", total_cost_usd="not-money"),
+                detail(request_id="claude", app_type="claude"),
+            ],
+            [rollup(), rollup(provider_id="other")],
+            [price(), price(model_id="unused")],
         )
-        for expression in expressions:
-            with self.subTest(expression=expression), self.assertRaises(AppError) as error:
-                load_sql_dump(raw.replace(b"'EXPRESSION'", expression), "x.sql")
-            self.assertEqual(error.exception.code, "invalid_sql")
-            self.assertNotIn("private", error.exception.message)
-        for command in (
-            b"ATTACH DATABASE 'private.db' AS other;",
-            b"SELECT load_extension('private');",
-            b"UPDATE proxy_request_logs SET input_tokens=0;",
-            b"DELETE FROM proxy_request_logs;",
-            b"CREATE TRIGGER bad AFTER INSERT ON proxy_request_logs BEGIN SELECT 1; END;",
+        self.assertEqual(len(data["details"]), 1)
+        self.assertEqual(len(data["rollups"]), 1)
+        self.assertEqual(len(data["pricing"]), 1)
+
+    def test_invalid_historical_token_cost_and_timestamp_values_fail_closed(self) -> None:
+        for row in (
+            detail(total_cost_usd="NaN"), detail(total_cost_usd=-1),
+            detail(input_tokens=-1), detail(output_tokens="1.5"),
+            detail(input_token_semantics=3), detail(created_at=253402300800),
+            detail(input_tokens=2**64),
         ):
-            with self.subTest(command=command), self.assertRaises(AppError):
-                load_sql_dump(dump() + command, "x.sql")
-
-    def test_valid_escaped_comment_markers_and_ignored_configuration_expressions(self) -> None:
-        raw = dump([detail(model="m -- not comment /* ; */")])
-        raw += (
-            b"\nDELETE FROM sqlite_sequence;"
-            b"\nINSERT INTO settings(k,v) VALUES ('key', dangerous());"
-        )
-        self.assertEqual(len(load_sql_dump(raw, "x.sql")["details"]), 1)
-
-    def test_version_declarations_are_real_comments_or_literal_pragma(self) -> None:
-        raw = dump([detail()], version=27)
-        for modified in (
-            raw.replace(b"user_version: 27", b"user_version: 28"),
-            raw.replace(b"-- user_version: 27", b""),
-            raw + b"\nPRAGMA user_version=22;",
-            raw + b"\nPRAGMA user_version=26;",
-            raw.replace(
-                b"-- user_version: 27",
-                b"INSERT INTO settings(k,v) VALUES ('x','-- user_version: 27');",
-            ),
-        ):
-            with self.subTest(version=modified[:30]), self.assertRaises(AppError) as error:
-                load_sql_dump(modified, "x.sql")
-            self.assertEqual(error.exception.code, "unsupported_schema")
-        result = load_sql_dump(
-            raw.replace(b"-- user_version: 27", b"PRAGMA user_version=27;"), "x.sql"
-        )
-        self.assertEqual(result["schema_version"], 23)
-        self.assertEqual(result["source"]["source_schema_version"], 27)
-
-    def test_supported_versions_share_projection_and_record_actual_source_version(self) -> None:
-        original = [detail(input_token_semantics=value, request_id=f"r{value}")
-                    for value in range(3)]
-        projected = []
-        for version in (23, 24, 25, 26, 27):
-            for declaration in ("comment", "pragma"):
-                with self.subTest(version=version, declaration=declaration):
-                    raw = dump(original, [rollup()], [price()], version=version)
-                    if declaration == "pragma":
-                        raw = raw.replace(
-                            f"-- user_version: {version}".encode(),
-                            f"PRAGMA user_version={version};".encode(),
-                        )
-                    with patch("sqlite3.connect", side_effect=AssertionError("must not execute")):
-                        result = load_sql_dump(raw, "versions.sql")
-                    self.assertEqual(result["schema_version"], 23)
-                    self.assertEqual(result["source"]["source_schema_version"], version)
-                    projected.append({key: result[key] for key in
-                                      ("schema_version", "details", "rollups", "pricing")})
-        self.assertTrue(all(value == projected[0] for value in projected))
-
-    def test_unknown_version_reports_actual_version_and_supported_range(self) -> None:
-        with self.assertRaises(AppError) as error:
-            load_sql_dump(dump([detail()], version=28), "versions.sql")
-        self.assertEqual(error.exception.code, "unsupported_schema")
-        self.assertIn("结构版本 28 暂不支持", error.exception.message)
-        self.assertIn("23、24、25、26、27", error.exception.message)
-
-    def test_missing_columns_malformed_values_and_truncation_fail(self) -> None:
-        raw = dump([detail()], version=27)
-        for invalid, code in (
-            (raw.replace(b'"input_token_semantics"', b'"wrong_semantics"'), "incompatible_schema"),
-            (raw.replace(b"'r1'", b"'unterminated"), "invalid_sql"),
-            (raw.replace(b"VALUES\n(", b"VALUES\n(),("), "invalid_sql"),
-            (raw.replace(b'"request_id",', b'"request_id","request_id",'), "invalid_sql"),
-        ):
-            with self.subTest(code=code), self.assertRaises(AppError) as error:
-                load_sql_dump(invalid, "x.sql")
-            self.assertEqual(error.exception.code, code)
-
-    def test_invalid_financial_token_and_timestamp_values_fail_closed(self) -> None:
-        invalid_rows = [
-            detail(total_cost_usd=value)
-            for value in ("NaN", "Infinity", "-0.01", "1e10000", "1.2.3", None)
-        ] + [
-            detail(**{key: value})
-            for key, value in (
-                ("input_tokens", -1),
-                ("output_tokens", "1.5"),
-                ("cache_read_tokens", None),
-                ("input_token_semantics", 3),
-                ("created_at", -1),
-                ("created_at", 253402300800),
-                ("input_tokens", 2**64),
-            )
-        ]
-        for row in invalid_rows:
             with self.subTest(row=row), self.assertRaises(AppError):
-                load_sql_dump(dump([row]), "x.sql")
+                history_projection([row])
         for row in (rollup(date="2026-02-30"), rollup(request_count=-1)):
             with self.subTest(row=row), self.assertRaises(AppError):
-                load_sql_dump(dump([], [row]), "x.sql")
-
-    def test_irrelevant_app_and_proxy_rows_are_not_counted(self) -> None:
-        result = load_sql_dump(
-            dump(
-                [
-                    detail(),
-                    detail(request_id="proxy", data_source="proxy", total_cost_usd="not-money"),
-                    detail(request_id="claude", app_type="claude"),
-                ],
-                [rollup(), rollup(provider_id="other")],
-                [price(), price(model_id="unused")],
-            ),
-            "x.sql",
-        )
-        self.assertEqual(len(result["details"]), 1)
-        self.assertEqual(len(result["rollups"]), 1)
-        self.assertEqual(len(result["pricing"]), 1)
-
-    def test_decimal_exponent_is_preserved_without_binary_float(self) -> None:
-        result = load_sql_dump(dump([detail(total_cost_usd="1.234567891234567891e-10")]), "x.sql")
-        self.assertEqual(result["details"][0]["total_cost_usd"], "0.0000000001234567891234567891")
-        with self.assertRaises(AppError):
-            decimal_text(0.1)
-
-    def test_size_and_encoding_limits(self) -> None:
-        with patch("aha.sql_dump.MAX_SQL_BYTES", 4), self.assertRaises(AppError) as error:
-            load_sql_dump(b"12345", "x.sql")
-        self.assertEqual(error.exception.status, 413)
-        with self.assertRaises(AppError) as error:
-            load_sql_dump(b"\xff\xfe", "x.sql")
-        self.assertEqual(error.exception.code, "invalid_sql_encoding")
-
-    def test_empty_tables_are_a_valid_empty_source(self) -> None:
-        result = load_sql_dump(dump(), "x.sql")
-        self.assertEqual(result["details"], [])
-        self.assertEqual(result["rollups"], [])
-
-
-class SqliteSourceTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.path = Path(self.temporary.name, "source.sqlite")
-
-    def test_wal_snapshot_includes_committed_wal_and_does_not_modify_source(self) -> None:
-        connection = database(self.path, [detail()], version=27)
-        self.addCleanup(connection.close)
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA wal_autocheckpoint=0")
-        connection.execute(
-            "INSERT INTO proxy_request_logs VALUES (" + ",".join("?" for _ in DETAIL_FIELDS) + ")",
-            [detail(request_id="wal-only")[key] for key in DETAIL_FIELDS],
-        )
-        connection.execute("CREATE TABLE providers(secret TEXT)")
-        connection.execute("INSERT INTO providers VALUES ('DO_NOT_RETAIN')")
-        connection.commit()
-        wal = Path(str(self.path) + "-wal")
-        before = (
-            hashlib.sha256(self.path.read_bytes()).hexdigest(),
-            hashlib.sha256(wal.read_bytes()).hexdigest(),
-        )
-        result = load_sqlite(self.path)
-        after = (
-            hashlib.sha256(self.path.read_bytes()).hexdigest(),
-            hashlib.sha256(wal.read_bytes()).hexdigest(),
-        )
-        self.assertEqual(before, after)
-        self.assertEqual(len(result["details"]), 2)
-        self.assertNotIn("DO_NOT_RETAIN", str(result))
-        self.assertEqual(result["source"]["fingerprint_kind"], "allowed_projection_sha256")
-        self.assertEqual(connection.execute("PRAGMA user_version").fetchone()[0], 27)
-        self.assertEqual(result["source"]["source_schema_version"], 27)
-        self.assertEqual(
-            result["source"]["fingerprint"],
-            content_hash(
-                {key: result[key] for key in ("schema_version", "details", "rollups", "pricing")}
-            ),
-        )
-
-    def test_sqlite_and_sql_have_the_same_allowed_content(self) -> None:
-        connection = database(self.path, [detail()], version=27)
-        connection.close()
-        left, right = (
-            load_sqlite(self.path),
-            load_sql_dump(dump([detail()], [], [price()], version=27), "x.sql"),
-        )
-        for key in ("details", "rollups", "pricing"):
-            self.assertEqual(left[key], right[key])
-
-    def test_version_upgrades_keep_projection_identity_and_both_fingerprints(self) -> None:
-        connection = database(self.path, [detail()])
-        self.addCleanup(connection.close)
-        connection.execute(
-            "INSERT INTO usage_daily_rollups VALUES (" + ",".join("?" for _ in ROLLUP_FIELDS) + ")",
-            [rollup()[key] for key in ROLLUP_FIELDS],
-        )
-        connection.commit()
-        original = load_sqlite(self.path)
-        streamed = scan_sqlite(self.path, lambda table, row: None)
-        for version in (24, 25, 26, 27):
-            with self.subTest(version=version):
-                connection.execute(f"PRAGMA user_version={version}")
-                connection.commit()
-                before = hashlib.sha256(self.path.read_bytes()).hexdigest()
-                upgraded = load_sqlite(self.path)
-                streamed_after = scan_sqlite(self.path, lambda table, row: None)
-                self.assertEqual(hashlib.sha256(self.path.read_bytes()).hexdigest(), before)
-                self.assertEqual(original["source"]["source_schema_version"], 23)
-                self.assertEqual(upgraded["source"]["source_schema_version"], version)
-                self.assertEqual(upgraded["schema_version"], 23)
-                for key in ("schema_version", "details", "rollups", "pricing"):
-                    self.assertEqual(upgraded[key], original[key])
-                self.assertEqual(
-                    upgraded["source"]["fingerprint"], original["source"]["fingerprint"]
-                )
-                self.assertEqual(streamed_after["fingerprint"], streamed["fingerprint"])
-                self.assertEqual(
-                    record_key(upgraded["details"][0]), record_key(original["details"][0])
-                )
-                self.assertEqual(
-                    row_fingerprint(upgraded["details"][0]), row_fingerprint(original["details"][0])
-                )
-
-    def test_unknown_versions_fail_before_projecting_and_keep_field_checks(self) -> None:
-        connection = database(self.path, [detail()])
-        self.addCleanup(connection.close)
-        for version in (0, 22, 28):
-            with self.subTest(version=version):
-                connection.execute(f"PRAGMA user_version={version}")
-                connection.commit()
-                projected = []
-                with self.assertRaises(AppError) as error:
-                    scan_sqlite(self.path, lambda table, row: projected.append((table, row)))
-                self.assertEqual(error.exception.code, "unsupported_schema")
-                self.assertIn(f"结构版本 {version} 暂不支持", error.exception.message)
-                self.assertIn("23、24、25、26、27", error.exception.message)
-                self.assertEqual(projected, [])
-        connection.execute("PRAGMA user_version=27")
-        connection.execute("ALTER TABLE proxy_request_logs RENAME COLUMN input_tokens TO wrong")
-        connection.commit()
-        with self.assertRaises(AppError) as error:
-            load_sqlite(self.path)
-        self.assertEqual(error.exception.code, "incompatible_schema")
-
-    def test_invalid_database_missing_table_version_and_float_money(self) -> None:
-        for action in ("version", "table", "float"):
-            with self.subTest(action=action):
-                path = Path(self.temporary.name, action + ".sqlite")
-                connection = database(path, [detail()], version=27)
-                if action == "version":
-                    connection.execute("PRAGMA user_version=28")
-                elif action == "table":
-                    connection.execute("DROP TABLE usage_daily_rollups")
-                else:
-                    connection.execute("UPDATE proxy_request_logs SET total_cost_usd=?", (0.1,))
-                connection.commit()
-                connection.close()
-                with self.assertRaises(AppError):
-                    load_sqlite(path)
-        self.path.write_bytes(b"not a database PRIVATE")
-        with self.assertRaises(AppError) as error:
-            load_sqlite(self.path)
-        self.assertNotIn("PRIVATE", error.exception.message)
-        self.assertNotIn(self.temporary.name, error.exception.message)
-
-    def test_missing_file_does_not_create_a_database(self) -> None:
-        with self.assertRaises(AppError):
-            load_sqlite(self.path)
-        self.assertFalse(self.path.exists())
-
-    def test_snapshot_timeout_aborts_without_fallback(self) -> None:
-        connection = database(self.path, [detail()])
-        connection.close()
-        with patch("aha.sources.SNAPSHOT_TIMEOUT", -1), self.assertRaises(AppError) as error:
-            load_sqlite(self.path)
-        self.assertEqual(error.exception.code, "source_busy")
+                history_projection([], [row])
 
 
 class SourceIdentityTests(unittest.TestCase):
@@ -476,119 +157,3 @@ class SourceIdentityTests(unittest.TestCase):
         other = rollup(request_model="changed")
         self.assertNotEqual(record_key(rollup(), "rollup"), record_key(other, "rollup"))
         self.assertEqual(set(rollup()), set(ROLLUP_FIELDS))
-
-
-class ConsistentProjectionTests(unittest.TestCase):
-    def test_delete_mode_writer_wait_is_bounded_by_reader_lifetime(self) -> None:
-        from aha.sources import scan_sqlite
-
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "source.db"
-            original = database(path, [detail()])
-            original.close()
-            attempted, committed = threading.Event(), threading.Event()
-            failures: list[Exception] = []
-
-            def writer() -> None:
-                try:
-                    connection = sqlite3.connect(path, timeout=2)
-                    row = detail(request_id="r2")
-                    connection.execute(
-                        "INSERT INTO proxy_request_logs VALUES ("
-                        + ",".join("?" for _ in DETAIL_FIELDS)
-                        + ")",
-                        [row[field] for field in DETAIL_FIELDS],
-                    )
-                    attempted.set()
-                    connection.commit()
-                    committed.set()
-                    connection.close()
-                except Exception as exc:
-                    failures.append(exc)
-
-            thread = threading.Thread(target=writer)
-            seen: list[str] = []
-
-            def sink(table: str, row: dict[str, Any]) -> None:
-                if table == "proxy_request_logs":
-                    seen.append(row["request_id"])
-                    thread.start()
-                    self.assertTrue(attempted.wait(1))
-                    self.assertFalse(committed.wait(0.03))
-
-            started = time.monotonic()
-            scan_sqlite(path, sink)
-            thread.join(2)
-            self.assertFalse(thread.is_alive())
-            self.assertEqual(failures, [])
-            self.assertTrue(committed.is_set())
-            self.assertEqual(seen, ["r1"])
-            self.assertLess(time.monotonic() - started, 1)
-
-    def test_wal_cleanup_between_table_reads_cannot_mix_snapshots(self) -> None:
-        from aha.sources import scan_sqlite
-
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "source.db"
-            original = database(path, [detail()])
-            original.execute("PRAGMA journal_mode=WAL")
-            seen: dict[str, list[dict[str, Any]]] = {table: [] for table in TABLE_FIELDS}
-
-            def sink(table: str, row: dict[str, Any]) -> None:
-                seen[table].append(row)
-                if table == "proxy_request_logs":
-                    original.execute("BEGIN IMMEDIATE")
-                    original.execute("DELETE FROM proxy_request_logs")
-                    aggregate = rollup()
-                    original.execute(
-                        "INSERT INTO usage_daily_rollups VALUES ("
-                        + ",".join("?" for _ in ROLLUP_FIELDS)
-                        + ")",
-                        [aggregate[field] for field in ROLLUP_FIELDS],
-                    )
-                    original.commit()
-
-            try:
-                scan_sqlite(path, sink)
-                self.assertEqual(len(seen["proxy_request_logs"]), 1)
-                self.assertEqual(seen["usage_daily_rollups"], [])
-                count = original.execute("SELECT COUNT(*) FROM usage_daily_rollups").fetchone()[0]
-                self.assertEqual(count, 1)
-            finally:
-                original.close()
-
-    def test_projection_budget_ignores_unrelated_database_pages(self) -> None:
-        from aha.sources import scan_sqlite
-
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "source.db"
-            original = database(path, [detail()])
-            original.execute("CREATE TABLE unrelated(private BLOB)")
-            original.execute("INSERT INTO unrelated VALUES(zeroblob(2000000))")
-            original.commit()
-            original.close()
-            tables: set[str] = set()
-            with patch("aha.sources.MAX_DATABASE_BYTES", 4096):
-                scan_sqlite(path, lambda table, row: tables.add(table))
-            self.assertNotIn("unrelated", tables)
-            self.assertGreater(path.stat().st_size, 2000000)
-
-    def test_slow_consumer_and_cancel_cannot_publish_truncated_source(self) -> None:
-        from aha.sources import scan_sqlite
-
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "source.db"
-            original = database(path, [detail()])
-            original.close()
-            with self.assertRaises(AppError) as error:
-                scan_sqlite(path, lambda table, row: time.sleep(0.02), timeout=0.005)
-            self.assertEqual(error.exception.code, "source_busy")
-            cancelled = threading.Event()
-            cancelled.set()
-            with self.assertRaises(AppError) as error:
-                scan_sqlite(path, lambda table, row: None, cancel=cancelled)
-            self.assertEqual(error.exception.code, "sync_cancelled")
-
-
-if __name__ == "__main__":
-    unittest.main()

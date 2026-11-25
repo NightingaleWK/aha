@@ -14,12 +14,15 @@ from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from .decimal_sql import register
 from .domain import AppError, canonical_bytes
-from .migrations import initialize, sqlite_wal_safe
+from .migrations import SCHEMA_VERSION, SUPPORTED_BACKUP_SCHEMAS, initialize, sqlite_wal_safe
+
+if TYPE_CHECKING:
+    from .codex_sessions import CodexSource
 
 
 class Store:
@@ -54,14 +57,15 @@ class Store:
             self._db.execute("PRAGMA foreign_keys=ON")
             self._db.execute("PRAGMA trusted_schema=OFF")
             register(self._db)
-            if self._db.execute("PRAGMA user_version").fetchone()[0] == 3:
+            version = int(self._db.execute("PRAGMA user_version").fetchone()[0])
+            if version != SCHEMA_VERSION and version in SUPPORTED_BACKUP_SCHEMAS:
                 # Before any migration transaction or journal-mode changes, preserve
                 # a validated consistent source (including WAL and frozen packages).
                 from .backup import create_backup
 
+                rollback_name = f"before-schema{version + 1}-{uuid4().hex}.aha-backup"
                 self.migration_backup = create_backup(
-                    self.data_dir,
-                    self.data_dir / "backups" / f"before-schema4-{uuid4().hex}.aha-backup",
+                    self.data_dir, self.data_dir / "backups" / rollback_name,
                 )
             # Reject old trial databases before changing their journal mode.
             with self._transaction():
@@ -314,34 +318,27 @@ class Store:
 
         return sync_data(self, data, metadata, **kwargs)
 
-    def sync_sql(
-        self, data: bytes, name: str, metadata_roots: list[Path] | None = None, **kwargs: Any
+    def sync_codex(
+        self,
+        source: CodexSource,
+        source_id: str,
+        *,
+        trigger: str = "manual",
+        startup_id: str | None = None,
+        cancel: threading.Event | None = None,
+        since: str | None = None,
     ) -> dict[str, Any]:
-        from .sync import sync_sql
+        from .native_sync import sync_codex
 
-        return sync_sql(self, data, name, metadata_roots, **kwargs)
-
-    def sync_sqlite(
-        self, path: Path, metadata_roots: list[Path] | None = None, **kwargs: Any
-    ) -> dict[str, Any]:
-        from .sync import sync_sqlite
-
-        return sync_sqlite(self, path, metadata_roots, **kwargs)
+        return sync_codex(
+            self, source, source_id, trigger=trigger, startup_id=startup_id, cancel=cancel,
+            since=since,
+        )
 
     def refresh_metadata(self, roots: list[Path]) -> dict[str, Any]:
         from .sync import refresh_metadata
 
         return refresh_metadata(self, roots)
-
-    def source_binding_status(self, path: Path, **kwargs: Any) -> dict[str, Any]:
-        from .source_bindings import binding_status
-
-        return binding_status(self, path, **kwargs)
-
-    def bind_source(self, path: Path, reason: str, **kwargs: Any) -> dict[str, Any]:
-        from .source_bindings import bind_source
-
-        return bind_source(self, path, reason, **kwargs)
 
     def config(self) -> dict[str, Any]:
         from .projects import configuration
@@ -466,6 +463,33 @@ class Store:
         from .ledger import list_reconciliations
 
         return list_reconciliations(self)
+
+    def reconciliation_summary(self) -> dict[str, int]:
+        from .reconciliation import reconciliation_summary
+
+        return reconciliation_summary(self)
+
+    def reconciliation_page(
+        self, filters: dict[str, Any], *, cursor: str | None = None, size: int = 50
+    ) -> dict[str, Any]:
+        from .reconciliation import reconciliation_page
+
+        return reconciliation_page(self, filters, cursor=cursor, size=size)
+
+    def reconciliation_detail(self, case_id: str) -> dict[str, Any]:
+        from .ledger import reconciliation_detail
+
+        return reconciliation_detail(self, case_id)
+
+    def preview_reconciliation_batch(self, request: dict[str, Any]) -> dict[str, Any]:
+        from .reconciliation import preview_reconciliation_batch
+
+        return preview_reconciliation_batch(self, request)
+
+    def apply_reconciliation_batch(self, request: dict[str, Any]) -> dict[str, Any]:
+        from .reconciliation import apply_reconciliation_batch
+
+        return apply_reconciliation_batch(self, request)
 
     def resolve_reconciliation(
         self,

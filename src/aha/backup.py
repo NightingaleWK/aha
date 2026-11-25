@@ -19,13 +19,12 @@ import zipfile
 from collections.abc import Iterator
 from contextlib import closing, contextmanager, suppress
 from datetime import UTC, datetime
-from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from time import monotonic
 from typing import Any, BinaryIO
 from uuid import uuid4
 
-from . import __version__, batches, migrations
+from . import __version__, migrations
 from .domain import BEIJING, AppError, canonical_bytes
 
 FORMAT = "aha-full-backup"
@@ -100,61 +99,12 @@ def _reader(path: Path, budget: _Budget) -> Iterator[sqlite3.Connection]:
         connection.close()
 
 
-@lru_cache(maxsize=2)
-def _schema(version: int = migrations.SCHEMA_VERSION) -> tuple[
-    dict[str, list[tuple[object, ...]]], dict[str, str]
-]:
-    """Use the production DDL, never a second hand-maintained schema definition."""
-    connection = sqlite3.connect(":memory:")
-    try:
-        connection.executescript(migrations.SCHEMA_V3 if version == 3 else migrations.SCHEMA)
-        migrations.initialize_monthly(connection)
-        migrations.initialize_source_observations(connection)
-        migrations.initialize_query_indexes(connection)
-        batches.initialize_schema(connection)
-        tables = {
-            str(row[0]): list(connection.execute(f'PRAGMA table_info("{row[0]}")'))
-            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        }
-        definitions = {
-            str(kind) + ":" + str(name): " ".join(str(sql).split())
-            for kind, name, sql in connection.execute(
-                "SELECT type,name,sql FROM sqlite_master WHERE type IN ('table','index','trigger')"
-            )
-        }
-        return tables, definitions
-    finally:
-        connection.close()
-
-
 def _validate_database(connection: sqlite3.Connection, budget: _Budget) -> dict[str, int]:
     budget.check()
     version = int(connection.execute("PRAGMA user_version").fetchone()[0])
     if version not in migrations.SUPPORTED_BACKUP_SCHEMAS:
         raise AppError("unsupported_backup_store", "备份中的 aha 资料版本不受支持。", 409)
-    expected, definitions = _schema(version)
-    tables = {
-        str(row[0])
-        for row in connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-        )
-    }
-    if (
-        tables != set(expected)
-        or connection.execute("SELECT 1 FROM sqlite_master WHERE type='view' LIMIT 1").fetchone()
-    ):
-        raise AppError("invalid_backup", "备份中的 aha 数据库结构不完整或不兼容。", 409)
-    for table, columns in expected.items():
-        if list(connection.execute(f'PRAGMA table_info("{table}")')) != columns:
-            raise AppError("invalid_backup", "备份中的 aha 数据库字段不兼容。", 409)
-    actual_definitions = {
-        str(kind) + ":" + str(name): " ".join(str(sql).split())
-        for kind, name, sql in connection.execute(
-            "SELECT type,name,sql FROM sqlite_master WHERE type IN ('table','index','trigger')"
-        )
-    }
-    if actual_definitions != definitions:
-        raise AppError("invalid_backup", "备份中的资料索引或历史保护结构不兼容。", 409)
+    migrations.validate_structure(connection, version)
     with closing(connection.execute("PRAGMA quick_check")) as cursor:
         if cursor.fetchone() != ("ok",) or cursor.fetchone() is not None:
             raise AppError("invalid_backup", "备份中的数据库完整性校验失败。", 409)
@@ -588,18 +538,17 @@ def _extract(
 
 
 def _interrupt_restored_runs(path: Path, budget: _Budget) -> int:
-    """Only volatile staging changes; published facts and immutable material stay intact."""
+    """Discard volatile staging and local file positions in the restored copy."""
     with _reader(path, budget) as connection:
-        pending = sum(
-            int(connection.execute(query).fetchone()[0])
-            for query in (
-                "SELECT COUNT(*) FROM sync_runs WHERE state='running'",
-                "SELECT COUNT(*) FROM sync_stage",
-                "SELECT COUNT(*) FROM sync_pricing",
-            )
-        )
-    if not pending:
-        return 0
+        current_schema = connection.execute("PRAGMA user_version").fetchone()[0]
+        has_cursors = current_schema == migrations.SCHEMA_VERSION and connection.execute(
+            "SELECT 1 FROM codex_file_progress LIMIT 1"
+        ).fetchone() is not None
+        if not has_cursors and not connection.execute(
+            "SELECT 1 FROM sync_runs WHERE state='running' UNION ALL "
+            "SELECT 1 FROM sync_stage UNION ALL SELECT 1 FROM sync_pricing LIMIT 1"
+        ).fetchone():
+            return 0
     with closing(sqlite3.connect(path, isolation_level=None)) as connection:
         connection.execute("PRAGMA trusted_schema=OFF")
         connection.set_progress_handler(budget.progress, 5000)
@@ -613,6 +562,8 @@ def _interrupt_restored_runs(path: Path, budget: _Budget) -> int:
             ).rowcount
             connection.execute("DELETE FROM sync_stage")
             connection.execute("DELETE FROM sync_pricing")
+            if has_cursors:
+                connection.execute("DELETE FROM codex_file_progress")
             budget.check()
             connection.execute("COMMIT")
             return interrupted
@@ -688,8 +639,9 @@ def restore_backup(
         if any(records[name]["sha256"] != expected for name, expected in references.items()):
             raise AppError("invalid_backup", "完整备份的原材料校验与历史登记不一致。", 409)
         interrupted = _interrupt_restored_runs(staging / "aha.sqlite3", budget)
-        if manifest["store_schema_version"] == 3:
-            # The immutable schema3 archive is the rollback copy. Upgrade only
+        source_version = manifest["store_schema_version"]
+        if source_version != migrations.SCHEMA_VERSION:
+            # The immutable archive is the rollback copy. Upgrade only
             # the isolated restore staging, never the archive or running ledger.
             with closing(sqlite3.connect(staging / "aha.sqlite3", isolation_level=None)) as target:
                 target.execute("PRAGMA foreign_keys=ON")
@@ -697,8 +649,8 @@ def restore_backup(
                 target.set_progress_handler(budget.progress, 5000)
                 try:
                     target.execute("BEGIN IMMEDIATE")
-                    migrations.upgrade_schema3(
-                        target, datetime.now(UTC).isoformat(timespec="microseconds")
+                    migrations.upgrade(
+                        target, source_version, datetime.now(UTC).isoformat(timespec="microseconds")
                     )
                     budget.check()
                     target.execute("COMMIT")

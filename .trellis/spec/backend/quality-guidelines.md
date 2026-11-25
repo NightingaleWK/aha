@@ -22,7 +22,7 @@ Windows 的临时目录可能含 `RUNNER~1` 等8.3短名，而恢复接口及后
 
 | 范围 | 测试与断言 |
 | --- | --- |
-| 来源/SQL/金额/元数据 | test_sources、test_session_meta；WAL/DELETE、busy、读取边界、取消、SQL不可执行、精确历史金额 |
+| 原生来源/金额/元数据 | test_codex_sessions、test_native_sync、test_session_meta，覆盖增量读取、取消、档案、去重、精确金额与历史 |
 | 台账/修订/覆盖/核对 | test_storage、test_storage_helpers；重复导入、改价、备份冲突、重建别名、needs_review、源清理后本地保留 |
 | 本地查询/归属 | test_analysis、test_time_ranges、test_projects；秒/分钟/日/月分段、一次取钟、部分汇总A政策、游标与revision绑定、聚合精确、未归属、目录最长匹配、人工覆盖 |
 | 占用/报销 | test_claims、test_batches、test_claim_concurrency；跨连接/进程竞争、冻结成员、换版回滚、别名修订、防重复报销、原包SHA |

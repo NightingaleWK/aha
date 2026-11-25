@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "后端实现边界与适用规范"}
+{"file": ".trellis/spec/backend/usage-evidence-contract.md", "reason": "用量投影、时间、核对、占用与冻结合同"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite 运行时门禁、同步事务及历史保护"}
+{"file": ".trellis/spec/backend/project-association-contract.md", "reason": "目录与记录归属、历史迁移和冻结"}
+{"file": ".trellis/spec/backend/time-range-contract.md", "reason": "北京时间选择、覆盖说明与原包冻结"}
+{"file": ".trellis/tasks/archive/2026-11/11-24-codex-dual-source-usage/research/baseline.md", "reason": "真实双端样本、现有入口与备份证据"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "可编辑来源状态、弹窗和键盘焦点"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "同步作业、取消、迟到请求和状态一致性"}
+{"file": ".trellis/spec/backend/recovery-and-device-contract.md", "reason": "备份还原、安装身份、独立资料和恢复后来源"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端单测、Ruff、类型和原生质量检查"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "浏览器、交互、导出及页面检查"}
+{"file": ".trellis/spec/backend/delivery-and-cleanup.md", "reason": "Windows 成品验收、交付和任务环境清理"}
+{"file": ".trellis/spec/backend/release-contract.md", "reason": "中文 What’s New、版本与成品证据"}

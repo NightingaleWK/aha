@@ -1,0 +1,31 @@
+{
+  "source_sha": "6ee52e92b98f889346d4a6454072fb248293c656",
+  "fingerprints": {
+    "full": "74eb09171fdc654da9dc8ddcec7c1bba959ab6891c5de00623164440b32d3798",
+    "tray": "e0d96e4d09d9de7393c3c2ef411517102fc9dd90db106ce3af9cfeac3d312107",
+    "materials": "5d7a00f2d8370a591774c8e51c5b085c0472831a38a607a614c238e3963dd961",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "runtime_provenance": {
+    "method": "matched verified desktop build and source-pinned native release preflight",
+    "python": "3.15.2",
+    "sqlite": "3.53.4",
+    "machine": "AMD64",
+    "pyinstaller": "6.22.3"
+  },
+  "operator_confirmed": [
+    "double click opened aha",
+    "context menu opened aha",
+    "context menu exited aha"
+  ],
+  "observation": {
+    "binary_sha256": "56403f1884b31ed47c428198a4b80a417e2c7f2e3e28c746bdf4beaf2cdd90e4",
+    "ready_at": "2026-11-25T08:39:11.9282813+08:00",
+    "exited_externally": true,
+    "exit_code": 0,
+    "descriptor_removed": true,
+    "port_closed": true,
+    "completed_at": "2026-11-25T08:41:47.4117431+08:00"
+  }
+}

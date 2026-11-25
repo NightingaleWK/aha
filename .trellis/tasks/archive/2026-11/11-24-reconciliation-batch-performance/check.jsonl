@@ -1,0 +1,13 @@
+{"file":".trellis/spec/backend/index.md","reason":"后端分层、开发检查及关键合同"}
+{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"事实、身份、核对、精确统计及报销占用"}
+{"file":".trellis/spec/backend/codex-native-source-contract.md","reason":"原生与历史身份、事件证据和参考价"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"写事务、幂等、备份和统计投影"}
+{"file":".trellis/spec/backend/time-range-contract.md","reason":"北京时间边界和首页预览刷新"}
+{"file":".trellis/spec/frontend/index.md","reason":"前端文件、检查及相邻合同"}
+{"file":".trellis/spec/frontend/local-web-contract.md","reason":"HTTP、鉴权和本机错误边界"}
+{"file":".trellis/spec/frontend/state-management.md","reason":"跨页选择、过时请求、刷新与重试"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"立刻可操作、键盘焦点及 dialog"}
+{"file":".trellis/spec/guides/index.md","reason":"跨层与复用"}
+{"file":".trellis/spec/backend/quality-guidelines.md","reason":"测试、性能、原生和交付证据"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"实际浏览器及状态验收"}
+{"file":".trellis/spec/backend/delivery-and-cleanup.md","reason":"桌面成品、证据和临时文件清理"}

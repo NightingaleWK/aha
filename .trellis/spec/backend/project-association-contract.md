@@ -23,7 +23,7 @@ Store.assign_keys(keys, project_id) / Store.assign_sessions(session_ids, project
 - `project_links.py`：已接受逐条关系、会话默认及目录匹配的共享规则。
 - `projects.py`：项目 UUID/目录配置、内容指纹人工例外；Store 保持薄门面。
 - `ledger.py`：归属查询投影、可用性和精确日/月统计；`queries/batches/evidence` 负责项目选择与冻结。
-- 应用 schema4 新增 `record_project_links`、`session_project_bindings`、`project_assignment_events`；schema3 DDL 独立保留为正式兼容定义。
+- schema 3 到 4 迁移增加 `record_project_links`、`session_project_bindings`、`project_assignment_events`；schema3 DDL 独立保留为正式兼容定义。
 
 ## 3. 数据与请求合同
 
@@ -72,9 +72,9 @@ keys/session_ids 互斥；都空表示全部符合 filters 的成员，不是当
 
 ### 升级与完整恢复
 
-Store 打开 schema3 前先由只读一致事务生成 `backups/before-schema4-*.aha-backup`，校验原结构与原包成功后才进入迁移事务/修改日志模式。迁移保留原事实、当前归属/统计、指纹人工覆盖、占用及材料，新增有依据的基线关系，失败完整回滚。
+Store 打开 schema 3/4 前先由只读一致事务生成 `backups/before-schema4-*.aha-backup` 或 `backups/before-schema5-*.aha-backup`，校验原结构与原包成功后才进入迁移事务/修改日志模式。迁移保留原事实、当前归属/统计、指纹人工覆盖、占用及材料，新增有依据的基线关系，失败完整回滚。
 
-备份分别按真实 schema3/4 的生产 DDL 校验表/字段/索引/触发器；manifest版本必须匹配DB版本。旧 schema3 完整包先独立校验，在新恢复 staging 受控迁移，原归档和历史包不改。schema1/2和未知版本仍拒绝，不误用试用资料重建。内部用量投影仍为23，应用库版本读 SCHEMA_VERSION，旧冻结值不回填。
+备份分别按真实 schema 3/4/5 的生产 DDL 校验表/字段/索引/触发器；manifest版本必须匹配DB版本。旧 schema 3/4 完整包先独立校验，在新恢复 staging 受控迁移到 schema 5，原归档和历史包不改。schema1/2和未知版本仍拒绝，不误用试用资料重建。内部用量投影仍为23，应用库版本读 SCHEMA_VERSION，旧冻结值不回填。
 
 ## 4. 校验与错误矩阵
 

@@ -1,0 +1,240 @@
+{
+  "directory-standard": {
+    "schema_version": 1,
+    "verified": true,
+    "version": "0.6.0",
+    "executable_sha256": "42736b1eeb491f15ca6e833d293655aae62b49dcaa64396d537ab1a0a251ce05",
+    "pe_version": {
+      "file_version_parts": [
+        0,
+        6,
+        0,
+        0
+      ],
+      "file_version": "0.6.0",
+      "product_version_parts": [
+        0,
+        6,
+        0,
+        0
+      ],
+      "product_version": "0.6.0"
+    },
+    "material_sha256": "75ff9d347a8f134d190d578ccfb5a0ed64ad56535638783a90db26e24c1ce121",
+    "complete_backup": {
+      "sha256": "8f3f5c0d237c02cd02bad53f69f4e9680d89828f95d58b9382917d63061da2dc",
+      "size": 26969,
+      "restored_source_rebound": true,
+      "facts": 3,
+      "active_claims": 3,
+      "original_material_sha256": "75ff9d347a8f134d190d578ccfb5a0ed64ad56535638783a90db26e24c1ce121"
+    },
+    "verified_at": "2026-11-24T15:46:28+08:00",
+    "scopes": [
+      "native-exe",
+      "pe-version",
+      "http-authentication",
+      "resource-bytes",
+      "codex-windows-incremental",
+      "codex-archive-idempotence",
+      "unavailable-source-history-preserved",
+      "legacy-endpoints-retired",
+      "codex-configured-startup",
+      "usage-projection-23",
+      "full-backup-download",
+      "chunked-backup-upload",
+      "new-directory-restore",
+      "restored-source-rebinding",
+      "restored-repeat-sync-idempotence",
+      "frozen-material",
+      "same-directory-reopen",
+      "persistent-restart",
+      "shutdown-cleanup"
+    ],
+    "tray_enabled": true,
+    "tray_physical_checked": false,
+    "browser_driven": false,
+    "office_checked": false,
+    "manual_checks": []
+  },
+  "directory-browser": {
+    "verified": true,
+    "executable_sha256": "42736b1eeb491f15ca6e833d293655aae62b49dcaa64396d537ab1a0a251ce05",
+    "checks": [
+      "single-review-default-saved",
+      "batch-review-default-and-edit-saved",
+      "history-association-recovery-default",
+      "project-association-default-saved",
+      "withdraw-default-saved",
+      "void-default-and-edit-saved",
+      "frozen-original-bytes",
+      "reopen",
+      "shutdown-and-descriptor-cleanup"
+    ],
+    "errors": [],
+    "browser": "158.0.8127.88"
+  },
+  "onefile-standard": {
+    "schema_version": 1,
+    "verified": true,
+    "version": "0.6.0",
+    "executable_sha256": "a53fe7b4fe5f7222aebf96d22815e87fdb15ccdaa2fb464b39156ef438b53fb9",
+    "pe_version": {
+      "file_version_parts": [
+        0,
+        6,
+        0,
+        0
+      ],
+      "file_version": "0.6.0",
+      "product_version_parts": [
+        0,
+        6,
+        0,
+        0
+      ],
+      "product_version": "0.6.0"
+    },
+    "material_sha256": "872af48e92797cc1c2ca0ad29ddf2d0410053f84badb711bd79a29e6e7e7fc77",
+    "complete_backup": {
+      "sha256": "d954bfa1a550fbcf4e5630ec7c353d8788d9cacf225b97df048f038986ffad36",
+      "size": 26976,
+      "restored_source_rebound": true,
+      "facts": 3,
+      "active_claims": 3,
+      "original_material_sha256": "872af48e92797cc1c2ca0ad29ddf2d0410053f84badb711bd79a29e6e7e7fc77"
+    },
+    "verified_at": "2026-11-24T15:47:25+08:00",
+    "scopes": [
+      "native-exe",
+      "pe-version",
+      "http-authentication",
+      "resource-bytes",
+      "codex-windows-incremental",
+      "codex-archive-idempotence",
+      "unavailable-source-history-preserved",
+      "legacy-endpoints-retired",
+      "codex-configured-startup",
+      "usage-projection-23",
+      "full-backup-download",
+      "chunked-backup-upload",
+      "new-directory-restore",
+      "restored-source-rebinding",
+      "restored-repeat-sync-idempotence",
+      "frozen-material",
+      "same-directory-reopen",
+      "persistent-restart",
+      "shutdown-cleanup"
+    ],
+    "tray_enabled": true,
+    "tray_physical_checked": false,
+    "browser_driven": false,
+    "office_checked": false,
+    "manual_checks": []
+  },
+  "onefile-browser": {
+    "verified": true,
+    "executable_sha256": "a53fe7b4fe5f7222aebf96d22815e87fdb15ccdaa2fb464b39156ef438b53fb9",
+    "checks": [
+      "single-review-default-saved",
+      "batch-review-default-and-edit-saved",
+      "history-association-recovery-default",
+      "project-association-default-saved",
+      "withdraw-default-saved",
+      "void-default-and-edit-saved",
+      "frozen-original-bytes",
+      "reopen",
+      "shutdown-and-descriptor-cleanup"
+    ],
+    "errors": [],
+    "browser": "158.0.8127.88"
+  },
+  "desktop-browser": {
+    "verified": true,
+    "executable_sha256": "a53fe7b4fe5f7222aebf96d22815e87fdb15ccdaa2fb464b39156ef438b53fb9",
+    "checks": [
+      "single-review-default-saved",
+      "batch-review-default-and-edit-saved",
+      "history-association-recovery-default",
+      "project-association-default-saved",
+      "withdraw-default-saved",
+      "void-default-and-edit-saved",
+      "frozen-original-bytes",
+      "reopen",
+      "shutdown-and-descriptor-cleanup"
+    ],
+    "errors": [],
+    "browser": "158.0.8127.88"
+  },
+  "desktop-delivery": {
+    "path": "系统桌面/aha.exe",
+    "sha256": "a53fe7b4fe5f7222aebf96d22815e87fdb15ccdaa2fb464b39156ef438b53fb9",
+    "rollback": "系统桌面/aha-before-confirmation-note.exe",
+    "verified": true
+  },
+  "source": {
+    "base_head": "d98318f7794f0da028a0ed77d8ceab5c9d89057c",
+    "sha256": "ca5635508ad7aec8a8e579d73d9b0308ac519085335cbf9e3696b164a5f72359",
+    "files": {
+      "pyproject.toml": "1f428ce091bd3f6da84118ca5eaeaa6a7de9f44960f1a52e561b0e2fb1ec1109",
+      "scripts/benchmark_ledger.py": "0d5da5d0d7e7c02024eb1365823486af88916fc72e4443f25b65858f52e36697",
+      "scripts/build_windows.ps1": "f5ce360c076ae46bf2809f9fa6fc0ff54251b6feacc90ec7ae9977afdebee6c8",
+      "scripts/build_windows.py": "7cd0a2f971226d3f6d3e215b13a49d75dd136e3bfff1afe54bf35fdf12367d2a",
+      "scripts/collect_licenses.py": "c1bf3db058e2b874c982537afda9edaf5b8fe0da3bbe6f1a0d94f29ca6ba52ff",
+      "scripts/launch.py": "2f4cccf78a687334ef53c62e337e950b7d26a188fd14612d9bb675bb690a4bf4",
+      "scripts/licenses/zstd-1.5.7-LICENSE.txt": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8",
+      "scripts/rebuild_trial_data.py": "9030f4a2f525dd56b0f532c93888e9ee62061aa16a191b9da51f7cc63e88ac0d",
+      "scripts/release.py": "710bd04aa31854bbc84a98e0471415114a44fe7848354ec1f76c5acb552344f6",
+      "scripts/requirements-build.txt": "0dcc6891f07ab931a88d495f29e1a8fb3cf9bfa2c061d4d7c3797bcab455ae1f",
+      "scripts/verify_windows_artifact.py": "bd45cd4796327889185234c10af2c0c08b786dc4e28eb9e1d49dd222fd238583",
+      "src/aha/__init__.py": "28ef1632b57406b6a659a3be8ab0115bfd5c6b4a38dccf249ef66cb921309daf",
+      "src/aha/__main__.py": "5f2e6867dd2fe73dee5aac9b28287871c8dd5ec08bbac12d2e204c8cbc891914",
+      "src/aha/analysis.py": "c50939d21d7a1577aa5bdf2e3eb358ea33abb893c7651898582c82b271c977b1",
+      "src/aha/associations.py": "cf7c846817dd3ba8533d47b8f0439b08b55f8cf2b426cfa55395c7f8a9b269ce",
+      "src/aha/backup.py": "86dd5833a513c1f322ae6d807ca559d88957edfdbe6d7bd160b7984993119159",
+      "src/aha/batches.py": "183d23eab1fc06ecd52a2338ee9433ae229ae8ac32ce1d7859115f3caff93790",
+      "src/aha/claims.py": "bde9f4d926f42c2b3202fab8203de2e6eb26efdca7520950f3bbec7f27b7a80c",
+      "src/aha/codex_sessions.py": "07be79694e22c6817696735d167b9e086c3776c3191b599ff1c0b6a578c60c75",
+      "src/aha/codex_source_io.py": "01f7d35b9be54ca8c5c2562a37a9e5c3bccf37adf8cb3b20546b01838ce5f3f3",
+      "src/aha/decimal_sql.py": "326b834d6cd2a2022efd5a557da408e35649c73d298f9774c38f2ff304a4107c",
+      "src/aha/directory_bindings.py": "df9d4cf5802dbc49042daa779a5dfd956f5bbaadea432549b868c834fea21ae8",
+      "src/aha/domain.py": "48d83ebe7a8887de3c7e250ba4946b925de8c790947ef8b6304d91db462fe279",
+      "src/aha/evidence.py": "e7bdc9dd844a035522759e858b4b354bf985e62034cc680bf001afeee01476a5",
+      "src/aha/instance.py": "50f2caab28fe50e6508e33019aa1e4f6578195eebb36e7b37596a006e2f41313",
+      "src/aha/ledger.py": "794ef0c700daa86ecda83e81fe301f1197adf9b0da1503762615dd28e97fdc2c",
+      "src/aha/migrations.py": "93bda323b625d3197b43573ebb7bb33026985a17221fe3f9d370e7245184e808",
+      "src/aha/native_sync.py": "1db5d20ad6b0195d8655a64e79883bd75bafec8c3dd0eeb8638f3c275f964181",
+      "src/aha/project_links.py": "07314cca400b45e6b88fb38a646a26235931a4ec1a0c08030ef87cc6f5c7b6a5",
+      "src/aha/projects.py": "e0a4daeb8d16070a62fe442c0df8fe897b9c31aeafaa409fb5ddd53845da39ad",
+      "src/aha/queries.py": "052cfac7d108957f2cea00715f0552f4320f615f37011a1efcc641f10241a5c8",
+      "src/aha/reconciliation.py": "af657f7a2d2033e7d3573cce3c200563c535f9e094beac206a45987b558a485f",
+      "src/aha/runtime.py": "1d5487ae1513e991c6e36281557588ebfaff4ddb8c54e6833e3d89a3cab0f250",
+      "src/aha/server.py": "b524aa536c11472d68333f86184f77bed956fe185d41ed10648620bb19234fe3",
+      "src/aha/session_meta.py": "f42db9ef8ac96ae6b072d0f9c1ed4367ad4c5693eade406e968788430b1e70e2",
+      "src/aha/source_bindings.py": "9dd0ce962856c7ab44367be65002ec573ac72b833227a656293280e96c52ad18",
+      "src/aha/storage.py": "2d7d52090b6c44d8464f043a80811d2fc5607d330c4211feba5a609dad8a977e",
+      "src/aha/sync.py": "7cee63d4e62428a72d956dd5f6abb1ba6def8b0976991da71a2d47c93f740af2",
+      "src/aha/time_ranges.py": "566d9188e246cb0dfaf209bd9760331fed43b9dd4feca12d4a0fd7d320d00ae0",
+      "src/aha/tray_windows.py": "b8ab9272a51f31cb8aeaa52e21b1fdb5729117cb549a9fb70ef6a2967c3ba2d8",
+      "src/aha/web/app.js": "56ca819b132c1ded685d83cc9d3f656d7a111dada2ad10cddc5909fafe52803a",
+      "src/aha/web/form-controls.js": "f40bb55521855f301d426fc7d6b2e95c096a07ec328c290420ff10a5fbf6aa5a",
+      "src/aha/web/index.html": "8af31e1198a225656e3c977b46128f55db83db8ea80ca5beea0d6f0bea6eb515",
+      "src/aha/web/mark.ico": "3ac7749f12c52cce6152220414b9f2ece5d5fa03ee5b1a270f4e9f5018283cf8",
+      "src/aha/web/mark.svg": "05e2b73c8f478d4efa28f8af10abfaea79b57c2935a9967375cd83ed3e2d8a43",
+      "src/aha/web/style.css": "de76bbc3e3445d169da0122f8e5c824fafcb05c8fee032aa5ccc1e2997d188ef",
+      "src/aha/web/time-range-picker.js": "98dbf23d88637f49b28d2de7f07b10e2b7077309c70ccb19fc7da0b87c367501"
+    }
+  },
+  "runtime": {
+    "python": "3.15.2",
+    "sqlite": "3.53.4",
+    "pyinstaller": "6.22.3",
+    "zstandard": "0.25.0"
+  },
+  "frontend_state_tests": 79,
+  "cleanup": {
+    "temporary_files": 7817,
+    "total_bytes": 408570597,
+    "desktop_hash_checked": true
+  }
+}

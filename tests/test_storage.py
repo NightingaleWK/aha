@@ -10,13 +10,14 @@ import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
-from test_sources import database, dump
+from native_usage_fixtures import write_rollout
+from test_sources import history_projection
 from test_storage_helpers import claim, detail, metadata, rollup, source_data
 
+from aha.codex_sessions import CodexSource
 from aha.domain import AppError, record_key
 from aha.migrations import SCHEMA_VERSION
 from aha.storage import Store
@@ -51,12 +52,10 @@ class LedgerStorageTests(unittest.TestCase):
             self.assertEqual(db.execute("SELECT COUNT(*) FROM sync_stage").fetchone()[0], 0)
         self.assertEqual(self.query()["summary"]["total_cost_usd"], "0.1234567")
 
-    def test_schema_upgrade_keeps_identity_assignment_claims_and_package(self) -> None:
-        path = self.root / "synthetic-source.sqlite"
-        connection = database(path, [detail()])
-        connection.close()
-        roots = [self.root / "isolated-codex"]
-        first = self.store.sync_sqlite(path, roots)
+    def test_historical_versions_keep_identity_assignment_claims_and_package(self) -> None:
+        directory_evidence = metadata("/work/compat")
+        row = detail()
+        first = self.store.sync_data(history_projection([row]), directory_evidence, trust="live")
         self.assertEqual(first["source_schema_version"], 23)
         project = self.store.save_project(None, "兼容验证项目", "", ["/work/compat"])["project"]
         self.store.assign_keys([record_key(detail())], project["id"])
@@ -69,10 +68,9 @@ class LedgerStorageTests(unittest.TestCase):
             ).fetchone())
         for version in (24, 25, 26, 27):
             with self.subTest(version=version):
-                with closing(sqlite3.connect(path)) as connection:
-                    connection.execute(f"PRAGMA user_version={version}")
-                    connection.commit()
-                upgraded = self.store.sync_sqlite(path, roots)
+                upgraded = self.store.sync_data(
+                    history_projection([row], version=version), directory_evidence, trust="live"
+                )
                 self.assertEqual(upgraded["source_schema_version"], version)
                 self.assertEqual(upgraded["new_count"], 0)
                 self.assertEqual(upgraded["revised_count"], 0)
@@ -92,19 +90,20 @@ class LedgerStorageTests(unittest.TestCase):
         self.assertEqual(self.store.sync_status(upgraded["id"])["source_schema_version"], 27)
         self.assertEqual(self.store.sync_status(first["id"])["source_schema_version"], 23)
 
-    def test_sql_failures_do_not_publish_staged_rows(self) -> None:
-        initial = self.store.sync_sql(dump([detail()], version=27), "usage.sql", [])
+    def test_historical_projection_failures_do_not_publish_staged_rows(self) -> None:
+        initial = self.store.sync_data(history_projection([detail()], version=27))
         self.assertEqual(initial["source_schema_version"], 27)
         before = self.store.ledger_status()
-        for raw, code in (
-            (dump([detail("new")], version=28), "unsupported_schema"),
-            (dump([detail("new"), detail("invalid", input_tokens=-1)], version=27),
-             "invalid_number"),
-            (dump([detail("new")], version=27) + b"\nPRAGMA user_version=26;",
-             "unsupported_schema"),
+        projected = history_projection([detail("new")], version=27)
+        for data, code in (
+            ({**projected, "schema_version": 28}, "unsupported_schema"),
+            ({
+                **projected, "details": [detail("new"), detail("invalid", input_tokens=-1)],
+            }, "invalid_number"),
+            ({**projected, "details": [detail("new"), detail("new")]}, "duplicate_key"),
         ):
             with self.subTest(code=code), self.assertRaises(AppError) as error:
-                self.store.sync_sql(raw, "usage.sql", [])
+                self.store.sync_data(data)
             self.assertEqual(error.exception.code, code)
             after = self.store.ledger_status()
             self.assertEqual(after["counts"], before["counts"])
@@ -159,7 +158,9 @@ class LedgerStorageTests(unittest.TestCase):
         self.store.sync_data(source_data(), metadata())
         self.store.close()
         self.store = Store(self.root)
-        with patch("aha.sources.scan_sqlite", side_effect=AssertionError("query must stay local")):
+        with patch(
+            "aha.native_sync.scan_source", side_effect=AssertionError("query must stay local"),
+        ):
             analysis = self.query()
             self.assertEqual(analysis["summary"]["record_count"], 1)
             self.assertEqual(len(self.store.analysis_details(analysis)["rows"]), 1)
@@ -402,71 +403,67 @@ class LedgerStorageTests(unittest.TestCase):
             "SELECT total_cost_usd FROM usage_records WHERE kind='rollup'"
         ).fetchone()[0], "2")
 
-    def test_source_read_lock_is_not_held_while_waiting_indefinitely_for_local_writer(self) -> None:
+    def test_native_rollout_closed_before_bounded_writer_wait(self) -> None:
         self.store.sync_data(source_data(), trust="live")
         before = self.store.ledger_status()
-        path = self.root / "source.db"
-        source = database(path, [detail(str(n)) for n in range(600)])
-        source.execute("PRAGMA busy_timeout=1000")
-        try:
-            for cancelled in (False, True):
-                with self.subTest(cancelled=cancelled):
-                    flushing, locked, release, flush_done = (
-                        threading.Event(), threading.Event(), threading.Event(), threading.Event()
-                    )
-                    cancel = threading.Event()
-                    original_flush = _Stager.flush
-                    flush_seconds = []
+        for cancelled in (False, True):
+            with self.subTest(cancelled=cancelled):
+                root = self.root / f"codex-{cancelled}"
+                rollout = write_rollout(root, 600)
+                source = CodexSource("windows", str(root))
+                flushing, locked, release, flush_done = (
+                    threading.Event(), threading.Event(), threading.Event(), threading.Event()
+                )
+                cancel = threading.Event()
+                original_flush = _Stager.flush
+                flush_seconds = []
 
-                    def hold_writer():
-                        self.assertTrue(flushing.wait(5))
-                        with self.store._lock:
-                            locked.set()
-                            release.wait(5)
+                def hold_writer():
+                    self.assertTrue(flushing.wait(5))
+                    with self.store._lock:
+                        locked.set()
+                        release.wait(5)
 
-                    def blocked_flush(stager):
-                        flushing.set()
-                        self.assertTrue(locked.wait(5))
-                        started = time.perf_counter()
+                def blocked_flush(stager):
+                    flushing.set()
+                    self.assertTrue(locked.wait(5))
+                    started = time.perf_counter()
+                    try:
+                        return original_flush(stager)
+                    finally:
+                        flush_seconds.append(time.perf_counter() - started)
+                        flush_done.set()
+
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    holder = pool.submit(hold_writer)
+                    with patch("aha.sync._Stager.flush", blocked_flush):
+                        sync = pool.submit(self.store.sync_codex, source, "isolated", cancel=cancel)
                         try:
-                            return original_flush(stager)
+                            self.assertTrue(locked.wait(5))
+                            if cancelled:
+                                cancel.set()
+                            # The scan has closed the rollout before staging. Renaming
+                            # an open CRT file would fail on native Windows.
+                            rollout.rename(rollout.with_suffix(".detached"))
+                            self.assertTrue(flush_done.wait(5))
                         finally:
-                            flush_seconds.append(time.perf_counter() - started)
-                            flush_done.set()
-
-                    with ThreadPoolExecutor(max_workers=2) as pool:
-                        holder = pool.submit(hold_writer)
-                        with patch("aha.sync._Stager.flush", blocked_flush):
-                            sync = pool.submit(self.store.sync_sqlite, path, cancel=cancel)
-                            try:
-                                self.assertTrue(locked.wait(5))
-                                if cancelled:
-                                    cancel.set()
-                                source.execute("UPDATE proxy_request_logs SET output_tokens=11")
-                                source.commit()
-                                # Source commit no longer waits for staging. Keep the local
-                                # writer locked until the bounded flush or cancellation ends.
-                                self.assertTrue(flush_done.wait(5))
-                            finally:
-                                release.set()
-                            with self.assertRaises(AppError) as error:
-                                sync.result(timeout=5)
-                            self.assertEqual(error.exception.code,
-                                             "sync_cancelled" if cancelled else "store_busy")
-                        holder.result(timeout=5)
-                    self.assertLess(max(flush_seconds), 1.0)
-                    self.assertEqual(self.store.ledger_status()["last_successful_sync_at"],
-                                     before["last_successful_sync_at"])
-                    self.assertEqual(self.store.ledger_status()["counts"], before["counts"])
-        finally:
-            source.close()
+                            release.set()
+                        with self.assertRaises(AppError) as error:
+                            sync.result(timeout=5)
+                        self.assertEqual(error.exception.code,
+                                         "sync_cancelled" if cancelled else "store_busy")
+                    holder.result(timeout=5)
+                self.assertLess(max(flush_seconds), 1.0)
+                self.assertEqual(self.store.ledger_status()["last_successful_sync_at"],
+                                 before["last_successful_sync_at"])
+                self.assertEqual(self.store.ledger_status()["counts"], before["counts"])
 
     def test_source_staging_sqlite_busy_wait_is_bounded_and_restores_timeout(self) -> None:
         self.store.sync_data(source_data(), trust="live")
         before = self.store.ledger_status()
-        path = self.root / "source.db"
-        source = database(path, [detail(str(n)) for n in range(600)])
-        source.execute("PRAGMA busy_timeout=1000")
+        root = self.root / "codex"
+        write_rollout(root, 600)
+        source = CodexSource("windows", str(root))
         flushing, locked, release, flush_done = (
             threading.Event(), threading.Event(), threading.Event(), threading.Event()
         )
@@ -494,29 +491,24 @@ class LedgerStorageTests(unittest.TestCase):
                 flush_seconds.append(time.perf_counter() - started)
                 flush_done.set()
 
-        try:
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                writer = pool.submit(external_writer)
-                with patch("aha.sync._Stager.flush", blocked_flush):
-                    sync = pool.submit(self.store.sync_sqlite, path)
-                    try:
-                        self.assertTrue(locked.wait(5))
-                        source.execute("UPDATE proxy_request_logs SET output_tokens=11")
-                        source.commit()
-                        self.assertTrue(flush_done.wait(5))
-                    finally:
-                        release.set()
-                    with self.assertRaises(AppError) as error:
-                        sync.result(timeout=5)
-                    self.assertEqual(error.exception.code, "store_busy")
-                writer.result(timeout=5)
-            self.assertLess(max(flush_seconds), 1.0)
-            self.assertEqual(self.store._db.execute("PRAGMA busy_timeout").fetchone()[0], 5000)
-            self.assertEqual(self.store.ledger_status()["last_successful_sync_at"],
-                             before["last_successful_sync_at"])
-            self.assertEqual(self.store.ledger_status()["counts"], before["counts"])
-        finally:
-            source.close()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            writer = pool.submit(external_writer)
+            with patch("aha.sync._Stager.flush", blocked_flush):
+                sync = pool.submit(self.store.sync_codex, source, "isolated")
+                try:
+                    self.assertTrue(locked.wait(5))
+                    self.assertTrue(flush_done.wait(5))
+                finally:
+                    release.set()
+                with self.assertRaises(AppError) as error:
+                    sync.result(timeout=5)
+                self.assertEqual(error.exception.code, "store_busy")
+            writer.result(timeout=5)
+        self.assertLess(max(flush_seconds), 1.0)
+        self.assertEqual(self.store._db.execute("PRAGMA busy_timeout").fetchone()[0], 5000)
+        self.assertEqual(self.store.ledger_status()["last_successful_sync_at"],
+                         before["last_successful_sync_at"])
+        self.assertEqual(self.store.ledger_status()["counts"], before["counts"])
 
     def test_same_source_backup_rebuild_alias_revision_keeps_original_claim(self) -> None:
         self.store.sync_data(source_data(), source_id="same-source", trust="live")

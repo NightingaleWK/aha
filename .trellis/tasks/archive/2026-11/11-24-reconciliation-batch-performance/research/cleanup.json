@@ -1,0 +1,21 @@
+{
+  "removed": {
+    "windows": {
+      "bytes": 2740040704,
+      "files": 8158,
+      "description": "合成台账、浏览器资料、原生虚拟环境、编译目录和测试镜像"
+    },
+    "linux": {
+      "bytes": 266231797,
+      "files": 5418,
+      "description": "隔离运行时、虚拟环境和检查缓存"
+    },
+    "trellis_cache": {
+      "bytes": 20531,
+      "files": 1,
+      "description": "本轮生成的 Trellis 字节码"
+    }
+  },
+  "total_bytes": 3006293032,
+  "desktop_hash_verified_after_cleanup": "9f3212069cf9f57d861d7bb1caa505a0fa397657895a48037df29503fdb0d943"
+}

@@ -57,13 +57,15 @@ def safe_root(path: Path, *, exists: bool = True) -> Path:
 
 
 def protected_paths(paths: list[Path]) -> list[Path]:
-    return [path.absolute().resolve() for path in [Path.home() / ".cc-switch", *paths]]
+    home = Path.home()
+    codex = Path(os.environ.get("CODEX_HOME") or home / ".codex").expanduser()
+    return [path.absolute().resolve() for path in [home / ".cc-switch", codex, *paths]]
 
 
 def ensure_not_protected(path: Path, protected: list[Path]) -> None:
     selected = path.resolve()
     if any(inside(selected, source.resolve()) for source in protected):
-        raise ValueError("A selected path belongs to protected CCS source data.")
+        raise ValueError("A selected path belongs to protected source data.")
 
 
 def safe_child(root: Path, relative: str, protected: list[Path]) -> Path:

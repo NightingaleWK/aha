@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "source_sha": "aa1576eb67d251fa57a371d74636cbcf68d006a1",
+  "completed_at": "2026-11-24T14:00:41+08:00",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "fingerprints": {
+    "full": "2bafc7b99180474cf814b3d7b3f5c337f5895947ed0213fe9493663a0bef3774",
+    "tray": "544be406b5e37bb4998bc6b60f2c7d3e4ac305f73d856b0766df2cd65b2a2ff2",
+    "materials": "61aa65246e16d23f56dc62d96cd72c6ca29720763fffd7e5db50c2f7c1108209",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "checks": [
+    "directory",
+    "onefile",
+    "browser",
+    "excel",
+    "print"
+  ],
+  "evidence": [
+    {
+      "scope": "directory",
+      "sha256": "951e110da395ef0831c5dd9f784eeb954d5f67517c9b5ba02768804358829558",
+      "description": "原生 Windows 目录版通过 PE、HTTP、增量同步、材料、备份还原、重开和退出检查。"
+    },
+    {
+      "scope": "onefile",
+      "sha256": "26d9226cc4c7127b55b5e83af6f954d4700a47c022eb664236f119f856f1f677",
+      "description": "原生 Windows 单文件版独立通过 PE、HTTP、增量同步、材料、备份还原、重开和退出检查。"
+    },
+    {
+      "scope": "browser",
+      "sha256": "155eed4647d6b8b6373aecb7aa10779a996c0659cbb3708d4c1f9bf9be7d8c38",
+      "description": "两种成品通过原生 Windows Chrome 的双来源交互、独立状态、重复同步和退出检查。"
+    },
+    {
+      "scope": "excel",
+      "sha256": "ab0add2d5d9b980cc869887c42dbd7c6b1fb88eb3df551383ad476d02fbed5af",
+      "description": "原生 Excel 16.0 只读打开两种成品的明细和日汇总，核对 90 Token 与 0.0003915 USD。"
+    },
+    {
+      "scope": "print",
+      "sha256": "c79cb6359bc159c18a74b0518d05ab26c6e8fe009749cafa0bdb3d8aaf1ebb22",
+      "description": "Windows Chrome 为两种成品输出一页 A4 PDF，核对尺寸、中文费用标签和精确金额。"
+    }
+  ]
+}

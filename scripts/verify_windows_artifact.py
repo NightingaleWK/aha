@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import csv
 import ctypes
 import hashlib
@@ -30,8 +29,9 @@ from build_windows import read_source_version
 BEIJING = timezone(timedelta(hours=8))
 MEMBER_NAMES = {"使用明细.csv", "每日汇总.csv", "费用说明.html", "导出信息.json"}
 ROW_COUNT = 3
-EXPECTED_COST = Decimal("0.570000003")
-EXPECTED_TOKENS = 315
+EXPECTED_COST = Decimal("0.0003915")
+EXPECTED_TOKENS = 90
+EXPECTED_MODEL = "gpt-6.2-sol"
 
 
 class VerificationError(ValueError):
@@ -104,11 +104,12 @@ def isolated_environment(root: Path) -> tuple[dict[str, str], Path]:
         encoding="utf-8",
     )
     profile = root / "synthetic-profile"
-    for relative in (".cc-switch", ".codex", "AppData/Local", "AppData/Roaming", "Temp"):
+    for relative in ("AppData/Local", "AppData/Roaming", "Temp"):
         (profile / relative).mkdir(parents=True, exist_ok=True)
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
     env.pop("PYTHONHOME", None)
+    env.pop("CODEX_HOME", None)
     env.update({
         "USERPROFILE": str(profile), "HOME": str(profile),
         "HOMEDRIVE": profile.drive, "HOMEPATH": str(profile)[len(profile.drive):],
@@ -190,8 +191,10 @@ class Client:
             raise VerificationError("Expected an object from artifact HTTP API.")
         return value
 
-    def sync(self, body: dict[str, Any], *, sql: bool = False) -> dict[str, Any]:
-        job = self.json("POST", "/api/source/sql" if sql else "/api/sync", body)
+    def sync(self) -> dict[str, Any]:
+        return self.wait_sync(self.json("POST", "/api/sync", {}))
+
+    def wait_sync(self, job: dict[str, Any]) -> dict[str, Any]:
         job_id = job["id"]
         deadline = time.monotonic() + 30
         while job["status"] == "running":
@@ -306,7 +309,7 @@ def check_material(raw: bytes, version: str, output: Path) -> str:
     require(len(rows) == ROW_COUNT
             and sum((Decimal(row["total_cost_usd"]) for row in rows), Decimal()) == EXPECTED_COST
             and sum(int(row["total_tokens"]) for row in rows) == EXPECTED_TOKENS
-            and all(row["model"] == "合成模型" for row in rows),
+            and all(row["model"] == EXPECTED_MODEL for row in rows),
             "CSV contents differ from the frozen synthetic totals.")
     require(str(EXPECTED_COST) in files["费用说明.html"].decode("utf-8"),
             "HTML report lost the precise synthetic reference cost.")
@@ -357,9 +360,9 @@ def restored_executable(
     client = None
     try:
         client = Client(wait_descriptor(descriptor, process))
-        binding = client.json("GET", "/api/source/binding")
-        require(binding["required"] and not binding["bound"],
-                "Restored ledger reused the original machine's binding.")
+        status = client.json("GET", "/api/status")
+        require(not any(source["configured"] for source in status["sources"]),
+                "Restored ledger reused the original machine's bindings.")
         raw = client.request("GET", f"/api/batches/{batch_id}/revisions/1/download")[2]
         require(hashlib.sha256(raw).hexdigest() == material_sha,
                 "Restored EXE could not download the unchanged original evidence.")
@@ -370,24 +373,24 @@ def restored_executable(
         require(history["summary"]["record_count"] == ROW_COUNT
                 and Decimal(history["summary"]["total_cost_usd"]) == EXPECTED_COST,
                 "Restored history was not queryable before connecting the current source.")
-        blocked = client.sync({"trigger": "startup"})
-        require(blocked["status"] == "failed" and blocked.get("code") == "source_binding_required",
+        blocked = json.loads(client.request(
+            "POST", "/api/sync", {"trigger": "startup"}, expected=409,
+        )[2])
+        require(blocked.get("code") == "source_binding_required",
                 "Restored ledger accepted startup sync without a new source confirmation.")
         require(ledger_basis(data_dir) == expected_basis,
                 "Blocked restored sync changed published facts or existing owners.")
-        confirmed = client.json("POST", "/api/source/binding", {
-            "reason": "合成验收：独立还原后连接当前电脑，保留历史和原报销占用。",
+        confirmed = client.json("POST", "/api/codex-sources", {
+            "kind": "windows", "root": str(profile / ".codex"),
         })
-        require(confirmed["bound"] and not confirmed["required"],
+        require(confirmed["sources"][0]["configured"],
                 "Restored ledger did not accept the explicit source confirmation.")
         for _ in range(2):
-            job = client.sync({})
+            job = client.sync()
             require(job["status"] == "completed"
-                    and job["result"]["source_schema_version"] == 27
                     and job["result"]["new_count"] == 0
-                    and job["result"]["revised_count"] == 0
-                    and job["result"]["unchanged_count"] == ROW_COUNT,
-                    "Restored CCS27 repeat sync duplicated or revised known usage.")
+                    and job["result"]["revised_count"] == 0,
+                    "Restored Codex sync duplicated or revised known usage.")
         require(ledger_basis(data_dir) == expected_basis,
                 "Restored source binding or repeat sync changed facts or existing claims.")
         raw = client.request("GET", f"/api/batches/{batch_id}/revisions/1/download")[2]
@@ -461,15 +464,10 @@ def verify(
                 for key in ("file", "product")),
             "EXE Windows version does not match the source product version.")
     env, profile = isolated_environment(data_root)
-    # Reuse existing synthetic fixtures rather than constructing a second source schema.
     sys.path.insert(0, str(source_root / "src"))
-    fixtures = runpy.run_path(str(source_root / "tests" / "test_sources.py"))
-    event = int(datetime.fromisoformat("2026-10-26T08:00:00+08:00").timestamp())
-    rows = [fixtures["detail"](request_id=f"artifact-{n}", session_id=None,
-                               model="合成模型", total_cost_usd="0.190000001",
-                               created_at=event + n) for n in range(ROW_COUNT)]
-    source = profile / ".cc-switch" / "cc-switch.db"
-    fixtures["database"](source, rows, version=27).close()
+    fixtures = runpy.run_path(str(source_root / "tests" / "native_usage_fixtures.py"))
+    source = profile / ".codex"
+    rollout = fixtures["write_rollout"](source, ROW_COUNT - 1)
     data_dir = data_root / "store"
     descriptor = data_dir / "runtime.json"
     command = [str(executable), "--data-dir", str(data_dir), "--no-browser"]
@@ -495,82 +493,62 @@ def verify(
                             "Packaged HTTP resource differs from the source.")
                 require(b"CPython" in client.request("GET", "/licenses")[2],
                         "Packaged runtime license notices are missing.")
-                job = client.sync({"trigger": "startup"})
-                startup_job_id = job["id"]
-                require(job["status"] == "completed"
-                        and job["result"]["source_schema_version"] == 27
-                        and job["result"]["new_count"] == ROW_COUNT,
-                        "Synthetic CCS27 startup sync failed.")
-                for schema_version in (23, 24, 25, 26, 27):
-                    with closing(sqlite3.connect(source)) as connection:
-                        connection.execute(f"PRAGMA user_version={schema_version}")
-                        connection.commit()
-                    job = client.sync({})
+                sources = client.json("GET", "/api/status")["sources"]
+                require(not any(source["configured"] for source in sources),
+                        "A fresh ledger synchronized before confirming a source.")
+                client.json("POST", "/api/codex-sources", {
+                    "kind": "windows", "root": str(source),
+                })
+                first = client.sync()
+                require(first["status"] == "completed"
+                        and first["result"]["new_count"] == ROW_COUNT - 1,
+                        "Synthetic Codex first sync failed.")
+                fixtures["write_rollout"](source, ROW_COUNT, first_index=ROW_COUNT - 1)
+                startup = client.wait_sync(client.json("POST", "/api/sync", {"trigger": "startup"}))
+                startup_job_id = startup["id"]
+                require(startup["status"] == "completed" and startup["result"]["new_count"] == 1,
+                        "A complete line appended to the rollout was not read incrementally.")
+                from zstandard import ZstdCompressor
+
+                archive = source / "archived_sessions" / (rollout.name + ".zst")
+                archive.parent.mkdir()
+                archive.write_bytes(ZstdCompressor().compress(rollout.read_bytes()))
+                rollout.unlink()
+                for _ in range(2):
+                    job = client.sync()
                     require(job["status"] == "completed"
-                            and job["result"]["source_schema_version"] == schema_version
                             and job["result"]["new_count"] == 0
-                            and job["result"]["revised_count"] == 0
-                            and job["result"]["unchanged_count"] == ROW_COUNT,
-                            f"Synthetic CCS{schema_version} sync did not preserve existing usage.")
-                    ledger = client.json("GET", "/api/ledger")
-                    require(ledger["last_sync"]["source_schema_version"] == schema_version,
-                            "Ledger did not retain the observed CCS source version.")
-                raw_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=27)
-                job = client.sync({"name": "synthetic-27.sql",
-                                   "content_base64": base64.b64encode(raw_sql).decode()}, sql=True)
-                require(job["status"] == "completed"
-                        and job["result"]["source_schema_version"] == 27
-                        and job["result"]["new_count"] == 0
-                        and job["result"]["revised_count"] == 0
-                        and job["result"]["unchanged_count"] == ROW_COUNT,
-                        "Synthetic SQL27 import failed or duplicated existing usage.")
-                for sql in (False, True):
-                    before = client.json("GET", "/api/ledger")
-                    with closing(sqlite3.connect(source)) as connection:
-                        connection.execute("PRAGMA user_version=28")
-                        connection.commit()
-                    unknown_sql = fixtures["dump"](rows, [], [fixtures["price"]()], version=28)
-                    invalid = ({"name": "synthetic-28.sql",
-                                "content_base64": base64.b64encode(unknown_sql).decode()}
-                               if sql else {})
-                    failed = client.sync(invalid, sql=sql)
+                            and job["result"]["revised_count"] == 0,
+                            "Compressed archive replay changed known usage.")
+                before = client.json("GET", "/api/ledger")
+                unavailable = source.with_name("temporarily-unavailable")
+                source.rename(unavailable)
+                try:
+                    failed = client.sync()
                     require(failed["status"] == "failed"
-                            and failed.get("code") == "unsupported_schema"
-                            and "结构版本 28 暂不支持" in failed.get("message", "")
-                            and "23、24、25、26、27" in failed.get("message", ""),
-                            "Unknown CCS28/SQL28 was not explicitly rejected.")
+                            and failed["sources"][0]["status"] == "unavailable",
+                            "Unavailable Codex root did not report an independent source error.")
                     after = client.json("GET", "/api/ledger")
                     require(after["counts"] == before["counts"]
                             and after["last_successful_sync_at"]
-                            == before["last_successful_sync_at"]
-                            and after["last_sync"]["source_schema_version"] == 27,
-                            "Unknown source changed historical totals or the last success time.")
-                    retained = client.json("POST", "/api/analysis", {
-                        "start_date": "2026-10-26", "end_date": "2026-10-26",
-                        "project_id": "all", "availability_mode": "available",
-                    })
-                    require(retained["summary"]["record_count"] == ROW_COUNT
-                            and Decimal(retained["summary"]["total_cost_usd"]) == EXPECTED_COST,
-                            "Known local history was not queryable after the unsupported source.")
-                    with closing(sqlite3.connect(source)) as connection:
-                        connection.execute("PRAGMA user_version=27")
-                        connection.commit()
-                    recovered_sync = client.sync({})
-                    require(recovered_sync["status"] == "completed"
-                            and recovered_sync["result"]["source_schema_version"] == 27
-                            and recovered_sync["result"]["new_count"] == 0
-                            and recovered_sync["result"]["revised_count"] == 0
-                            and recovered_sync["result"]["unchanged_count"] == ROW_COUNT,
-                            "CCS27 did not recover after the unknown source failure.")
+                            == before["last_successful_sync_at"],
+                            "Unavailable source changed history or the last success time.")
+                finally:
+                    unavailable.rename(source)
+                recovered = client.sync()
+                require(recovered["status"] == "completed"
+                        and recovered["result"]["new_count"] == 0,
+                        "Recovered Codex source duplicated known usage.")
+                for endpoint in ("/api/source/sql", "/api/source/sqlite", "/api/source/binding"):
+                    client.request("POST", endpoint, {}, expected=404)
                 analysis = client.json("POST", "/api/analysis", {
                     "start_date": "2026-10-26", "end_date": "2026-10-26",
                     "project_id": "all", "availability_mode": "available",
                 })
                 require(analysis["summary"]["record_count"] == ROW_COUNT,
-                        "Version changes or SQL import duplicated synthetic usage.")
-                require(analysis["schema_version"] == 23
-                        and analysis["usage_projection_schema_version"] == 23,
-                        "External CCS27 changed the internal usage projection version.")
+                        "Incremental or compressed replay duplicated synthetic usage.")
+                require(analysis["usage_projection_schema_version"] == 23,
+                        "Codex sync changed the internal usage projection version.")
                 saved = client.json("POST", "/api/batches", {
                     "analysis_id": analysis["analysis_id"],
                     "claim": {"purpose": "合成成品验收", "amount": "", "currency": "CNY",
@@ -587,7 +565,13 @@ def verify(
                         and material_manifest["source_schema_version"] == 23
                         and material_manifest["source_schema_version_scope"]
                         == "normalized_usage_projection",
-                        "Frozen material mislabeled the internal projection as the CCS version.")
+                        "Frozen material mislabeled the internal projection.")
+                require(material_manifest["usage_sources"] == {"codex_native": ROW_COUNT}
+                        and bool(material_manifest["pricing_references"])
+                        and all(
+                            member.get("pricing_basis") for member in material_manifest["members"]
+                        ),
+                        "Native evidence is missing the source or model price basis.")
                 full_backup = check_backup_roundtrip(
                     client, executable, data_root, profile, env, batch_id=batch_id,
                     material_sha=material_sha, with_tray=with_tray,
@@ -602,13 +586,18 @@ def verify(
                         == startup_job_id,
                         "Reopening did not preserve the startup job.")
             else:
-                job = client.sync({"trigger": "startup"})
+                deadline = time.monotonic() + 10
+                status = client.json("GET", "/api/status")
+                while not status["startup_sync"] and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                    status = client.json("GET", "/api/status")
+                require(status["startup_sync"] is not None,
+                        "A configured source did not start a job on launch.")
+                job = client.wait_sync(status["startup_sync"])
                 require(job["status"] == "completed"
-                        and job["result"]["source_schema_version"] == 27
                         and job["result"]["new_count"] == 0
-                        and job["result"]["revised_count"] == 0
-                        and job["result"]["unchanged_count"] == ROW_COUNT,
-                        "CCS27 startup sync after restart changed known usage.")
+                        and job["result"]["revised_count"] == 0,
+                        "Automatic Codex sync after restart changed known usage.")
                 raw = client.request("GET", f"/api/batches/{batch_id}/revisions/1/download")[2]
                 require(hashlib.sha256(raw).hexdigest() == material_sha,
                         "Frozen evidence changed after a complete restart.")
@@ -622,9 +611,9 @@ def verify(
         "complete_backup": full_backup,
         "verified_at": datetime.now(BEIJING).isoformat(timespec="seconds"),
         "scopes": ["native-exe", "pe-version", "http-authentication", "resource-bytes",
-                   "ccs-23-24-25-26-27", "ccs-27-startup", "sql-27",
-                   "unsupported-28-history-preserved",
-                   "usage-projection-23",
+                   "codex-windows-incremental", "codex-archive-idempotence",
+                   "unavailable-source-history-preserved", "legacy-endpoints-retired",
+                   "codex-configured-startup", "usage-projection-23",
                    "full-backup-download", "chunked-backup-upload", "new-directory-restore",
                    "restored-source-rebinding", "restored-repeat-sync-idempotence",
                    "frozen-material", "same-directory-reopen", "persistent-restart",

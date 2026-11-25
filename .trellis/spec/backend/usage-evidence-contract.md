@@ -2,7 +2,7 @@
 
 ## 1. 范围与触发条件
 
-修改来源、SQLite、查询、归属、报销、HTTP 或 Windows 打包时阅读。aha 是本机Python3.12+工具，版本以包内 `__version__` 为准；CCS 是只读输入，业务只访问 Store 的本地台账。实际 SQLite 必须通过 `migrations.sqlite_wal_safe`，不能仅凭 Python 版本启用多连接 WAL。版本、打包身份和GitHub正式发版遵循 [发布合同](./release-contract.md)。
+修改来源、SQLite、查询、归属、报销、HTTP 或 Windows 打包时阅读。aha 是本机Python3.12+工具，版本以包内 `__version__` 为准；Windows 和 WSL 的 Codex 会话是只读输入，业务只访问 Store 的本地台账。实际 SQLite 必须通过 `migrations.sqlite_wal_safe`，不能仅凭 Python 版本启用多连接 WAL。版本、打包身份和GitHub正式发版遵循 [发布合同](./release-contract.md)。
 
 ## 2. 签名与资料边界
 
@@ -10,8 +10,7 @@
 
 ```python
 Store(data_dir: Path)
-Store.sync_sqlite(path, metadata_roots=None, *, trigger="manual", startup_id=None, cancel=None)
-Store.sync_sql(raw, name, metadata_roots=None, **kwargs)
+Store.sync_codex(source, source_id, *, trigger="manual", startup_id=None, cancel=None, since=None)
 Store.sync_data(data, metadata=None, **kwargs)
 Store.sync_status(run_id=None)
 Store.ledger_status()
@@ -22,13 +21,18 @@ Store.analysis_details(analysis, *, cursor=None, size=50, kind="detail")
 Store.iter_analysis_rows(analysis, connection=None)
 Store.iter_analysis_daily(analysis, connection=None)
 Store.validate_analysis(analysis, connection=None, *, check_claims=True)
+Store.reconciliation_summary()
+Store.reconciliation_page(filters, *, cursor=None, size=50)
+Store.reconciliation_detail(case_id)
+Store.preview_reconciliation_batch(request)
+Store.apply_reconciliation_batch(request)
 Store.resolve_reconciliation(case_id, choice, reason, expected_generation=None,
                              idempotency_key=None)
 Store.create_batch(analysis, claim, idempotency_key, batch_id=None, **kwargs)
 Store.download(batch_id, version) -> tuple[Path, str]
 ```
 
-CCS 外部结构版本 23、24、25、26、27，内部用量投影版本 23，与应用 schema4 独立；来源观测、兼容边界和材料字段见 [CCS 来源兼容](./ccs-source-compatibility.md)。新库显式创建，schema3 先完整备份再无损升级；旧 schema1/2 或未知资料仍拒绝自动打开/升级。试用资料经单独清单工具保全历史用量后重建，不接续旧报销。Windows 默认 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。完整备份/独立还原和来源重绑遵循[恢复合同](./recovery-and-device-contract.md)，持久归属/升级遵循[项目归属合同](./project-association-contract.md)。开发测试必须独立data-dir和机器设置profile。
+内部用量投影版本 23 与应用 schema 5 独立。现行来源、事件与计价见 [Codex 原生采集](./codex-native-source-contract.md)。schema 3/4 升级前先做一致完整备份，schema 1/2 或未知资料继续拒绝自动打开。Windows 默认 `%LOCALAPPDATA%\aha`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/aha`。完整备份与来源重绑遵循 [恢复合同](./recovery-and-device-contract.md)。开发测试使用独立资料目录和本机设置。
 
 CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`；同目录单实例，复用不新增启动同步。runtime.json 含本次 PID/run_id/私有启动地址，不能加入材料或公开记录；持久锁文件退出后保留。详见 [实例与生命周期契约](./runtime-lifecycle-contract.md)。
 
@@ -36,12 +40,10 @@ CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`�
 
 ### 来源与长期事实
 
-- [sources.py](../../../src/aha/sources.py) 在 `mode=ro/query_only/trusted_schema=OFF` 的同一读事务中分块提取允许字段；包含已提交 WAL，亦支持源 DELETE 模式。源事务有墙钟/锁等待/取消预算，不用 live immutable，不改源日志模式或索引。
-- 仅采 `app_type=codex,data_source=codex_session` 明细，以及 Codex provider `_codex_session` 日汇总和必要价格依据。SQL 的生产入口是 `Store.sync_sql`，字面量流式解释到 staging，不执行输入 SQL、不加载无关配置。
-- 每次完整核对来源当前允许投影，仅新增/变化写本地。created_at 是事件时间，不是变更水位；来源删除不删已存历史，导入旧备份的时间不能成为覆盖当前值的理由。
-- `usage_records` 保存当前可索引事实，`usage_versions` 只追加实际内容修订，`record_evidence/record_aliases` 维护来源和经确认身份；来源 UUID/路径不能让同一消费变成新 key 绕过占用。
-- 源事务一致不等于整轮 CCS 重建完成。空源、明显缩水/汇总回退、未知来源和疑似重建必须保留旧事实并提示核对；未核实变化不能推进最近成功时间。
-- SQLite同步先完成受限白名单临时投影并释放源读锁，再按run规范化/暂存；两阶段独立预算与清理见[SQLite规范](./database-guidelines.md#sqlite-同步两阶段合同)。一次发布事实、归属、可用状态、日/月统计与版本；失败不暴露半批次或清空旧本地数据。只在每次工具启动一次及手动同步，不增加定时采集、自启或关闭后的采集机制。
+- Codex 来源按端只读。原生会话和压缩归档先提取最小用量投影，再分批暂存，本地发布事务同时提交事实、证据、进度与派生统计。仅启动和手动操作触发采集。
+- `usage_records` 保存当前可索引事实，`usage_versions` 追加实际内容版本。`record_evidence`、`codex_event_evidence` 和 `record_aliases` 保存来源和经确认身份。源文件移动或消失不更改既有金额、归属、占用和旧包。
+- 事件身份用于跨端去重。物理游标只用于续读。证据不足时展示待核对依据，曾保存的历史继续可查。
+- `Store.sync_data` 用于受控的已归一化 aha 历史投影。旧来源观测和数据语义参见 [历史 CCS 兼容记录](./ccs-source-compatibility.md)。
 
 ### 核算、覆盖与归属
 
@@ -68,7 +70,7 @@ CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`�
 | --- | --- |
 | SQLite 未含必要 WAL 修复 | unsupported_sqlite；创建应用库前拒绝 |
 | 旧/未知应用资料 | unsupported_store，保留原件，要求受控重建 |
-| CCS 版本/字段不兼容 | unsupported_schema / incompatible_schema，不发布 |
+| 来源文件不可达或记录不完整 | 按端不可达或部分覆盖，保留旧历史和未完成的读取位置 |
 | 源忙/预算超时/取消/超限 | source_busy / sync_cancelled / source_too_large，旧数据和成功时间保留 |
 | 本地回放/暂存预算超时 | sync_processing_timeout，不能误报来源读取超时，旧数据和成功时间保留 |
 | 源缩水、覆盖/修订未核实 | needs_review 或核对候选，不冒充完整同步成功 |
@@ -90,7 +92,7 @@ CLI 为 `python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`�
 
 ## 6. 必需测试与证据
 
-- test_sources/test_storage：DELETE 写提交等待及 WAL 清理交错，跨表一致/有界取消、源移除后重启、修订/候选/无变化、失败保留成功进度。
+- test_codex_sessions/test_native_sync/test_storage：有界增量、两个端独立提交、压缩回放、候选、成功时间、历史合计和冻结原包。
 - test_analysis/test_projects/test_session_meta：精确金额和超 int64 Token、北京时间、四视图游标/自豁免、内容绑定归属、普通/zstd 元数据和查询无外部读取。
 - test_claims/test_batches/test_claim_concurrency/test_evidence：相关索引候选、行式冻结/完整选择、并发竞争/失败原版、成本变化后frozen修订、深路径、流式四文件与原包。
 - test_http/test_http_cli/test_rebuild_trial_data：认证、有限同步状态、已打开修订失效、持久重放、源保护/清单完整性/删除失败恢复、退出与原生平台资源关闭。
@@ -104,7 +106,7 @@ rows = [row for row in all_history if row["created_at"] > last_time]
 zip_bytes = Path(package).read_bytes()
 
 # 正确：显式同步一次，查询只访问本地索引，下载使用路径分块。
-store.sync_sqlite(source_path, trigger="manual")
+store.sync_codex(source, confirmed_source_id, trigger="manual")
 preview = store.analyze(start_date, end_date, availability_mode="available")
 page = store.analysis_details(preview, size=50)
 package_path, filename = store.download(batch_id, version)
@@ -116,5 +118,56 @@ package_path, filename = store.download(batch_id, version)
 
 - 日/月派生统计按相同project/model/kind/state精确口径，在事实、分类、覆盖和占用变更的同一事务更新。完整自然月读月表，首尾非完整月份读日表，段间不能重叠。聚合不经过REAL；冻结主体仍按其完整成员。
 - keyset除tuple严格比较外，还须显式收紧event_time标量范围。执行计划和VM工作量应证明直接seek，不能仅凭SQL中存在游标断言深页恒定。
-- SQLite来源事务内不进行本地staging；释放源后，本机writer等待仍有界并检查取消。双线程测试须证明本地慢处理不持有CCS DELETE读锁，详见[两阶段合同](./database-guidelines.md#sqlite-同步两阶段合同)。
+- 源读取后再做本地 staging；本机写者等待与应用退出取消皆有界。详见 [原生提交合同](./database-guidelines.md#原生同步事务)。
 - 同源新key的旧语义成员缺席当前完整staging时才提示身份重建；本轮并存的同秒同Token不同key请求不能误合并。rollup代表量下降单独以已确认观察基线核对，不将降价误判为重建。
+
+
+## 分页核对与批量确认同一消费
+
+### 1. 范围
+
+修改待核对事项的筛选、证据投影、批量确认或派生统计时，核对 [核对模块](../../../src/aha/reconciliation.py) 和 [页面状态](../frontend/state-management.md#数据核对弹窗)。
+
+### 2. 入口
+
+读走 `reconciliation_summary`、`reconciliation_page`、`reconciliation_detail`；写走 `preview_reconciliation_batch` 和 `apply_reconciliation_batch`。来源修订和单笔选择继续使用 `resolve_reconciliation`。HTTP 字段见 [本机接口](../frontend/local-web-contract.md#2-http-入口)。
+
+### 3. 事实和事务
+
+- 批量资格使用当前 `codex_session` 历史明细、当前 `codex_native` 原生明细，以及原生当前版本的非待核实事件和参考价依据。核对关联须一对一，App、提供方、会话、模型、请求数和四类规范化 Token 均相同。历史时间可对应原生事件秒，也可对应当前原生响应已保存的唯一配对快照秒。按原生解析器规范化 UTC 和截取事件秒，并以北京时间识别历史日。历史候选及活跃原生事件在两种时间及快照身份上均须唯一。任一方已有别名、存在竞争事项、候选已占用或合并会改变项目归属时，交给单笔核对。
+- 十进制参考成本相同时沿用已入账历史。成本不同时，历史依据可用且新旧范围无占用、覆盖与来源冲突的事项在用户批量确认后采用实际原生事件时间和参考成本。预览展示采用候选的数量及这些事项的两个精确参考成本合计。
+- 全筛选以服务端同一选择范围展开，预览签名绑定采用政策、逐项采用决定、筛选、显式 ID、data/classification/claim revision、事项 generation、两边当前事实版本及采用的配对快照身份和时间。批准后的批量在单一写事务内重检签名、状态和资格。
+- 共享单笔的身份确认、历史占用保护和逐项审计。采用候选时通过已确认别名在历史逻辑身份上投影原生版本，保留旧事实及逐项原生采用决策。活跃项目归属随已核实的同一消费接续。批次汇集新旧受影响 scope，一次推进数据版本、刷新可用性和日月统计。操作签名及结果与事实一并持久化。来源、用量版本及历史报销原包作为证据保留。
+- 来源复读用原生事件身份续接已采用的版本，重读精确的历史前版只追加来源证据。历史导入重建记录标识时，保留的旧语义依然参加重复检测，身份未决的记录进入核对。
+- 资格与数量用集合查询和索引处理。页面最多返回 size 条简要记录。完整依据按事项读取，入口只请求待办总数。首页时间段内待核对用量数以分析结果为准。
+
+### 4. 校验与错误矩阵
+
+| 场景 | 结果 |
+| --- | --- |
+| 类型、状态、日期或分页无效 | 400，显示安全参数提示 |
+| 请求过期游标、预览的证据或资料发生变化 | 409，清理旧选择后重新查询和预览 |
+| 当前筛选没有符合批量规则的事项 | 409，展示当前筛选状态 |
+| 同幂等 key 再发同一请求 | 返回第一次提交结果 |
+| 同 key 对应不同说明或范围 | 409，已提交结果保持原值 |
+
+### 5. 场景
+
+精确且唯一的历史重复以批量「确认为同一消费」应用。未占用且只有参考成本不同的重复采用可核实的原生版本。已有占用且成本不同、用量或缓存存在差异、时间缺少可验证配对、或存在多个候选的事项在页面展开单独确认。已经占用的历史报销继续使用冻结金额和占用。
+
+### 6. 验证
+
+覆盖已入账历史与原生采集的真实候选、响应和快照跨秒、配对缺失或冲突、同秒不同原生事件、同旧记录多个候选、成本差异预览和采用、历史与原生复读、跨日统计、归属、范围跨过 1,000 条、单批一次重算、签名过期、幂等重放、已保存报销原 ZIP 和占用。用真实浏览器验证分页、全选、成本影响、说明、单笔和刷新失败。
+
+### 7. 提交示例
+
+逐次调用单笔入口会为相同 scope 多次重建派生统计。一批确认共享一个预览和提交，事务末尾统一刷新。
+
+```python
+page = store.reconciliation_page(filters)
+preview = store.preview_reconciliation_batch({"filters": filters, "version": page["version"]})
+store.apply_reconciliation_batch({
+    "filters": filters, "preview_hash": preview["preview_hash"],
+    "reason": reason, "idempotency_key": key,
+})
+```

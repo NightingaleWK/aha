@@ -45,7 +45,7 @@ CLI：`python -m aha [--data-dir PATH] [--port 0] [--no-browser] [--no-tray]`。
 
 ## 5. 正常、基础与错误场景
 
-- 正常：连续双击重开同一服务，刷新/多标签只恢复已有启动 job；第一次 no-browser 后打开页面仍可触发首轮同步。
+- 正常：连续双击重开同一服务，刷新/多标签只恢复已有启动 job；首次启动在就绪后按确认来源调度一次，即使使用 no-browser。
 - 基础：无桌面检查显式 no-tray；两个资料目录拥有独立服务和端口 Cookie，退出一个不影响另一个。
 - 错误：仅凭 PID 或端口判断身份、先放锁再等 worker、关标签自动退出、将 OneFile bootloader 父子 PID 当成两个服务。
 
