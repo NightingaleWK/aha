@@ -68,4 +68,4 @@ Linux 全量运行 396 项，2 项平台专用跳过，Windows 原生相关 83 �
 
 从功能提交 `6ee52e9` 原生重建并验证 Directory 和 OneFile。构建运行时摘要与公开版 v0.6.0 相同。Windows Chrome 复验本机认证、核对弹窗及键盘焦点。Excel 16.0 实际打开两种成品的 CSV，行数、Token 和参考成本与导出清单一致。两份费用说明均由 Chrome 打印成 A4 PDF 并保留精确参考成本。
 
-发布门禁识别到目录版、单文件、浏览器、Excel 和打印回执。本机还缺托盘实点确认。隔离托盘测试已验证启动并在等待时段结束后自动退出。正式 v0.7.0 云端候选由通过审阅的版本 PR 触发。[专项记录](research/release-preparation-v0.7.0.json) · [发布回执](../../../../../.release/acceptance/reconciliation-v0.7.0.json)
+2026-11-25，维护者在 Windows 通知区实际双击打开、从右键菜单打开、再从菜单退出隔离 aha 实例。进程以 0 退出，运行描述符移除，本机端口关闭。发布门禁识别到目录版、单文件、浏览器、Excel、打印及托盘回执。正式 v0.7.0 云端候选由通过审阅并合并的版本 PR 触发。[专项记录](research/release-preparation-v0.7.0.json) · [托盘实点记录](research/release-tray-v0.7.0.json) · [托盘回执](../../../../../.release/acceptance/reconciliation-v0.7.0-tray.json)
