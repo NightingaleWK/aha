@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "version": "0.8.0",
+  "base_sha": "fe36e96fd45c2cbe450a7aace03fef0d344f0aaa",
+  "previous_tag": "v0.7.0",
+  "fragment_ids": [
+    "codex-compaction-sync",
+    "retire-legacy-rollups",
+    "workbench-ui-refresh"
+  ],
+  "notes_sha256": "d901424d8456fe1d3c840012c317dd19a3042c8da9c319f64f7aad530372e92b"
+}
