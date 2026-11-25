@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0](https://github.com/NightingaleWK/aha/compare/v0.7.0...v0.8.0) (2026-11-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* 退出旧日汇总并修复同步误报
+
+### 新增功能
+
+* 更新 aha 用量工作台 ([ebb59d8](https://github.com/NightingaleWK/aha/commit/ebb59d837b79c0cf302af5aac491a56fbe22248d))
+* 退出旧日汇总并修复同步误报 ([896536d](https://github.com/NightingaleWK/aha/commit/896536dde2d91515644d37f3a6048130486bf089))
+
 ## [0.7.0](https://github.com/NightingaleWK/aha/compare/v0.6.0...v0.7.0) (2026-11-25)
 
 
