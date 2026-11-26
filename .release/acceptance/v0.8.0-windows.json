@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "source_sha": "13ec403329bb5bdb2a86c35720a929b884f45cf6",
+  "candidate_source_sha": "13ec403329bb5bdb2a86c35720a929b884f45cf6",
+  "artifact_sha256": "3f0866a19f272f6e15090a927939132c29346e2f3582b23587d1d73eecb7f7e3",
+  "runtime_sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+  "completed_at": "2026-11-26T08:42:14+08:00",
+  "fingerprints": {
+    "full": "6abdca5a47ac1bca2fb836cafaab2b76b70fa7728f65889142bcd539a5cce5ce",
+    "tray": "24bb3d51b731fa32a63d3fcffd150e96e0264ce33f0a03d124e33bd2a8c038d0",
+    "materials": "12de7c0bc2b994a2bf64833b9bc5d7908847d7d57fd86165235019ec8ef9274b",
+    "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+  },
+  "checks": [
+    "directory",
+    "onefile",
+    "browser",
+    "tray",
+    "excel",
+    "print"
+  ],
+  "evidence": [
+    {
+      "scope": "directory",
+      "sha256": "d62b2eda7c1d7bc4a5644b93fdec5be249f2f870c9bc3916212d7624ac7b96c1",
+      "description": "GitHub Actions 原生 Windows 对候选源码的目录版完成启动、同步、备份还原、材料和退出验证。"
+    },
+    {
+      "scope": "onefile",
+      "sha256": "8c34da36b959df1d40bb36c6df92fcf1a082f0c9a6cb723b78d2e3e1e4062c43",
+      "description": "在本机运行草稿中同一份 Windows 单文件，核对 Windows 版本资源、同步和资源文件、备份还原、冻结材料、重复启动与退出。"
+    },
+    {
+      "scope": "browser",
+      "sha256": "bff716d6a2189f121b001da97c897b1f59c088395369aedb77a6b8c08f4c75cd",
+      "description": "Windows Chrome 在旧台账副本升级后核对备份和历史汇总移除。Windows 与 WSL 均完成同步，页面显示已同步，并能切换用量明细视图。"
+    },
+    {
+      "scope": "tray",
+      "sha256": "54ef31f218284b181a4420c668e69c660159ffa54c55017c4f7f9260f69b6790",
+      "description": "维护者实点候选的托盘双击、右键打开与右键退出。已复核退出后运行描述符清除且本机端口关闭。"
+    },
+    {
+      "scope": "excel",
+      "sha256": "8d898a2cd4843ae1ce57f0ba1a285bf5b869b5dcafaddeecc8e7a316c767b818",
+      "description": "用本机 Microsoft Excel 打开候选生成的逐笔和按日 CSV，核对字段、行数和精确参考成本。"
+    },
+    {
+      "scope": "print",
+      "sha256": "91caa0327fee5ddfb2297b636c37040022878165587b64cf25557f1cc1f2108d",
+      "description": "用 Windows Chrome 将候选生成的费用说明打印为 A4 PDF，核对纸张尺寸和精确参考成本。"
+    }
+  ]
+}
