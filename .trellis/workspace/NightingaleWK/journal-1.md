@@ -761,3 +761,35 @@ v0.5.1已正式公开，发布源码f044119；功能PR11与发布PR12均合入ma
 ### Status
 
 [OK] **Completed**
+
+
+## Session 29: v0.8.0 发布验收与任务归档
+<!-- trellis-session: v=2 fp=bc0942f33fa0a0ec -->
+
+**Date**: 2026-11-26
+**Task**: v0.8.0 发布验收与任务归档
+**Branch**: `main`
+
+### Summary
+
+工作台改版、旧 CC Switch 日汇总退役及同步误报修复已随 v0.8.0 发布。已核对 GitHub 下载和桌面 EXE 的字节，用户确认桌面版实测通过。
+
+### Main Changes
+
+- 已归档工作台改版和旧日汇总退役两项任务。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ebb59d8` | feat: 更新 aha 用量工作台 |
+| `896536d` | feat!: 退出旧日汇总并修复同步误报 |
+| `fe83f96` | chore: 记录 v0.8.0 Windows 验收 |
+
+### Testing
+
+- [OK] 正式候选通过台账升级、Windows 与 WSL 同步、托盘实点、Excel 和 A4 PDF 验收。
+
+### Status
+
+[OK] **Completed**
