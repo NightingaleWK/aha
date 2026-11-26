@@ -1,0 +1,61 @@
+# 本地提交计划
+
+**feat!: 退出旧日汇总并修复同步误报**
+
+此提交包含运行代码、原生和页面回归、契约和中文发版片段。
+
+## 文件
+
+- .release/changes/codex-compaction-sync.json
+- .release/changes/retire-legacy-rollups.json
+- .trellis/spec/backend/codex-native-source-contract.md
+- .trellis/spec/backend/database-guidelines.md
+- .trellis/spec/backend/directory-structure.md
+- .trellis/spec/backend/index.md
+- .trellis/spec/backend/project-association-contract.md
+- .trellis/spec/backend/quality-guidelines.md
+- .trellis/spec/backend/recovery-and-device-contract.md
+- .trellis/spec/backend/time-range-contract.md
+- .trellis/spec/backend/usage-evidence-contract.md
+- .trellis/spec/frontend/local-web-contract.md
+- .trellis/spec/frontend/type-safety.md
+- .trellis/spec/guides/cross-layer-thinking-guide.md
+- README.md
+- scripts/benchmark_ledger.py
+- src/aha/associations.py
+- src/aha/backup.py
+- src/aha/batches.py
+- src/aha/claims.py
+- src/aha/codex_sessions.py
+- src/aha/directory_bindings.py
+- src/aha/evidence.py
+- src/aha/ledger.py
+- src/aha/migrations.py
+- src/aha/native_sync.py
+- src/aha/queries.py
+- src/aha/reconciliation.py
+- src/aha/server.py
+- src/aha/source_bindings.py
+- src/aha/sync.py
+- src/aha/time_ranges.py
+- src/aha/web/app.js
+- src/aha/web/index.html
+- src/aha/web/style.css
+- src/aha/web/time-range-picker.js
+- tests/test_analysis.py
+- tests/test_assignment_coverage.py
+- tests/test_assignment_migration.py
+- tests/test_associations.py
+- tests/test_availability_scaling.py
+- tests/test_codex_sessions.py
+- tests/test_device_continuity.py
+- tests/test_directory_bindings.py
+- tests/test_evidence.py
+- tests/test_http.py
+- tests/test_migrations.py
+- tests/test_native_sync.py
+- tests/test_projects.py
+- tests/test_reconciliation_batch.py
+- tests/test_storage.py
+- tests/test_time_ranges.py
+- tests/web_state.test.cjs

@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "确定页面资源、组件、状态及适用检查"}
+{"file": ".trellis/spec/frontend/local-web-contract.md", "reason": "保留筛选、真实 HTTP、报销与冻结材料入口"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "原生表格、时间组件、dialog 和键盘焦点"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "预览代际、迟到响应、同步、保存和重试状态"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "精确金额、空和零、游标及 DOM 数据边界"}
+{"file": ".trellis/spec/backend/time-range-contract.md", "reason": "已解析北京时间、部分日和冻结材料规则"}
+{"file": ".trellis/tasks/11-25-workbench-ui-refresh/research/trend-data.md", "reason": "统计投影、选区粒度、只读接口和日表游标依据"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "真实页面、窄窗口、键盘及前端回归"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "查询边界、规模及原生验收要求"}
+{"file": ".trellis/spec/backend/delivery-and-cleanup.md", "reason": "Windows 成品、浏览器证据和临时目录收尾"}
+{"file": ".trellis/spec/backend/release-contract.md", "reason": "验证范围、发版片段与实际证据"}

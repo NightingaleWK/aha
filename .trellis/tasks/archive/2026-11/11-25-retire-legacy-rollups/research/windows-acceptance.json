@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "build_python": "3.15.2",
+  "build_sqlite": "3.53.4",
+  "source_fingerprint": "81c8d1a41940ca56199ba0871c59d81b43e0d45ebac9ab970390ce8ddc323117",
+  "application_version": "0.7.0",
+  "automated": {
+    "windows_full": 406,
+    "windows_final_targeted": 42,
+    "node": 90
+  },
+  "builds": {
+    "directory": {
+      "verified": true,
+      "executable_sha256": "e674c1c4c1ea292c897cf7f397bce02e40efdbba59d6e403dccce17f18fdfa12",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "codex-windows-incremental",
+        "codex-archive-idempotence",
+        "unavailable-source-history-preserved",
+        "legacy-endpoints-retired",
+        "codex-configured-startup",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ],
+      "tray_enabled": false
+    },
+    "portable": {
+      "verified": true,
+      "executable_sha256": "c1c15bf0b1931742900ca29ef2257736bb6288570214c469b543b56f55571f3e",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "codex-windows-incremental",
+        "codex-archive-idempotence",
+        "unavailable-source-history-preserved",
+        "legacy-endpoints-retired",
+        "codex-configured-startup",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ],
+      "tray_enabled": true
+    },
+    "desktop": {
+      "verified": true,
+      "executable_sha256": "c1c15bf0b1931742900ca29ef2257736bb6288570214c469b543b56f55571f3e",
+      "scopes": [
+        "native-exe",
+        "pe-version",
+        "http-authentication",
+        "resource-bytes",
+        "codex-windows-incremental",
+        "codex-archive-idempotence",
+        "unavailable-source-history-preserved",
+        "legacy-endpoints-retired",
+        "codex-configured-startup",
+        "usage-projection-23",
+        "full-backup-download",
+        "chunked-backup-upload",
+        "new-directory-restore",
+        "restored-source-rebinding",
+        "restored-repeat-sync-idempotence",
+        "frozen-material",
+        "same-directory-reopen",
+        "persistent-restart",
+        "shutdown-cleanup"
+      ],
+      "tray_enabled": true
+    }
+  },
+  "live": {
+    "before": {
+      "schema": 5,
+      "legacy_rollups_present": true,
+      "foreign_keys_valid": true
+    },
+    "after": {
+      "schema": 6,
+      "rollups": 0,
+      "rollup_versions": 0,
+      "existing_detail_and_projects_preserved": true,
+      "foreign_keys_valid": true
+    },
+    "job_status": "completed",
+    "endpoints": {
+      "windows": {
+        "status": "no_change",
+        "coverage": "complete",
+        "issues": {},
+        "last_success_at": "2026-11-25T07:36:53.991298+00:00"
+      },
+      "wsl": {
+        "status": "completed",
+        "coverage": "complete",
+        "issues": {},
+        "last_success_at": "2026-11-25T07:36:57.815307+00:00"
+      }
+    },
+    "ui": "已同步"
+  },
+  "backup_verified": true,
+  "excel_and_a4_verified": true,
+  "physical_tray_checked": false
+}

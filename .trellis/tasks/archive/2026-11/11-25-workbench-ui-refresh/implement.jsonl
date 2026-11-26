@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/frontend/index.md", "reason": "确定页面资源、组件、状态及适用检查"}
+{"file": ".trellis/spec/frontend/local-web-contract.md", "reason": "保留筛选、真实 HTTP、报销与冻结材料入口"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "原生表格、时间组件、dialog 和键盘焦点"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "预览代际、迟到响应、同步、保存和重试状态"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "精确金额、空和零、游标及 DOM 数据边界"}
+{"file": ".trellis/spec/backend/time-range-contract.md", "reason": "已解析北京时间、部分日和冻结材料规则"}
+{"file": ".trellis/tasks/11-25-workbench-ui-refresh/research/trend-data.md", "reason": "统计投影、选区粒度、只读接口和日表游标依据"}
+{"file": ".trellis/spec/backend/index.md", "reason": "确认 Store、查询和 HTTP 层的代码规范"}
+{"file": ".trellis/spec/backend/project-association-contract.md", "reason": "保留项目费用、目录关联影响和高级归属"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "核对趋势的生产、响应与 UI 消费"}
+{"file": ".trellis/spec/backend/release-contract.md", "reason": "中文 What’s New 与发布边界"}

@@ -1,0 +1,300 @@
+{
+  "schema_version": 1,
+  "source": {
+    "base_head": "2a8f05f767394ab9a2b4aedc318e8531d1bff918",
+    "copied_source_and_test_files": 87,
+    "snapshot_manifest_sha256": "68e131eb3988b6073a614f713e503650925a7e5e93329dbb1ad248e4e1d1373b",
+    "working_tree_fingerprints": {
+      "full": "8bc6c84b9fa193231f33e2bdf1ee97087f5949565cf8a822385b88344df47a61",
+      "tray": "8c8f6109378e7c0848e5a11decb42534a90544631d0300901d35b8e20a7c40f6",
+      "materials": "7c013d77073159e3cccd153bd0bfd0869fb695c9a4310c5a58984d9543b5ed20",
+      "recipe": "bc1b83967159c74e11c8372ca9a5c8d596efb345a05735ef944f0d7f613402df"
+    },
+    "work_commit": "ebb59d837b79c0cf302af5aac491a56fbe22248d"
+  },
+  "runtime": {
+    "sha256": "2d64ab084e0aa6c3d8ffab874ef7a08fd35b4fbf452dc1353e89d06dc7ea8642",
+    "build_environment": {
+      "python": [
+        3,
+        15,
+        2
+      ],
+      "sqlite": [
+        3,
+        53,
+        4
+      ],
+      "sqlite_version": "3.53.4",
+      "windows": true,
+      "bits": 64,
+      "machine": "AMD64",
+      "packages": {
+        "pyinstaller": "6.22.3",
+        "setuptools": "84.2.1",
+        "wheel": "0.48.0",
+        "zstandard": "0.25.0",
+        "altgraph": "0.17.5",
+        "packaging": "26.3",
+        "pefile": "2024.8.26",
+        "pyinstaller-hooks-contrib": "2026.9",
+        "pywin32-ctypes": "0.2.3"
+      }
+    },
+    "provenance": {
+      "published_release": "v0.7.0",
+      "published_exe_sha256": "263b16764a16825c60ec53144abc1f547d1e3456fac483fff976b3ceaf5f37df",
+      "sqlite_binary_sha256": {
+        "sqlite3.dll": "73530e8f4555605d716352ee98fe0ce205a09e5eec57e7e6360d4c915efcacd8",
+        "_sqlite3.pyd": "851e8bfa65328162ddad2dff9f7c213f8eceb2d90baf179aa472704ec3ca6295"
+      },
+      "zstandard_wheel_sha256": "96a8ae6ada00580b734505b51835d48f6a5c5de6b2075ea37cb3e9bb7b527455",
+      "zstandard_files_verified_against_release_record": 10
+    }
+  },
+  "automated": {
+    "windows_python": 399,
+    "linux_python": 399,
+    "linux_platform_skips": 2,
+    "node": 87,
+    "ruff": true,
+    "mypy": true,
+    "compileall": true
+  },
+  "directory": {
+    "schema_version": 1,
+    "verified": true,
+    "version": "0.7.0",
+    "executable_sha256": "d5bdc3f241b12bc5d00329d8ae88f059da5eb6fd47978616bd1febd4ccf4a0c9",
+    "pe_version": {
+      "file_version_parts": [
+        0,
+        7,
+        0,
+        0
+      ],
+      "file_version": "0.7.0",
+      "product_version_parts": [
+        0,
+        7,
+        0,
+        0
+      ],
+      "product_version": "0.7.0"
+    },
+    "material_sha256": "b90677986c572e36ee37071dfdaf3df1cf92eaf59afe430abfcbcd309f9be8f9",
+    "complete_backup": {
+      "sha256": "9c8ca6856e6a6a6d05a7dc3869dcf3399f7ad6aefbf9ca6b77ca1f122712a797",
+      "size": 27041,
+      "restored_source_rebound": true,
+      "facts": 3,
+      "active_claims": 3,
+      "original_material_sha256": "b90677986c572e36ee37071dfdaf3df1cf92eaf59afe430abfcbcd309f9be8f9"
+    },
+    "verified_at": "2026-11-25T14:12:42+08:00",
+    "scopes": [
+      "native-exe",
+      "pe-version",
+      "http-authentication",
+      "resource-bytes",
+      "codex-windows-incremental",
+      "codex-archive-idempotence",
+      "unavailable-source-history-preserved",
+      "legacy-endpoints-retired",
+      "codex-configured-startup",
+      "usage-projection-23",
+      "full-backup-download",
+      "chunked-backup-upload",
+      "new-directory-restore",
+      "restored-source-rebinding",
+      "restored-repeat-sync-idempotence",
+      "frozen-material",
+      "same-directory-reopen",
+      "persistent-restart",
+      "shutdown-cleanup"
+    ],
+    "tray_enabled": false,
+    "tray_physical_checked": false,
+    "browser_driven": false,
+    "office_checked": false,
+    "manual_checks": []
+  },
+  "onefile": {
+    "schema_version": 1,
+    "verified": true,
+    "version": "0.7.0",
+    "executable_sha256": "f67af0cb9855cfad412c965e86a4e073d2973904a86f15a99602817d460a6cbc",
+    "pe_version": {
+      "file_version_parts": [
+        0,
+        7,
+        0,
+        0
+      ],
+      "file_version": "0.7.0",
+      "product_version_parts": [
+        0,
+        7,
+        0,
+        0
+      ],
+      "product_version": "0.7.0"
+    },
+    "material_sha256": "5b1c263273679a5d5684f71527c6bf994c503a04b9fbd2e3020f54372e628fe0",
+    "complete_backup": {
+      "sha256": "43eb46d14123778f0b0f83af9724b6ef913b748aac104f4c73a5c15422279610",
+      "size": 27020,
+      "restored_source_rebound": true,
+      "facts": 3,
+      "active_claims": 3,
+      "original_material_sha256": "5b1c263273679a5d5684f71527c6bf994c503a04b9fbd2e3020f54372e628fe0"
+    },
+    "verified_at": "2026-11-25T14:15:29+08:00",
+    "scopes": [
+      "native-exe",
+      "pe-version",
+      "http-authentication",
+      "resource-bytes",
+      "codex-windows-incremental",
+      "codex-archive-idempotence",
+      "unavailable-source-history-preserved",
+      "legacy-endpoints-retired",
+      "codex-configured-startup",
+      "usage-projection-23",
+      "full-backup-download",
+      "chunked-backup-upload",
+      "new-directory-restore",
+      "restored-source-rebinding",
+      "restored-repeat-sync-idempotence",
+      "frozen-material",
+      "same-directory-reopen",
+      "persistent-restart",
+      "shutdown-cleanup"
+    ],
+    "tray_enabled": true,
+    "tray_physical_checked": false,
+    "browser_driven": false,
+    "office_checked": false,
+    "manual_checks": []
+  },
+  "desktop_delivery": {
+    "desktop": "Windows Desktop KnownFolder",
+    "path": "aha.exe",
+    "sha256": "f67af0cb9855cfad412c965e86a4e073d2973904a86f15a99602817d460a6cbc",
+    "bytes": 12519839
+  },
+  "desktop_browser": {
+    "verified": true,
+    "browser": "158.0.8127.88",
+    "checks": [
+      "dual source and partial failure",
+      "project association and keyboard search",
+      "Beijing filter, cancel and incomplete time coverage",
+      "daily scoped pagination and long trend",
+      "read only mode, drawer focus and reduced motion",
+      "zero claim, stale preview and redownload",
+      "old zip sha256",
+      "three pages at 1440/1366/1280/430/375",
+      "settings menu focus, backup/review entrances and UI exit"
+    ],
+    "expected_count": 174,
+    "expected_cost": "134.5691000"
+  },
+  "desktop_materials": {
+    "evidence_count": 172,
+    "evidence_cost_usd": "134.2112",
+    "evidence_sha256": "38a163e448b7c0c698e6b6ee16adf21685d2048799c23d539cec1419733280cd",
+    "old_evidence_sha256": "dcd7b6398b0f093de4633984956f60336edebe3bbca2e7f93b0aa651ce67da2b",
+    "runtime_descriptor_removed": true
+  },
+  "excel": {
+    "verified": true,
+    "excel_version": "16.0",
+    "files": [
+      {
+        "stage": "verify-directory-02",
+        "file": "使用明细.csv",
+        "rows_with_header": 4,
+        "columns": 23,
+        "all_cells_verified": true
+      },
+      {
+        "stage": "verify-directory-02",
+        "file": "每日汇总.csv",
+        "rows_with_header": 2,
+        "columns": 17,
+        "all_cells_verified": true
+      },
+      {
+        "stage": "verify-onefile",
+        "file": "使用明细.csv",
+        "rows_with_header": 4,
+        "columns": 23,
+        "all_cells_verified": true
+      },
+      {
+        "stage": "verify-onefile",
+        "file": "每日汇总.csv",
+        "rows_with_header": 2,
+        "columns": 17,
+        "all_cells_verified": true
+      }
+    ]
+  },
+  "print_a4": [
+    {
+      "stage": "verify-directory-02",
+      "pages": 1,
+      "a4_dimensions_pt": [
+        [
+          594.95996,
+          841.91998
+        ]
+      ],
+      "exact_cost_usd": "0.0003915",
+      "sha256": "96e2a62964f97a3447d346c8996c2cc36650cb38608bd34dd4815ae4d010f8a8"
+    },
+    {
+      "stage": "verify-onefile",
+      "pages": 1,
+      "a4_dimensions_pt": [
+        [
+          594.95996,
+          841.91998
+        ]
+      ],
+      "exact_cost_usd": "0.0003915",
+      "sha256": "1fe399a38904323054db7d0b169b9a57a6151299dd64ae5802b607cb2f712818"
+    }
+  ],
+  "screenshots": {
+    "projects.png": "edaf6a0192c12575c0398b8a2d8a6021eb990b44d04423f16a32c82340b80b55",
+    "claims.png": "48c292c6f9ea62c6fab706e2700d696d3862ad9e5e0fe81c33fb6525ce35efe0",
+    "claim.png": "36b1bc2fcfed64ef97033e0e6f8f29e7a9a5ed23dc9527311ac4b8fd6a4462bb",
+    "narrow.png": "996e3c6a53191ef70bdd43e74ac61eaf181bb35d44c69ab81eb83df6181fcc94",
+    "workbench.png": "3ffec3c5ddba405d61ecb3456d362f9e34eb98d85ae20fb1c790df1d91bbad3f"
+  },
+  "physical_tray_click": false,
+  "home_screenshot_source": "Windows Chrome and native source matching the packaged web assets",
+  "desktop_reopen": {
+    "same_run": true,
+    "old_and_new_packages_byte_identical": true,
+    "descriptor_removed": true,
+    "service_port_closed": true
+  },
+  "cleanup": {
+    "windows": {
+      "bytes": 729441713,
+      "files": 15175
+    },
+    "wsl": {
+      "bytes": 617764320,
+      "files": 10652
+    },
+    "owned_repository_bytecode": {
+      "bytes": 1111345,
+      "files": 39
+    },
+    "total_bytes": 1348317378
+  }
+}

@@ -1,0 +1,11 @@
+{"file":".trellis/spec/backend/usage-evidence-contract.md","reason":"逐笔证据、选择、占用和冻结材料"}
+{"file":".trellis/spec/backend/codex-native-source-contract.md","reason":"有界日志读取、游标和事件去重"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"迁移、回退和精确统计"}
+{"file":".trellis/spec/backend/recovery-and-device-contract.md","reason":"备份、旧结构和本机来源"}
+{"file":".trellis/spec/backend/time-range-contract.md","reason":"北京时间分钟、日聚合和材料主体"}
+{"file":".trellis/spec/backend/project-association-contract.md","reason":"保留可证实的目录归属与待归属明细"}
+{"file":".trellis/spec/frontend/local-web-contract.md","reason":"工作台、保存、下载与来源状态"}
+{"file":".trellis/spec/frontend/state-management.md","reason":"异步状态与预览修订"}
+{"file":".trellis/spec/frontend/component-guidelines.md","reason":"交互和键盘焦点"}
+{"file":".trellis/spec/backend/delivery-and-cleanup.md","reason":"真实 Windows 交付和本机清理"}
+{"file":".trellis/spec/guides/cross-layer-thinking-guide.md","reason":"迁移到分析和材料的边界"}
